@@ -1,0 +1,59 @@
+name: ai-ops-platform
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-mvp}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mvp}
+      POSTGRES_DB: ${POSTGRES_DB:-mvp}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ai-ops-platform-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+    labels:
+      com.ai-ops.storage-policy: "32GB maximum host budget"
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-mvp}:${POSTGRES_PASSWORD:-mvp}@postgres:5432/${POSTGRES_DB:-mvp}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      REQUIRED_CERTIFICATE_HOLDER: ${REQUIRED_CERTIFICATE_HOLDER:-Northwind Construction LLC}
+      MINIMUM_GL_OCCURRENCE_LIMIT: ${MINIMUM_GL_OCCURRENCE_LIMIT:-2000000}
+      RULES_VERSION: ${RULES_VERSION:-rules.v1}
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=2)"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  ai-ops-platform-postgres-data:
+    name: ai-ops-platform-postgres-data
