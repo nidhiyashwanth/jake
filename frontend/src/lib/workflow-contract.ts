@@ -326,9 +326,9 @@ function validateReferences(values: Array<WorkflowPromptReference | WorkflowMode
 export function serializeWorkflowSpec(spec: WorkflowSpec): Record<string, unknown> {
   return {
     schema_version: spec.schema_version,
-    nodes: spec.nodes.map((node) => ({ id: node.id, node_key: node.node_key, type: node.type, label: node.label, config: node.config })),
+    nodes: spec.nodes.map((node) => ({ id: node.id, key: node.node_key, type: node.type, label: node.label, config: node.config })),
     edges: spec.edges.map((edge) => ({ id: edge.id, from_node: edge.from_node, to_node: edge.to_node, condition: edge.condition })),
-    thresholds: spec.thresholds.map((threshold) => ({ key: threshold.key, value: threshold.value, label: threshold.label, unit: threshold.unit })),
+    thresholds: spec.thresholds.filter((threshold) => threshold.value !== null).map((threshold) => ({ key: threshold.key, value: threshold.value, description: threshold.label || threshold.unit })),
     prompts: spec.prompts.map((prompt) => ({ key: prompt.key, version: prompt.version })),
     model_configs: spec.model_configs.map((modelConfig) => ({ key: modelConfig.key, provider: modelConfig.provider, version: modelConfig.version })),
   };
@@ -420,7 +420,9 @@ export function normalizeWorkflowSummary(raw: unknown): WorkflowSummary {
     id: stringOf(value.id),
     workspace_id: stringOf(value.workspace_id),
     process_id: value.process_id === null || value.process_id === undefined ? null : stringOf(value.process_id),
+    key: value.key === null || value.key === undefined ? null : stringOf(value.key),
     name: stringOf(value.name, "Untitled workflow"),
+    description: value.description === null || value.description === undefined ? null : stringOf(value.description),
     status: stringOf(value.status, "draft"),
     updated_at: value.updated_at === null || value.updated_at === undefined ? null : stringOf(value.updated_at),
     current_version_id: value.current_version_id === null || value.current_version_id === undefined ? null : stringOf(value.current_version_id),
@@ -456,9 +458,9 @@ export function normalizeWorkflowDetail(raw: unknown): WorkflowDetail {
   const rawWorkflow = root.workflow ?? root.item ?? raw;
   const workflowRecord = recordOf(rawWorkflow);
   const workflow = normalizeWorkflowSummary(workflowRecord);
-  const rawVersions = arrayOf(root.versions ?? workflowRecord.versions ?? workflowRecord.workflow_versions);
+  const rawVersions = arrayOf(root.versions ?? workflowRecord.versions ?? workflowRecord.workflow_versions ?? (root.version ? [root.version] : []));
   const versions = rawVersions.map((version, index) => normalizeWorkflowVersion(version, workflow.id, index));
-  const rawDraft = root.draft_version ?? workflowRecord.draft_version ?? versions.find((version) => version.status === "draft");
+  const rawDraft = root.draft_version ?? workflowRecord.draft_version ?? root.version ?? versions.find((version) => version.status === "draft");
   const draftVersion = rawDraft ? normalizeWorkflowVersion(rawDraft, workflow.id, versions.length) : null;
   return { workflow, versions, draft_version: draftVersion };
 }

@@ -387,32 +387,32 @@ export const api = {
   getOpportunityScore: (scoreId: string) => request<DiscoveryResponse>(`/api/opportunity-scores/${scoreId}`),
   listWorkflows: async (): Promise<WorkflowListResponse> => normalizeWorkflowList(await request<unknown>("/api/workflows")),
   getWorkflow: async (workflowId: string): Promise<WorkflowDetail> => normalizeWorkflowDetail(await request<WorkflowResponse>(`/api/workflows/${workflowId}`)),
-  createWorkflow: async (payload: { name: string; process_id?: string | null }): Promise<WorkflowDetail> =>
+  createWorkflow: async (payload: { key: string; name: string; description?: string | null; process_id?: string | null }): Promise<WorkflowDetail> =>
     normalizeWorkflowDetail(await request<WorkflowResponse>("/api/workflows", { method: "POST", body: JSON.stringify(payload) })),
-  updateWorkflow: async (workflowId: string, payload: { name?: string; process_id?: string | null }): Promise<WorkflowDetail> =>
+  updateWorkflow: async (workflowId: string, payload: { key?: string; name?: string; description?: string | null; process_id?: string | null }): Promise<WorkflowDetail> =>
     normalizeWorkflowDetail(await request<WorkflowResponse>(`/api/workflows/${workflowId}`, { method: "PATCH", body: JSON.stringify(payload) })),
   createWorkflowVersion: async (workflowId: string, spec: WorkflowSpec, sourceVersionId?: string | null): Promise<WorkflowVersion> =>
     normalizeWorkflowVersion(
       await request<WorkflowVersionResponse>(`/api/workflows/${workflowId}/versions`, {
         method: "POST",
-        body: JSON.stringify({ spec: serializeWorkflowSpec(spec), source_version_id: sourceVersionId || undefined }),
+        body: JSON.stringify({ ...serializeWorkflowSpec(spec), source_version_id: sourceVersionId || undefined }),
       }),
       workflowId,
     ),
   updateWorkflowVersion: async (workflowId: string, versionId: string, spec: WorkflowSpec): Promise<WorkflowVersion> =>
     normalizeWorkflowVersion(
-      await request<WorkflowVersionResponse>(`/api/workflows/${workflowId}/versions/${versionId}`, {
+      await request<WorkflowVersionResponse>(`/api/workflow-versions/${versionId}`, {
         method: "PATCH",
-        body: JSON.stringify({ spec: serializeWorkflowSpec(spec) }),
+        body: JSON.stringify(serializeWorkflowSpec(spec)),
       }),
       workflowId,
     ),
   validateWorkflowVersion: (workflowId: string, versionId: string) =>
-    request<WorkflowValidationResponse>(`/api/workflows/${workflowId}/versions/${versionId}/validate`, { method: "POST" }),
+    request<WorkflowValidationResponse>(`/api/workflow-versions/${versionId}/validate`, { method: "POST" }),
   evaluateWorkflowVersion: (workflowId: string, versionId: string) =>
-    request<WorkflowVersionResponse>(`/api/workflows/${workflowId}/versions/${versionId}/evaluate`, { method: "POST" }),
+    request<WorkflowVersionResponse>(`/api/workflow-versions/${versionId}/evaluation-runs`, { method: "POST", body: JSON.stringify({ suite_key: "w01.synthetic.baseline" }) }),
   publishWorkflowVersion: (workflowId: string, versionId: string) =>
-    request<WorkflowPublishResponse>(`/api/workflows/${workflowId}/versions/${versionId}/publish`, { method: "POST" }),
+    request<WorkflowPublishResponse>(`/api/workflow-versions/${versionId}/publish`, { method: "POST" }),
 };
 
 function setActiveWorkspaceContext(workspaceId: string | null) {

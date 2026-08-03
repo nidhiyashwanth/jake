@@ -353,7 +353,9 @@ export interface WorkflowSummary {
   id: string;
   workspace_id: string;
   process_id?: string | null;
+  key?: string | null;
   name: string;
+  description?: string | null;
   status: WorkflowStatus;
   updated_at?: string | null;
   current_version_id?: string | null;

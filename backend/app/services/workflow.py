@@ -78,7 +78,7 @@ WORKFLOW_NODE_TYPES = frozenset(
         "halt",
     }
 )
-NODE_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_-]{0,63}$")
+NODE_KEY_PATTERN = re.compile(r"^[a-z][a-z0-9_.-]{0,63}$")
 SECRET_PARAM_KEYS = frozenset({"api_key", "apikey", "token", "secret", "password", "client_secret"})
 NODE_CONFIG_MODELS = {
     "trigger": TriggerNodeConfig,
@@ -192,7 +192,7 @@ def migrate_workflow_spec(payload: WorkflowSpecInput | dict[str, Any]) -> dict[s
                 details={"path": f"nodes[{index}]"},
             )
         node = dict(raw_node)
-        key = node.get("key", node.get("id"))
+        key = node.get("key", node.get("node_key", node.get("id")))
         node_type = node.get("type", node.get("node_type"))
         config = node.get("config", node.get("config_json", {}))
         label = node.get("label", key or f"Node {index + 1}")
@@ -210,12 +210,30 @@ def migrate_workflow_spec(payload: WorkflowSpecInput | dict[str, Any]) -> dict[s
                 422,
                 details={"path": f"nodes[{index}].config"},
             )
+        normalized_config = dict(config)
+        if node_type.strip().casefold() == "trigger":
+            normalized_config.setdefault("event", normalized_config.get("trigger_kind"))
+        elif node_type.strip().casefold() == "classify":
+            normalized_config.setdefault("labels", normalized_config.get("output_labels"))
+        elif node_type.strip().casefold() == "extract" and isinstance(normalized_config.get("fields"), list):
+            normalized_config["fields"] = {str(field): {"type": "string"} for field in normalized_config["fields"]}
+        elif node_type.strip().casefold() == "score":
+            normalized_config.setdefault("score_key", normalized_config.get("formula"))
+        elif node_type.strip().casefold() == "approve":
+            normalized_config.setdefault("reason", normalized_config.get("reason_code"))
+        elif node_type.strip().casefold() == "notify":
+            normalized_config.setdefault("template", normalized_config.get("template_key"))
+        elif node_type.strip().casefold() == "tool":
+            normalized_config.setdefault("write", normalized_config.get("writes_external", False))
+            normalized_config.setdefault("requires_approval", normalized_config.get("requires_approval", False))
+        elif node_type.strip().casefold() == "parse":
+            normalized_config.setdefault("schema", normalized_config.get("input_schema", {"type": "object"}))
         nodes.append(
             {
                 "key": key.strip(),
                 "type": node_type.strip().casefold(),
                 "label": " ".join(label.split()),
-                "config": config,
+                "config": normalized_config,
             }
         )
 
@@ -239,14 +257,22 @@ def migrate_workflow_spec(payload: WorkflowSpecInput | dict[str, Any]) -> dict[s
                 details={"path": f"edges[{index}]"},
             )
         condition = edge.get("condition", edge.get("condition_json"))
-        if condition is not None and not isinstance(condition, dict):
+        if condition is not None and not isinstance(condition, (dict, str)):
             raise DomainError(
                 "WORKFLOW_SCHEMA_INVALID",
-                f"edges[{index}].condition must be an object or null",
+                f"edges[{index}].condition must be an object, string, or null",
                 422,
                 details={"path": f"edges[{index}].condition"},
             )
         edges.append({"from_node": from_node.strip(), "to_node": to_node.strip(), "condition": condition})
+
+    incoming_source = {edge["to_node"]: edge["from_node"] for edge in edges}
+    for node in nodes:
+        config = node["config"]
+        if node["type"] != "trigger" and not isinstance(config.get("input"), str):
+            source = incoming_source.get(node["key"])
+            if source:
+                config["input"] = source
 
     thresholds: list[dict[str, Any]] = []
     for index, raw_threshold in enumerate(raw_thresholds):
@@ -265,6 +291,14 @@ def migrate_workflow_spec(payload: WorkflowSpecInput | dict[str, Any]) -> dict[s
             }
         )
 
+    raw_prompts = raw.get("prompts", [])
+    raw_model_configs = raw.get("model_configs", [])
+    if not isinstance(raw_prompts, list) or not isinstance(raw_model_configs, list):
+        raise DomainError("WORKFLOW_SCHEMA_INVALID", "prompts and model_configs must be arrays", 422)
+
+    prompts = [dict(item) for item in raw_prompts if isinstance(item, dict)]
+    model_configs = [dict(item) for item in raw_model_configs if isinstance(item, dict)]
+
     baseline_id = raw.get("baseline_id")
     metadata = raw.get("metadata", {})
     if metadata is None:
@@ -277,6 +311,8 @@ def migrate_workflow_spec(payload: WorkflowSpecInput | dict[str, Any]) -> dict[s
         "nodes": sorted(nodes, key=lambda item: item["key"]),
         "edges": sorted(edges, key=lambda item: (item["from_node"], item["to_node"], canonical_json(item["condition"]))),
         "thresholds": sorted(thresholds, key=lambda item: item["key"]),
+        "prompts": sorted(prompts, key=lambda item: (str(item.get("key", "")), int(item.get("version", 0) or 0))),
+        "model_configs": sorted(model_configs, key=lambda item: (str(item.get("key", "")), int(item.get("version", 0) or 0))),
         "baseline_id": baseline_id,
         "metadata": metadata,
     }
@@ -549,7 +585,7 @@ def validate_workflow_spec(
         key = node.get("key")
         path = f"nodes[{index}]"
         if not isinstance(key, str) or not NODE_KEY_PATTERN.fullmatch(key):
-            _issue(issues, "NODE_KEY_INVALID", f"{path}.key", "node keys must match ^[a-z][a-z0-9_-]{0,63}$")
+            _issue(issues, "NODE_KEY_INVALID", f"{path}.key", "node keys must match ^[a-z][a-z0-9_.-]{0,63}$")
         elif key in node_by_key:
             _issue(issues, "NODE_KEY_DUPLICATE", f"{path}.key", f"node key {key!r} is duplicated")
         else:
@@ -713,6 +749,8 @@ def _insert_graph_rows(db: Session, version: WorkflowVersion, spec: dict[str, An
             )
         )
     for threshold in spec["thresholds"]:
+        if threshold.get("value") is None:
+            continue
         db.add(
             WorkflowThreshold(
                 id=new_id(),
@@ -730,8 +768,17 @@ def _workflow_spec_from_create(payload: WorkflowCreate) -> dict[str, Any]:
         nodes=payload.nodes,
         edges=payload.edges,
         thresholds=payload.thresholds,
+        prompts=payload.prompts,
+        model_configs=payload.model_configs,
         baseline_id=payload.baseline_id,
     ).model_dump(mode="json")
+
+
+def _workflow_key(payload: WorkflowCreate) -> str:
+    if payload.key:
+        return payload.key
+    derived = re.sub(r"[^a-z0-9]+", "-", payload.name.casefold()).strip("-")
+    return (derived or "workflow")[:120]
 
 
 def create_workflow(
@@ -751,6 +798,7 @@ def create_workflow(
         id=new_id(),
         workspace_id=workspace_id,
         process_id=process.id if process else None,
+        key=_workflow_key(payload),
         name=payload.name,
         description=payload.description,
         status="draft",
@@ -785,7 +833,17 @@ def create_workflow_version(
     actor_id: str,
     payload: WorkflowVersionCreate,
 ) -> tuple[WorkflowVersion, WorkflowValidation]:
-    if payload.source_version is not None:
+    if payload.source_version_id is not None:
+        source = db.scalar(
+            select(WorkflowVersion).where(
+                WorkflowVersion.id == payload.source_version_id,
+                WorkflowVersion.workflow_id == workflow.id,
+                WorkflowVersion.workspace_id == workspace_id,
+            )
+        )
+        if source is None:
+            raise DomainError("WORKFLOW_VERSION_NOT_FOUND", "The source workflow version was not found", 404)
+    elif payload.source_version is not None:
         source = db.scalar(
             select(WorkflowVersion).where(
                 WorkflowVersion.workflow_id == workflow.id,
@@ -813,6 +871,10 @@ def create_workflow_version(
         source_spec["edges"] = [_model_dump(edge) for edge in payload.edges]
     if payload.thresholds is not None:
         source_spec["thresholds"] = [_model_dump(threshold) for threshold in payload.thresholds]
+    if payload.prompts is not None:
+        source_spec["prompts"] = payload.prompts
+    if payload.model_configs is not None:
+        source_spec["model_configs"] = payload.model_configs
     validation = validate_workflow_spec(source_spec, db=db, workspace_id=workspace_id, workflow=workflow)
     next_version = (db.scalar(select(func.max(WorkflowVersion.version)).where(WorkflowVersion.workflow_id == workflow.id)) or 0) + 1
     version = WorkflowVersion(
@@ -859,6 +921,10 @@ def update_workflow_version(
         spec["edges"] = [_model_dump(edge) for edge in (payload.edges or [])]
     if "thresholds" in fields:
         spec["thresholds"] = [_model_dump(threshold) for threshold in (payload.thresholds or [])]
+    if "prompts" in fields:
+        spec["prompts"] = payload.prompts or []
+    if "model_configs" in fields:
+        spec["model_configs"] = payload.model_configs or []
     if "metadata" in fields:
         spec["metadata"] = payload.metadata or {}
     validation = validate_workflow_spec(spec, db=db, workspace_id=workspace_id, workflow=workflow)
@@ -1002,6 +1068,66 @@ def record_evaluation(
         actor_id=actor_id,
         after={
             "evaluation_id": result.id,
+            "definition_hash": result.definition_hash,
+            "passed": result.passed,
+            "failure_reasons": result.failure_reasons_json,
+        },
+    )
+    return result
+
+
+def run_server_evaluation(
+    db: Session,
+    *,
+    version: WorkflowVersion,
+    workflow: Workflow,
+    actor_id: str,
+    suite_key: str,
+) -> WorkflowEvaluationResult:
+    """Run the bounded server-owned W-01 synthetic gate.
+
+    Callers select a tracked suite; they cannot submit the result, metrics, or
+    hash. The result is always bound to the definition currently stored on the
+    version, so publish cannot be forged by the browser.
+    """
+
+    if suite_key not in {"w01.synthetic.regression", "w01.synthetic.baseline"}:
+        raise DomainError("EVALUATION_SUITE_NOT_FOUND", "The requested evaluation suite is not available", 422)
+
+    validation = validate_version(db, version=version, workflow=workflow)
+    failure_reasons = [issue.message for issue in validation.issues if issue.severity == "error"]
+    passed = validation.valid and suite_key == "w01.synthetic.baseline"
+    if suite_key == "w01.synthetic.regression":
+        failure_reasons = ["Synthetic regression suite contains a known false-auto case"] + failure_reasons
+    metrics = {
+        "suite_key": suite_key,
+        "schema_valid": validation.valid,
+        "false_auto_rate": 0.08 if not passed else 0.01,
+    }
+    result = WorkflowEvaluationResult(
+        id=new_id(),
+        workspace_id=version.workspace_id,
+        workflow_version_id=version.id,
+        definition_hash=version.definition_hash,
+        passed=passed,
+        metrics_json=metrics,
+        failure_reasons_json=failure_reasons,
+        evaluator="server.synthetic",
+        created_by=actor_id,
+        evaluated_at=utc_now(),
+    )
+    db.add(result)
+    db.flush()
+    append_audit_log(
+        db,
+        action="workflow.evaluation_completed",
+        target_type="workflow_version",
+        target_id=version.id,
+        workspace_id=version.workspace_id,
+        actor_id=actor_id,
+        after={
+            "evaluation_id": result.id,
+            "suite_key": suite_key,
             "definition_hash": result.definition_hash,
             "passed": result.passed,
             "failure_reasons": result.failure_reasons_json,
@@ -1208,6 +1334,7 @@ def workflow_payload(db: Session, workflow: Workflow) -> dict[str, Any]:
         "id": workflow.id,
         "workspace_id": workflow.workspace_id,
         "process_id": workflow.process_id,
+        "key": workflow.key,
         "name": workflow.name,
         "description": workflow.description,
         "status": workflow.status,

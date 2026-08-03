@@ -15,6 +15,7 @@ from app.schemas import (
     PromptVersionCreate,
     WorkflowCreate,
     WorkflowEvaluationCreate,
+    WorkflowEvaluationRunRequest,
     WorkflowUpdate,
     WorkflowVersionCreate,
     WorkflowVersionPatch,
@@ -37,6 +38,7 @@ from app.services.workflow import (
     prompt_payload,
     publish_version,
     record_evaluation,
+    run_server_evaluation,
     update_workflow_version,
     validate_version,
     version_payload,
@@ -80,6 +82,15 @@ def create_workflow_route(payload: WorkflowCreate, db: ScopedDb) -> dict[str, An
             workspace_id=context.workspace_id,
             actor_id=context.user_id,
             after={"name": workflow.name, "version_id": version.id, "definition_hash": validation.definition_hash},
+        )
+        append_audit_log(
+            db,
+            action="workflow.version_created",
+            target_type="workflow_version",
+            target_id=version.id,
+            workspace_id=context.workspace_id,
+            actor_id=context.user_id,
+            after={"workflow_id": workflow.id, "version": version.version},
         )
         db.commit()
         db.refresh(workflow)
@@ -126,7 +137,17 @@ def get_workflow_route(workflow_id: str, db: ScopedDb) -> dict[str, Any]:
         purpose="workflow_detail",
     )
     db.commit()
-    return workflow_payload(db, workflow)
+    versions = db.scalars(
+        select(WorkflowVersion)
+        .where(WorkflowVersion.workflow_id == workflow.id, WorkflowVersion.workspace_id == context.workspace_id)
+        .order_by(WorkflowVersion.version)
+    ).all()
+    draft = next((version for version in reversed(versions) if version.status == "draft"), None)
+    return {
+        "workflow": workflow_payload(db, workflow),
+        "versions": [version_payload(db, version) for version in versions],
+        "draft_version": version_payload(db, draft) if draft else None,
+    }
 
 
 @router.patch("/workflows/{workflow_id}")
@@ -134,7 +155,9 @@ def update_workflow_route(workflow_id: str, payload: WorkflowUpdate, db: ScopedD
     context = current_context(db)
     authorize(db, context, "workflow.update", target_type="workflow", target_id=workflow_id)
     workflow = get_workflow_or_404(db, workflow_id, context.workspace_id)
-    before = {"name": workflow.name, "description": workflow.description}
+    before = {"key": workflow.key, "name": workflow.name, "description": workflow.description}
+    if "key" in payload.model_fields_set:
+        workflow.key = payload.key or workflow.key
     if "name" in payload.model_fields_set:
         workflow.name = payload.name or workflow.name
     if "description" in payload.model_fields_set:
@@ -147,7 +170,7 @@ def update_workflow_route(workflow_id: str, payload: WorkflowUpdate, db: ScopedD
         workspace_id=context.workspace_id,
         actor_id=context.user_id,
         before=before,
-        after={"name": workflow.name, "description": workflow.description},
+        after={"key": workflow.key, "name": workflow.name, "description": workflow.description},
     )
     try:
         db.commit()
@@ -201,6 +224,15 @@ def create_workflow_version_route(workflow_id: str, payload: WorkflowVersionCrea
             workspace_id=context.workspace_id,
             actor_id=context.user_id,
             after={"workflow_id": workflow.id, "version": version.version, "definition_hash": validation.definition_hash},
+        )
+        append_audit_log(
+            db,
+            action="workflow.version_created",
+            target_type="workflow_version",
+            target_id=version.id,
+            workspace_id=context.workspace_id,
+            actor_id=context.user_id,
+            after={"workflow_id": workflow.id, "version": version.version},
         )
         db.commit()
         db.refresh(version)
@@ -256,6 +288,25 @@ def update_workflow_version_route(
             before={"definition_hash": previous_hash},
             after={"definition_hash": validation.definition_hash, "validation": validation.as_dict()},
         )
+        append_audit_log(
+            db,
+            action="workflow.draft_updated",
+            target_type="workflow_version",
+            target_id=version.id,
+            workspace_id=context.workspace_id,
+            actor_id=context.user_id,
+            after={"definition_hash": validation.definition_hash, "valid": validation.valid},
+        )
+        if not validation.valid:
+            append_audit_log(
+                db,
+                action="workflow.validation_failed",
+                target_type="workflow_version",
+                target_id=version.id,
+                workspace_id=context.workspace_id,
+                actor_id=context.user_id,
+                after={"issues": [issue.as_dict() for issue in validation.issues]},
+            )
         db.commit()
         db.refresh(version)
     except IntegrityError as exc:
@@ -331,6 +382,15 @@ def record_workflow_evaluation_route(
     authorize(db, context, "workflow.evaluation.write", target_type="workflow_version", target_id=f"{workflow_id}:{version_number}")
     workflow, version = _workflow_version_or_404(db, workflow_id, version_number, context.workspace_id)
     result = record_evaluation(db, version=version, workflow=workflow, actor_id=context.user_id, payload=payload)
+    append_audit_log(
+        db,
+        action="workflow.evaluation_completed",
+        target_type="workflow_version",
+        target_id=version.id,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        after={"evaluation_id": result.id, "definition_hash": result.definition_hash, "passed": result.passed},
+    )
     db.commit()
     db.refresh(result)
     return {"evaluation": evaluation_payload(result), "gate": evaluation_gate_payload(db, version)}
@@ -341,15 +401,196 @@ def publish_workflow_version_route(workflow_id: str, version_number: int, db: Sc
     context = current_context(db)
     authorize(db, context, "workflow.publish", target_type="workflow_version", target_id=f"{workflow_id}:{version_number}")
     workflow, version = _workflow_version_or_404(db, workflow_id, version_number, context.workspace_id)
-    evaluation = publish_version(db, version=version, workflow=workflow, actor_id=context.user_id)
+    try:
+        evaluation = publish_version(db, version=version, workflow=workflow, actor_id=context.user_id)
+    except DomainError as exc:
+        append_audit_log(
+            db,
+            action="workflow.publish_denied",
+            target_type="workflow_version",
+            target_id=version.id,
+            workspace_id=context.workspace_id,
+            actor_id=context.user_id,
+            after={"code": exc.code, "details": exc.details or {}},
+        )
+        db.commit()
+        raise
     db.commit()
     db.refresh(version)
     db.refresh(workflow)
+    append_audit_log(
+        db,
+        action="workflow.published",
+        target_type="workflow_version",
+        target_id=version.id,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        after={"workflow_id": workflow.id, "version": version.version, "immutable_hash": version.immutable_hash},
+    )
+    db.commit()
     return {
         "workflow": workflow_payload(db, workflow),
         "version": version_payload(db, version),
         "evaluation": evaluation_payload(evaluation),
     }
+
+
+def _version_by_id_or_404(db: Session, version_id: str, workspace_id: str) -> tuple[Workflow, WorkflowVersion]:
+    version = db.scalar(
+        select(WorkflowVersion).where(
+            WorkflowVersion.id == version_id,
+            WorkflowVersion.workspace_id == workspace_id,
+        )
+    )
+    if version is None:
+        raise DomainError("WORKFLOW_VERSION_NOT_FOUND", f"Workflow version {version_id} was not found", 404)
+    workflow = get_workflow_or_404(db, version.workflow_id, workspace_id)
+    return workflow, version
+
+
+@router.get("/workflow-versions/{version_id}")
+def get_workflow_version_by_id_route(version_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "workflow.version.read", target_type="workflow_version", target_id=version_id)
+    _, version = _version_by_id_or_404(db, version_id, context.workspace_id)
+    return version_payload(db, version)
+
+
+@router.patch("/workflow-versions/{version_id}")
+def update_workflow_version_by_id_route(version_id: str, payload: WorkflowVersionPatch, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "workflow.version.update", target_type="workflow_version", target_id=version_id)
+    workflow, version = _version_by_id_or_404(db, version_id, context.workspace_id)
+    previous_hash = version.definition_hash
+    validation = update_workflow_version(
+        db,
+        version=version,
+        workflow=workflow,
+        workspace_id=context.workspace_id,
+        payload=payload,
+    )
+    append_audit_log(
+        db,
+        action="workflow.version.updated",
+        target_type="workflow_version",
+        target_id=version.id,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        before={"definition_hash": previous_hash},
+        after={"definition_hash": validation.definition_hash, "validation": validation.as_dict()},
+    )
+    append_audit_log(
+        db,
+        action="workflow.draft_updated",
+        target_type="workflow_version",
+        target_id=version.id,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        after={"definition_hash": validation.definition_hash, "valid": validation.valid},
+    )
+    if not validation.valid:
+        append_audit_log(
+            db,
+            action="workflow.validation_failed",
+            target_type="workflow_version",
+            target_id=version.id,
+            workspace_id=context.workspace_id,
+            actor_id=context.user_id,
+            after={"issues": [issue.as_dict() for issue in validation.issues]},
+        )
+    db.commit()
+    db.refresh(version)
+    return {"version": version_payload(db, version), "validation": validation.as_dict()}
+
+
+@router.post("/workflow-versions/{version_id}/validate")
+def validate_workflow_version_by_id_route(version_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "workflow.validate", target_type="workflow_version", target_id=version_id)
+    workflow, version = _version_by_id_or_404(db, version_id, context.workspace_id)
+    validation = validate_version(db, version=version, workflow=workflow)
+    if not validation.valid:
+        append_audit_log(
+            db,
+            action="workflow.validation_failed",
+            target_type="workflow_version",
+            target_id=version.id,
+            workspace_id=context.workspace_id,
+            actor_id=context.user_id,
+            after={"issues": [issue.as_dict() for issue in validation.issues]},
+        )
+    db.commit()
+    return {**validation.as_dict(), "evaluation_gate": evaluation_gate_payload(db, version), "version": version_payload(db, version, include_graph=False)}
+
+
+@router.post("/workflow-versions/{version_id}/evaluation-runs", status_code=201)
+def run_workflow_evaluation_route(
+    version_id: str,
+    payload: WorkflowEvaluationRunRequest,
+    db: ScopedDb,
+) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "workflow.evaluation.write", target_type="workflow_version", target_id=version_id)
+    workflow, version = _version_by_id_or_404(db, version_id, context.workspace_id)
+    result = run_server_evaluation(
+        db,
+        version=version,
+        workflow=workflow,
+        actor_id=context.user_id,
+        suite_key=payload.suite_key,
+    )
+    db.commit()
+    db.refresh(result)
+    return {
+        "evaluation": evaluation_payload(result),
+        "version_hash": result.definition_hash,
+        "passed": result.passed,
+        "failure_reasons": result.failure_reasons_json,
+        "evaluation_gate": evaluation_gate_payload(db, version),
+    }
+
+
+@router.post("/workflow-versions/{version_id}/publish")
+def publish_workflow_version_by_id_route(version_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "workflow.publish", target_type="workflow_version", target_id=version_id)
+    workflow, version = _version_by_id_or_404(db, version_id, context.workspace_id)
+    try:
+        evaluation = publish_version(db, version=version, workflow=workflow, actor_id=context.user_id)
+    except DomainError as exc:
+        append_audit_log(
+            db,
+            action="workflow.publish_denied",
+            target_type="workflow_version",
+            target_id=version.id,
+            workspace_id=context.workspace_id,
+            actor_id=context.user_id,
+            after={"code": exc.code, "details": exc.details or {}},
+        )
+        db.commit()
+        raise
+    db.commit()
+    db.refresh(version)
+    db.refresh(workflow)
+    append_audit_log(
+        db,
+        action="workflow.published",
+        target_type="workflow_version",
+        target_id=version.id,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        after={"workflow_id": workflow.id, "version": version.version, "immutable_hash": version.immutable_hash},
+    )
+    db.commit()
+    return {"workflow": workflow_payload(db, workflow), "version": version_payload(db, version), "evaluation": evaluation_payload(evaluation), "published": True}
+
+
+@router.get("/workflow-versions/{version_id}/graph")
+def get_workflow_graph_by_id_route(version_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "workflow.version.read", target_type="workflow_version", target_id=version_id)
+    _, version = _version_by_id_or_404(db, version_id, context.workspace_id)
+    return graph_payload(db, version)
 
 
 @router.post("/prompts", status_code=201)

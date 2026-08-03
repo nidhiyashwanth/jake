@@ -61,8 +61,8 @@ The documented non-product items remain deliberately deferred unless the owner c
 | H-01 | Full-product harness and task continuity | SEC-01 | passing | fresh-session test, task/state consistency, clean-exit verifier |
 | T-01 | Organizations, workspaces, auth, RBAC, RLS | H-01 | passing | 2026-08-04: live Compose/API/browser tenant-isolation, role, RLS, session, audit, and F01 evidence passed |
 | D-01 | Discovery, signed baselines, opportunity scoring | T-01 | passing | 2026-08-04: static contract, real Compose/PostgreSQL API E2E, backend suite, and live Discovery Studio browser flow passed |
-| W-01 | Workflow definitions, DAG versioning, designer, publish gate | D-01 | active | immutable-version and eval-gated publish E2E |
-| R-01 | Durable runtime, workers, outbox, model boundary | W-01 | not_started | crash/retry/idempotency/replay integration suite |
+| W-01 | Workflow definitions, DAG versioning, designer, publish gate | D-01 | passing | 2026-08-04: real Compose/PostgreSQL HTTP and browser E2E passed |
+| R-01 | Durable runtime, workers, outbox, model boundary | W-01 | active | crash/retry/idempotency/replay integration suite |
 | V-01 | Full review desk, queue, provenance, corrections | R-01 | not_started | keyboard/operator workflow and provenance E2E |
 | C-01 | MCP gateway, connectors, vault, notifications | R-01 | not_started | scoped connector sandbox and credential/audit tests |
 | P-01 | Rules, requirements, document taxonomy, chase agent | V-01 | not_started | wedge golden set and safe chase E2E |
@@ -114,12 +114,12 @@ The documented non-product items remain deliberately deferred unless the owner c
 
 ### W-01 - Workflow definitions, versioning, and designer
 
-- [ ] Implement workflow, version, node, edge, threshold, prompt, and model-config persistence.
-- [ ] Support form-driven DAG editing and read-only React Flow visualization before any drag/drop canvas.
-- [ ] Implement node schema for trigger, fetch, parse, classify, extract, rule, score, llm, tool, approve, notify, and halt.
-- [ ] Enforce schema-constrained model outputs, immutable published versions, version hashes, and backward-compatible migrations.
-- [ ] Block publish until the E-01 evaluation gate passes; show the failure reasons in the UI.
-- **Verification:** DAG validation tests, version immutability tests, forbidden-cycle tests, publish-gate E2E, read-only graph smoke.
+- [x] Implement workflow, version, node, edge, threshold, prompt, and model-config persistence.
+- [x] Support form-driven DAG editing and read-only React Flow-compatible visualization before any drag/drop canvas.
+- [x] Implement node schema for trigger, fetch, parse, classify, extract, rule, score, llm, tool, approve, notify, and halt.
+- [x] Enforce schema-constrained model outputs, immutable published versions, version hashes, and backward-compatible migrations.
+- [x] Block publish until the server-owned evaluation gate passes; show failure reasons in the UI.
+- **Verification:** `scripts/verify-workflows.ps1` passed static, real Compose/PostgreSQL HTTP, and live browser checks; HTTP evidence covered workspace isolation, schema/cycle/reference rejection, read-only graph, immutable SHA-256 versions, evaluation-gated publish, RBAC, and append-only audit; frontend 6 contract tests/typecheck/build passed; backend 20 workflow/regression tests passed in the isolated stack.
 
 ### R-01 - Durable execution runtime and worker boundary
 

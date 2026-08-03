@@ -62,14 +62,14 @@
       "id": "W-01",
       "behavior": "A builder can define a versioned DAG workflow and publish only an immutable version that passes its evaluation gate.",
       "verification": "DAG validation, version immutability, read-only graph, and publish-gate E2E suite",
-      "state": "active",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-workflows.ps1 passed static, real Compose/PostgreSQL HTTP, and live browser checks; HTTP evidence covered workspace isolation, schema/cycle/reference rejection, read-only graph, immutable SHA-256 versions, evaluation-gated publish, RBAC, and append-only audit; frontend 6 contract tests/typecheck/build passed; backend 20 workflow/regression tests passed in the isolated stack."
     },
     {
       "id": "R-01",
       "behavior": "A durable worker can execute workflow nodes with retries, idempotency, human waits, outbox events, crash recovery, and replay without side effects.",
       "verification": "Worker crash, retry, idempotency, outbox, and replay integration suite",
-      "state": "not_started",
+      "state": "active",
       "evidence": ""
     },
     {

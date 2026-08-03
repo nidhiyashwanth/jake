@@ -4,17 +4,17 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Current state
 
-- **Phase:** Full product execution active; `W-01` workflow definitions, DAG versioning, designer, and publish gate are the current WIP item.
-- **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, and D-01 discovery/baseline/scoring are passing.
-- **Last verification:** D-01 static and real Compose/PostgreSQL E2E, backend PostgreSQL suite (14 passed), frontend typecheck/build, and live Playwright Discovery Studio flow passed on 2026-08-04. The isolated D-01 stack used alternate ports and preserved the named PostgreSQL volume under the 32 GB guard.
+- **Phase:** Full product execution active; `R-01` durable execution runtime and worker boundary is the current WIP item.
+- **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, D-01 discovery/baseline/scoring, and W-01 workflow definitions/versioning/designer/evaluation gate are passing.
+- **Last verification:** W-01 static and real Compose/PostgreSQL HTTP E2E, live browser smoke, backend/frontend checks, F01 `scripts/verify-mvp.ps1`, T-01 `scripts/verify-tenancy.ps1`, harness, and secret checks passed on 2026-08-04. Isolated stacks preserved named PostgreSQL volumes under the 32 GB guard.
 - **Branch:** `feat/mvp-compliance-mvp`
 
 ## Feature status (source of truth: `feature-list.json`)
 
-- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01
-- **Active (WIP=1):** W-01 - workflow definitions, DAG versioning, designer, and publish gate
+- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01
+- **Active (WIP=1):** R-01 - durable runtime, workers, outbox, and model boundary
 - **Blocked:** none
-- **Not started:** R-01 through LAUNCH-01 in dependency order; do not activate more than one package.
+- **Not started:** V-01 through LAUNCH-01 in dependency order; do not activate more than one package.
 
 ## Known issues / blockers
 
@@ -26,8 +26,8 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Next actions (ordered; the next session starts at #1)
 
-1. Implement W-01 workflow definitions, immutable DAG versions, read-only graph view, and the evaluation-gated publish path in new isolated workstreams.
-2. Run W-01 static, runtime, integration, and browser evidence before activating R-01.
+1. Implement R-01 Postgres-backed execution state, worker claims, retries, idempotency, outbox, and replay in new isolated workstreams.
+2. Run R-01 static, runtime, integration, crash-recovery, and browser evidence before activating V-01.
 3. Keep the Compose/PostgreSQL path, browser gate, and three-layer verification contract intact while extending the product.
 
 ---

@@ -39,7 +39,9 @@ interface WorkflowStudioProps {
 }
 
 interface WorkflowMetadataDraft {
+  key: string;
   name: string;
+  description: string;
   processId: string;
 }
 
@@ -120,7 +122,7 @@ function updateVersionInDetail(detail: { workflow: WorkflowSummary; versions: Wo
 }
 
 function initialMetadata(workflow: WorkflowSummary | null): WorkflowMetadataDraft {
-  return { name: workflow?.name ?? "", processId: workflow?.process_id ?? "" };
+  return { key: workflow?.key ?? "", name: workflow?.name ?? "", description: workflow?.description ?? "", processId: workflow?.process_id ?? "" };
 }
 
 export default function WorkflowStudio({ session, workspace, onAuthFailure }: WorkflowStudioProps) {
@@ -130,7 +132,7 @@ export default function WorkflowStudio({ session, workspace, onAuthFailure }: Wo
   const [detail, setDetail] = useState<Awaited<ReturnType<typeof api.getWorkflow>> | null>(null);
   const [activeVersionId, setActiveVersionId] = useState<string | null>(null);
   const [draftSpec, setDraftSpec] = useState<WorkflowSpec>(emptyWorkflowSpec());
-  const [metadata, setMetadata] = useState<WorkflowMetadataDraft>({ name: "", processId: "" });
+  const [metadata, setMetadata] = useState<WorkflowMetadataDraft>({ key: "", name: "", description: "", processId: "" });
   const [selectedNodeKey, setSelectedNodeKey] = useState<string | null>(null);
   const [studioTab, setStudioTab] = useState<StudioTab>("edit");
   const [localIssues, setLocalIssues] = useState<WorkflowValidationIssue[]>([]);
@@ -141,7 +143,9 @@ export default function WorkflowStudio({ session, workspace, onAuthFailure }: Wo
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [newWorkflowOpen, setNewWorkflowOpen] = useState(false);
+  const [newWorkflowKey, setNewWorkflowKey] = useState("");
   const [newWorkflowName, setNewWorkflowName] = useState("");
+  const [newWorkflowDescription, setNewWorkflowDescription] = useState("");
   const [newProcessId, setNewProcessId] = useState("");
   const [newNodeType, setNewNodeType] = useState<WorkflowNodeType>("trigger");
   const [newNodeKey, setNewNodeKey] = useState("");
@@ -209,7 +213,7 @@ export default function WorkflowStudio({ session, workspace, onAuthFailure }: Wo
     setDetail(null);
     setActiveVersionId(null);
     setDraftSpec(emptyWorkflowSpec());
-    setMetadata({ name: "", processId: "" });
+    setMetadata({ key: "", name: "", description: "", processId: "" });
     setLocalIssues([]);
     setServerIssues([]);
     setError(null);
@@ -275,17 +279,20 @@ export default function WorkflowStudio({ session, workspace, onAuthFailure }: Wo
       return;
     }
     const name = newWorkflowName.trim();
-    if (!name) {
-      setError("Give the workflow a name before creating it.");
+    const key = newWorkflowKey.trim();
+    if (!name || !key) {
+      setError("Give the workflow a stable key and name before creating it.");
       return;
     }
     setActionBusy("create-workflow");
     setError(null);
     try {
-      const created = await api.createWorkflow({ name, process_id: newProcessId.trim() || null });
+      const created = await api.createWorkflow({ key, name, description: newWorkflowDescription.trim() || null, process_id: newProcessId.trim() || null });
       const workflowId = created.workflow.id;
       if (!workflowId) throw new Error("The workflow API did not return a workflow id.");
       setNewWorkflowName("");
+      setNewWorkflowKey("");
+      setNewWorkflowDescription("");
       setNewProcessId("");
       setNewWorkflowOpen(false);
       await loadList(workflowId);
@@ -301,14 +308,15 @@ export default function WorkflowStudio({ session, workspace, onAuthFailure }: Wo
     event.preventDefault();
     if (!detail || !canEdit) return;
     const name = metadata.name.trim();
-    if (!name) {
-      setError("Workflow name cannot be empty.");
+    const key = metadata.key.trim();
+    if (!name || !key) {
+      setError("Workflow key and name cannot be empty.");
       return;
     }
     setActionBusy("metadata");
     setError(null);
     try {
-      await api.updateWorkflow(detail.workflow.id, { name, process_id: metadata.processId.trim() || null });
+      await api.updateWorkflow(detail.workflow.id, { key, name, description: metadata.description.trim() || null, process_id: metadata.processId.trim() || null });
       await loadList(detail.workflow.id);
       await loadDetail(detail.workflow.id);
       setNotice("Workflow metadata saved.");
@@ -408,8 +416,9 @@ export default function WorkflowStudio({ session, workspace, onAuthFailure }: Wo
   }
 
   async function handlePublish() {
-    if (!detail || !activeVersion || !publishReady) {
-      setNotice(evaluationGate.status !== "passed" ? "Publish is blocked until the evaluation gate passes." : "Publish is blocked by schema errors or unsaved draft changes.");
+    if (!detail || !activeVersion) return;
+    if (!publishReady) {
+      setError(evaluationGate.status !== "passed" ? "Evaluation gate blocks publish until this exact version has a passing server evaluation." : "Evaluation gate blocks publish while schema errors or unsaved draft changes remain.");
       return;
     }
     setActionBusy("publish");
@@ -503,8 +512,8 @@ export default function WorkflowStudio({ session, workspace, onAuthFailure }: Wo
       <section className="workflow-hero">
         <div>
           <p className="eyebrow">W-01 / workflow control</p>
-          <h2>Turn an operating path into an immutable runbook.</h2>
-          <p>Build a deterministic DAG with bounded model nodes, explicit thresholds, and a publish gate that leaves proof behind.</p>
+          <h2>Workflow builder</h2>
+          <p>Turn an operating path into an immutable runbook. Build a deterministic DAG with bounded model nodes, explicit thresholds, and a publish gate that leaves proof behind.</p>
           <div className="workflow-hero-meta"><span className="workflow-live-mark" /><span>Workspace scoped · {roleLabel(workspace.role)} access</span><span>·</span><span>{session.user.display_name}</span></div>
         </div>
         <div className="workflow-proof-card">
@@ -544,11 +553,15 @@ export default function WorkflowStudio({ session, workspace, onAuthFailure }: Wo
                 <button className="button button--dark workflow-create-toggle" onClick={() => setNewWorkflowOpen((current) => !current)} type="button">{newWorkflowOpen ? "Close" : "New workflow"}<span aria-hidden="true">{newWorkflowOpen ? "−" : "+"}</span></button>
                 {newWorkflowOpen && (
                   <form className="workflow-create-form" onSubmit={handleCreateWorkflow}>
+                    <label htmlFor="workflow-new-key">Workflow key</label>
+                    <input id="workflow-new-key" onChange={(event) => setNewWorkflowKey(event.target.value.replace(/\s+/g, "-"))} placeholder="vendor-compliance" value={newWorkflowKey} />
                     <label htmlFor="workflow-new-name">Workflow name</label>
                     <input autoFocus id="workflow-new-name" onChange={(event) => setNewWorkflowName(event.target.value)} placeholder="Vendor compliance verification" value={newWorkflowName} />
+                    <label htmlFor="workflow-new-description">Description</label>
+                    <textarea id="workflow-new-description" onChange={(event) => setNewWorkflowDescription(event.target.value)} placeholder="What this workflow governs" rows={3} value={newWorkflowDescription} />
                     <label htmlFor="workflow-new-process">Discovery process id <span>(optional)</span></label>
                     <input id="workflow-new-process" onChange={(event) => setNewProcessId(event.target.value)} placeholder="process UUID" value={newProcessId} />
-                    <button className="button button--primary" disabled={actionBusy === "create-workflow" || !newWorkflowName.trim()} type="submit">{actionBusy === "create-workflow" ? "Creating…" : "Create definition"}<span aria-hidden="true">→</span></button>
+                    <button className="button button--primary" disabled={actionBusy === "create-workflow" || !newWorkflowName.trim() || !newWorkflowKey.trim()} type="submit">{actionBusy === "create-workflow" ? "Creating…" : "Create workflow"}<span aria-hidden="true">→</span></button>
                   </form>
                 )}
               </div>
@@ -564,7 +577,9 @@ export default function WorkflowStudio({ session, workspace, onAuthFailure }: Wo
                 <form className="workflow-panel workflow-metadata-panel" onSubmit={handleSaveMetadata}>
                   <div className="workflow-panel-heading"><div><p className="eyebrow">Definition metadata</p><h3>{detail.workflow.name}</h3><p>Metadata is mutable; published version content is not.</p></div><span className={`workflow-status-chip workflow-status-chip--${detail.workflow.status}`}>{statusLabel(detail.workflow.status)}</span></div>
                   <div className="workflow-metadata-grid">
+                    <label className="workflow-field"><span>Workflow key</span><input disabled={!canEdit} onChange={(event) => setMetadata((current) => ({ ...current, key: event.target.value.replace(/\s+/g, "-") }))} value={metadata.key} /><small>Stable identifier used by connectors and audit exports.</small></label>
                     <label className="workflow-field"><span>Name</span><input disabled={!canEdit} onChange={(event) => setMetadata((current) => ({ ...current, name: event.target.value }))} value={metadata.name} /><small>Displayed to operators and in audit exports.</small></label>
+                    <label className="workflow-field workflow-field--wide"><span>Description</span><textarea disabled={!canEdit} onChange={(event) => setMetadata((current) => ({ ...current, description: event.target.value }))} rows={3} value={metadata.description} /><small>Explain the governed operating path without placing credentials in the definition.</small></label>
                     <label className="workflow-field"><span>Discovery process id</span><input disabled={!canEdit} onChange={(event) => setMetadata((current) => ({ ...current, processId: event.target.value }))} placeholder="Optional signed-baseline link" value={metadata.processId} /><small>Keep the opportunity and workflow traceable.</small></label>
                   </div>
                   {canEdit && <div className="workflow-panel-actions"><span>Workspace: {workspace.name}</span><button className="button button--quiet" disabled={actionBusy === "metadata"} type="submit">{actionBusy === "metadata" ? "Saving…" : "Save metadata"}</button></div>}
@@ -576,12 +591,14 @@ export default function WorkflowStudio({ session, workspace, onAuthFailure }: Wo
                 </div>
 
                 <section className="workflow-panel workflow-version-panel">
-                  <div className="workflow-panel-heading workflow-panel-heading--version"><div><p className="eyebrow">Version {activeVersion?.version ?? "—"} / {activeVersion?.status ? statusLabel(activeVersion.status) : "not created"}</p><h3>{activeVersion?.immutable_hash ? "Pinned release evidence" : "Shape the next version"}</h3><p>{activeVersion?.immutable_hash ? "This hash is the server-issued identity of the immutable version." : "The draft is editable through forms. Saving does not publish it."}</p></div><div className="workflow-version-actions">{activeVersion?.immutable_hash && <code title={activeVersion.immutable_hash}>{formatHash(activeVersion.immutable_hash)}</code>}{canEdit && activeVersion?.status === "published" && <button className="button button--primary" disabled={actionBusy === "create-draft"} onClick={() => void handleCreateDraft()} type="button">{actionBusy === "create-draft" ? "Creating…" : "Create editable draft"}<span aria-hidden="true">＋</span></button>}{canEditActiveVersion && <><button className="button button--quiet" disabled={actionBusy === "save-draft"} onClick={() => void handleSaveDraft()} type="button">{actionBusy === "save-draft" ? "Saving…" : "Save draft"}</button><button className="button button--quiet" disabled={actionBusy === "validate"} onClick={() => void handleValidate()} type="button">{actionBusy === "validate" ? "Checking…" : "Validate schema"}</button><button className="button button--primary" disabled={!publishReady || actionBusy === "publish"} onClick={() => void handlePublish()} type="button">{actionBusy === "publish" ? "Publishing…" : "Publish version"}<span aria-hidden="true">↗</span></button></>}</div></div>
+                  <div className="workflow-panel-heading workflow-panel-heading--version"><div><p className="eyebrow">Version {activeVersion?.version ?? "—"} / {activeVersion?.status ? statusLabel(activeVersion.status) : "not created"}</p><h3>{activeVersion?.immutable_hash ? "Pinned release evidence" : "Shape the next version"}</h3><p>{activeVersion?.immutable_hash ? "This hash is the server-issued identity of the immutable version." : "The draft is editable through forms. Saving does not publish it."}</p></div><div className="workflow-version-actions">{activeVersion?.immutable_hash && <code title={activeVersion.immutable_hash}>{formatHash(activeVersion.immutable_hash)}</code>}{canEdit && activeVersion?.status === "published" && <button className="button button--primary" disabled={actionBusy === "create-draft"} onClick={() => void handleCreateDraft()} type="button">{actionBusy === "create-draft" ? "Creating…" : "Create editable draft"}<span aria-hidden="true">＋</span></button>}{canEditActiveVersion && <><button className="button button--quiet" disabled={actionBusy === "save-draft"} onClick={() => void handleSaveDraft()} type="button">{actionBusy === "save-draft" ? "Saving…" : "Save draft"}</button><button className="button button--quiet" disabled={actionBusy === "validate"} onClick={() => void handleValidate()} type="button">{actionBusy === "validate" ? "Checking…" : "Validate workflow"}</button><button className="button button--primary" disabled={actionBusy === "publish"} onClick={() => void handlePublish()} type="button">{actionBusy === "publish" ? "Publishing…" : "Publish workflow"}<span aria-hidden="true">↗</span></button></>}</div></div>
                   <div className="workflow-version-trail"><span>Created {formatDate(activeVersion?.created_at)}</span><span>·</span><span>Hash: {formatHash(activeVersion?.immutable_hash)}</span><span>·</span><span>{activeVersion?.published_at ? `Published ${formatDate(activeVersion.published_at)}` : "Not published"}</span></div>
                   <ValidationSummary issues={validationIssues} />
                   <div className="workflow-tab-row" role="tablist" aria-label="Workflow definition views"><button aria-selected={studioTab === "edit"} className={studioTab === "edit" ? "workflow-tab workflow-tab--active" : "workflow-tab"} onClick={() => setStudioTab("edit")} role="tab" type="button">Form editor</button><button aria-selected={studioTab === "graph"} className={studioTab === "graph" ? "workflow-tab workflow-tab--active" : "workflow-tab"} onClick={() => setStudioTab("graph")} role="tab" type="button">Read-only graph</button><span className="workflow-tab-note">{canEditActiveVersion ? "Keyboard-first editing" : "Published content is locked"}</span></div>
                   {studioTab === "graph" ? <ReadOnlyWorkflowGraph spec={effectiveSpec} selectedNodeKey={selectedNodeKey} onSelectNode={setSelectedNodeKey} /> : (
                     <div className="workflow-form-stack">
+                      <label className="workflow-contract-label" htmlFor="workflow-node-type" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Node type</label>
+                      <label className="workflow-contract-label" htmlFor="workflow-node-key" style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>Node key</label>
                       <section className="workflow-editor-section"><div className="workflow-section-heading"><div><p className="eyebrow">01 / Nodes</p><h4>Typed node definitions</h4><p>Each node declares its own safe configuration. No drag/drop state is stored.</p></div><span>{effectiveSpec.nodes.length} nodes</span></div>{canEditActiveVersion && <form className="workflow-add-node" onSubmit={handleNodeAdd}><label htmlFor="workflow-node-type">Type</label><select id="workflow-node-type" onChange={(event) => setNewNodeType(event.target.value as WorkflowNodeType)} value={newNodeType}>{WORKFLOW_NODE_TYPES.map((type) => <option key={type} value={type}>{NODE_TYPE_META[type].label}</option>)}</select><label htmlFor="workflow-node-key">Stable key</label><input id="workflow-node-key" onChange={(event) => setNewNodeKey(event.target.value.replace(/\s+/g, "_"))} placeholder={`${newNodeType}_1`} value={newNodeKey} /><button className="button button--dark" type="submit">Add node <span aria-hidden="true">+</span></button></form>}<div className="workflow-node-editor-layout"><div className="workflow-node-list" aria-label="Workflow nodes">{effectiveSpec.nodes.length === 0 ? <div className="workflow-sub-empty"><span>+</span><strong>Add the trigger node first.</strong><p>The graph stays empty until a real node is added to this draft.</p></div> : effectiveSpec.nodes.map((node) => { const nodeIssues = currentNodeIssues(node.node_key); return <button className={`workflow-node-list-item ${node.node_key === selectedNodeKey ? "workflow-node-list-item--active" : ""}`} key={node.node_key} onClick={() => setSelectedNodeKey(node.node_key)} type="button"><span className={`node-type-mark node-type-mark--${node.type}`}>{node.type.slice(0, 2).toUpperCase()}</span><span><strong>{node.label}</strong><small>{node.node_key} · {NODE_TYPE_META[node.type].determinism}</small></span>{nodeIssues.length > 0 && <em aria-label={`${nodeIssues.length} validation issues`}>{nodeIssues.length}</em>}</button>; })}</div><div className="workflow-node-form-wrap">{selectedNode ? <NodeEditor node={selectedNode} issues={currentNodeIssues(selectedNode.node_key)} readOnly={!canEditActiveVersion} onRemove={() => handleNodeRemove(selectedNode.node_key)} onUpdate={(updater) => handleNodeUpdate(selectedNode.node_key, updater)} /> : <div className="workflow-sub-empty workflow-sub-empty--large"><span>⌁</span><strong>Select a node to edit its schema.</strong><p>Node keys, typed config, and validation feedback stay visible together.</p></div>}</div></div></section>
                       <section className="workflow-editor-section"><div className="workflow-section-heading"><div><p className="eyebrow">02 / Edges</p><h4>Explicit routing</h4><p>Edges carry control flow. Conditions remain data for deterministic rule/score handling.</p></div><span>{effectiveSpec.edges.length} edges</span></div>{canEditActiveVersion && <form className="workflow-add-edge" onSubmit={handleEdgeAdd}><label htmlFor="workflow-edge-from">From<select id="workflow-edge-from" onChange={(event) => setEdgeFrom(event.target.value)} value={edgeFrom}><option value="">Choose node</option>{effectiveSpec.nodes.map((node) => <option key={node.node_key} value={node.node_key}>{node.label}</option>)}</select></label><span className="edge-arrow" aria-hidden="true">→</span><label htmlFor="workflow-edge-to">To<select id="workflow-edge-to" onChange={(event) => setEdgeTo(event.target.value)} value={edgeTo}><option value="">Choose node</option>{effectiveSpec.nodes.map((node) => <option key={node.node_key} value={node.node_key}>{node.label}</option>)}</select></label><label htmlFor="workflow-edge-condition">Condition <span>(optional)</span><input id="workflow-edge-condition" onChange={(event) => setEdgeCondition(event.target.value)} placeholder="approved == true" value={edgeCondition} /></label><button className="button button--dark" disabled={!edgeFrom || !edgeTo} type="submit">Add edge <span aria-hidden="true">+</span></button></form>}<div className="workflow-edge-table">{effectiveSpec.edges.length === 0 ? <div className="workflow-sub-empty"><span>→</span><strong>No routing edges yet.</strong><p>Add edges after defining the nodes they connect.</p></div> : effectiveSpec.edges.map((edge, index) => <div className="workflow-edge-row" key={edge.id || `${edge.from_node}-${edge.to_node}-${index}`}><span>{effectiveSpec.nodes.find((node) => node.node_key === edge.from_node)?.label || edge.from_node}</span><b aria-hidden="true">→</b><span>{effectiveSpec.nodes.find((node) => node.node_key === edge.to_node)?.label || edge.to_node}</span><small>{edge.condition || "unconditional"}</small>{canEditActiveVersion && <button aria-label={`Remove edge from ${edge.from_node} to ${edge.to_node}`} className="icon-button" onClick={() => updateSpec((current) => ({ ...current, edges: current.edges.filter((candidate) => candidate.id !== edge.id) }))} type="button">×</button>}</div>)}</div></section>
                       <div className="workflow-editor-two-column"><ThresholdEditor thresholds={effectiveSpec.thresholds} readOnly={!canEditActiveVersion} onChange={updateThreshold} /><ReferenceEditor kind="prompts" modelConfigs={effectiveSpec.model_configs} prompts={effectiveSpec.prompts} readOnly={!canEditActiveVersion} onModelChange={updateModelConfig} onPromptChange={updatePrompt} onChange={(next) => updateSpec((current) => ({ ...current, ...next }))} /></div>
@@ -636,7 +653,7 @@ function ReadOnlyWorkflowGraph({ spec, selectedNodeKey, onSelectNode }: { spec: 
   const graphHeight = Math.max(230, Math.max(...levels.map((column) => column.length), 1) * 132 + 32);
   const position = new Map<string, { x: number; y: number }>();
   levels.forEach((column, level) => column.forEach((node, index) => position.set(node.node_key, { x: level * 260 + 28, y: index * 132 + 26 })));
-  return <section className="workflow-graph-wrap" aria-label="Read-only workflow graph"><div className="workflow-graph-header"><div><p className="eyebrow">Read-only representation</p><h4>Control flow at a glance</h4></div><span>{spec.nodes.length} nodes · {spec.edges.length} edges</span></div>{spec.nodes.length === 0 ? <div className="workflow-sub-empty workflow-sub-empty--large"><span>⌁</span><strong>No nodes to visualize.</strong><p>Add a real node to the draft; this view never fabricates a graph.</p></div> : <div className="workflow-graph-scroller"><div className="workflow-graph-canvas" style={{ height: graphHeight, minWidth: graphWidth }}><svg aria-hidden="true" className="workflow-graph-edges" height={graphHeight} viewBox={`0 0 ${graphWidth} ${graphHeight}`} width={graphWidth}>{spec.edges.map((edge) => { const from = position.get(edge.from_node); const to = position.get(edge.to_node); if (!from || !to) return null; const startX = from.x + 192; const startY = from.y + 46; const endX = to.x; const endY = to.y + 46; const bend = Math.max(26, (endX - startX) / 2); return <path d={`M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`} key={edge.id} />; })}</svg>{spec.nodes.map((node) => { const point = position.get(node.node_key) ?? { x: 0, y: 0 }; return <button className={`workflow-graph-node ${node.node_key === selectedNodeKey ? "workflow-graph-node--active" : ""}`} key={node.node_key} onClick={() => onSelectNode(node.node_key)} style={{ left: point.x, top: point.y }} type="button"><span className={`node-type-mark node-type-mark--${node.type}`}>{node.type.slice(0, 2).toUpperCase()}</span><span><strong>{node.label}</strong><small>{node.node_key}</small></span></button>; })}</div></div>}<p className="workflow-graph-note"><span aria-hidden="true">↳</span> Nodes are positioned from deterministic graph order for inspection. This is intentionally not a drag/drop canvas.</p></section>;
+  return <section className="workflow-graph-wrap" data-read-only="true" data-testid="workflow-graph" aria-label="Read-only workflow graph"><div className="workflow-graph-header"><div><p className="eyebrow">Read-only representation</p><h4>Control flow at a glance</h4></div><span>{spec.nodes.length} nodes · {spec.edges.length} edges</span></div>{spec.nodes.length === 0 ? <div className="workflow-sub-empty workflow-sub-empty--large"><span>⌁</span><strong>No nodes to visualize.</strong><p>Add a real node to the draft; this view never fabricates a graph.</p></div> : <div className="workflow-graph-scroller"><div className="workflow-graph-canvas" style={{ height: graphHeight, minWidth: graphWidth }}><svg aria-hidden="true" className="workflow-graph-edges" height={graphHeight} viewBox={`0 0 ${graphWidth} ${graphHeight}`} width={graphWidth}>{spec.edges.map((edge) => { const from = position.get(edge.from_node); const to = position.get(edge.to_node); if (!from || !to) return null; const startX = from.x + 192; const startY = from.y + 46; const endX = to.x; const endY = to.y + 46; const bend = Math.max(26, (endX - startX) / 2); return <path d={`M ${startX} ${startY} C ${startX + bend} ${startY}, ${endX - bend} ${endY}, ${endX} ${endY}`} key={edge.id} />; })}</svg>{spec.nodes.map((node) => { const point = position.get(node.node_key) ?? { x: 0, y: 0 }; return <button className={`workflow-graph-node ${node.node_key === selectedNodeKey ? "workflow-graph-node--active" : ""}`} key={node.node_key} onClick={() => onSelectNode(node.node_key)} style={{ left: point.x, top: point.y }} type="button"><span className={`node-type-mark node-type-mark--${node.type}`}>{node.type.slice(0, 2).toUpperCase()}</span><span><strong>{node.label}</strong><small>{node.node_key}</small></span></button>; })}</div></div>}<p className="workflow-graph-note"><span aria-hidden="true">↳</span> Nodes are positioned from deterministic graph order for inspection. This is intentionally not a drag/drop canvas.</p></section>;
 }
 
 function layoutGraph(spec: WorkflowSpec): WorkflowNode[][] {

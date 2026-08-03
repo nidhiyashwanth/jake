@@ -329,25 +329,40 @@ class HaltNodeConfig(_WorkflowNodeConfig):
 class WorkflowEdgeInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    from_node: str = Field(min_length=1, max_length=64)
-    to_node: str = Field(min_length=1, max_length=64)
-    condition: dict[str, Any] | None = None
+    id: str | None = Field(default=None, max_length=120)
+    from_node: str | None = Field(default=None, min_length=1, max_length=64)
+    to_node: str | None = Field(default=None, min_length=1, max_length=64)
+    source: str | None = Field(default=None, min_length=1, max_length=64)
+    target: str | None = Field(default=None, min_length=1, max_length=64)
+    condition: dict[str, Any] | str | None = None
 
-    @field_validator("from_node", "to_node")
+    @field_validator("from_node", "to_node", "source", "target")
     @classmethod
-    def trim_workflow_edge_key(cls, value: str) -> str:
+    def trim_workflow_edge_key(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
         value = value.strip()
         if not value:
             raise ValueError("workflow edge node keys cannot be blank")
         return value
+
+    @model_validator(mode="after")
+    def resolve_edge_aliases(self) -> "WorkflowEdgeInput":
+        self.from_node = self.from_node or self.source
+        self.to_node = self.to_node or self.target
+        if not self.from_node or not self.to_node:
+            raise ValueError("workflow edges require from_node/to_node or source/target")
+        return self
 
 
 class WorkflowThresholdInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     key: str = Field(min_length=1, max_length=100)
-    value: float = Field(allow_inf_nan=False)
+    value: float | None = Field(default=None, allow_inf_nan=False)
     description: str | None = Field(default=None, max_length=240)
+    operator: str | None = Field(default=None, max_length=20)
+    action: str | None = Field(default=None, max_length=80)
 
     @field_validator("key", "description")
     @classmethod
@@ -367,6 +382,8 @@ class WorkflowSpecInput(BaseModel):
     nodes: list[WorkflowNodeInput] = Field(default_factory=list, max_length=200)
     edges: list[WorkflowEdgeInput] = Field(default_factory=list, max_length=400)
     thresholds: list[WorkflowThresholdInput] = Field(default_factory=list, max_length=100)
+    prompts: list[dict[str, Any]] = Field(default_factory=list, max_length=100)
+    model_configs: list[dict[str, Any]] = Field(default_factory=list, max_length=100)
     baseline_id: str | None = Field(default=None, max_length=36)
     metadata: dict[str, Any] = Field(default_factory=dict)
 
@@ -374,6 +391,7 @@ class WorkflowSpecInput(BaseModel):
 class WorkflowCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    key: str | None = Field(default=None, min_length=1, max_length=120)
     name: str = Field(min_length=1, max_length=240)
     description: str | None = Field(default=None, max_length=5000)
     process_id: str | None = Field(default=None, max_length=36)
@@ -381,8 +399,10 @@ class WorkflowCreate(BaseModel):
     nodes: list[WorkflowNodeInput] = Field(default_factory=list, max_length=200)
     edges: list[WorkflowEdgeInput] = Field(default_factory=list, max_length=400)
     thresholds: list[WorkflowThresholdInput] = Field(default_factory=list, max_length=100)
+    prompts: list[dict[str, Any]] = Field(default_factory=list, max_length=100)
+    model_configs: list[dict[str, Any]] = Field(default_factory=list, max_length=100)
 
-    @field_validator("name", "description")
+    @field_validator("key", "name", "description")
     @classmethod
     def trim_workflow_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -396,16 +416,17 @@ class WorkflowCreate(BaseModel):
 class WorkflowUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
+    key: str | None = Field(default=None, min_length=1, max_length=120)
     name: str | None = Field(default=None, min_length=1, max_length=240)
     description: str | None = Field(default=None, max_length=5000)
 
     @model_validator(mode="after")
     def require_workflow_edit(self) -> "WorkflowUpdate":
         if not self.model_fields_set:
-            raise ValueError("name or description is required")
+            raise ValueError("key, name, or description is required")
         return self
 
-    @field_validator("name", "description")
+    @field_validator("key", "name", "description")
     @classmethod
     def trim_optional_workflow_text(cls, value: str | None) -> str | None:
         if value is None:
@@ -420,10 +441,13 @@ class WorkflowVersionCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     source_version: int | None = Field(default=None, ge=1)
+    source_version_id: str | None = Field(default=None, max_length=36)
     baseline_id: str | None = Field(default=None, max_length=36)
     nodes: list[WorkflowNodeInput] | None = Field(default=None, max_length=200)
     edges: list[WorkflowEdgeInput] | None = Field(default=None, max_length=400)
     thresholds: list[WorkflowThresholdInput] | None = Field(default=None, max_length=100)
+    prompts: list[dict[str, Any]] | None = Field(default=None, max_length=100)
+    model_configs: list[dict[str, Any]] | None = Field(default=None, max_length=100)
 
 
 class WorkflowVersionPatch(BaseModel):
@@ -434,6 +458,8 @@ class WorkflowVersionPatch(BaseModel):
     nodes: list[WorkflowNodeInput] | None = Field(default=None, max_length=200)
     edges: list[WorkflowEdgeInput] | None = Field(default=None, max_length=400)
     thresholds: list[WorkflowThresholdInput] | None = Field(default=None, max_length=100)
+    prompts: list[dict[str, Any]] | None = Field(default=None, max_length=100)
+    model_configs: list[dict[str, Any]] | None = Field(default=None, max_length=100)
     metadata: dict[str, Any] | None = None
 
     @model_validator(mode="after")
@@ -473,6 +499,20 @@ class WorkflowEvaluationCreate(BaseModel):
         if not self.passed and not self.failure_reasons:
             raise ValueError("failure_reasons are required when passed is false")
         return self
+
+
+class WorkflowEvaluationRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    suite_key: str = Field(min_length=1, max_length=160)
+
+    @field_validator("suite_key")
+    @classmethod
+    def trim_suite_key(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("suite_key cannot be blank")
+        return value
 
 
 class PromptCreate(BaseModel):

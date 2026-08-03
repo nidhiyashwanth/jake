@@ -359,10 +359,14 @@ class Workflow(WorkspaceScopedMixin, Base):
     """A named workflow whose executable definitions are versioned separately."""
 
     __tablename__ = "workflows"
-    __table_args__ = (UniqueConstraint("workspace_id", "name", name="uq_workflows_workspace_name"),)
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "key", name="uq_workflows_workspace_key"),
+        UniqueConstraint("workspace_id", "name", name="uq_workflows_workspace_name"),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     process_id: Mapped[str | None] = mapped_column(ForeignKey("processes.id"), nullable=True, index=True)
+    key: Mapped[str] = mapped_column(String(120), nullable=False)
     name: Mapped[str] = mapped_column(String(240), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")

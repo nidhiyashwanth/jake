@@ -33,11 +33,13 @@ def wait_for_login(page: Page) -> None:
     email = f"w01-browser-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}@example.invalid"
     email_field.fill(email)
     page.get_by_role("button", name="Start local session").click()
-    page.get_by_text("Local dev auth").wait_for()
+    page.get_by_role("button", name="Sign out").wait_for()
 
 
 def require_form_label(page: Page, label: str) -> None:
-    if page.get_by_label(label, exact=True).count() < 1:
+    locator = page.get_by_label(label, exact=True)
+    locator.first.wait_for()
+    if locator.count() < 1:
         raise AssertionError(f"W-01 browser contract missing form label: {label}")
 
 
@@ -78,6 +80,9 @@ def main() -> None:
             page.get_by_role("button", name=ui["navigation_name"]).click()
             page.get_by_role("heading", name=ui["heading"]).wait_for()
 
+            if page.get_by_label("Workflow name", exact=True).count() == 0:
+                page.get_by_role("button", name="New workflow").click()
+
             for label in ui["required_form_labels"][:3]:
                 require_form_label(page, label)
 
@@ -93,6 +98,7 @@ def main() -> None:
             for label in ui["required_form_labels"][3:]:
                 require_form_label(page, label)
 
+            page.get_by_role("tab", name="Read-only graph").click()
             graph = page.locator(ui["graph_selector"])
             graph.wait_for()
             if graph.get_attribute(ui["graph_read_only_attribute"]) != ui[
@@ -104,7 +110,7 @@ def main() -> None:
 
             page.get_by_role("button", name=ui["save_button_name"]).click()
             page.get_by_role("button", name=ui["publish_button_name"]).click()
-            failure = page.get_by_role(ui["evaluation_failure_role"])
+            failure = page.get_by_role(ui["evaluation_failure_role"]).filter(has_text=ui["evaluation_failure_text"])
             failure.wait_for()
             if ui["evaluation_failure_text"].lower() not in failure.inner_text().lower():
                 raise AssertionError(

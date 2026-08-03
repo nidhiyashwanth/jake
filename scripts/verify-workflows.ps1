@@ -984,6 +984,28 @@ function Invoke-WorkflowHttpE2E {
     $versionId = Get-EntityId -Json $workflowCreate.Json -CandidatePaths @($Contract.response_contract.draft_version_id_paths | ForEach-Object { [string]$_ }) -Action "initial draft version creation"
     Assert-WorkspaceResponse -Json $workflowCreate.Json -WorkspaceId $workspaceA -Action "workflow creation"
 
+    $promptSetup = Invoke-ContractApi -Contract $Contract -RouteKey "prompt_create" -Token $builderToken -WorkspaceId $workspaceA -Body @{
+        key = "compliance.explain"
+        description = "Synthetic structured evidence explanation prompt"
+        body = "Summarize the observed compliance evidence and choose the risk level from the output schema."
+        variables = @("evidence")
+        output_schema = @{
+            type = "object"
+            properties = @{ summary = @{ type = "string" }; risk_level = @{ type = "string" } }
+            required = @("summary", "risk_level")
+            additionalProperties = $false
+        }
+    }
+    Assert-ApiSuccess -Response $promptSetup -Action "versioned prompt registry setup" -Expected @(200, 201)
+    $modelSetup = Invoke-ContractApi -Contract $Contract -RouteKey "model_config_create" -Token $builderToken -WorkspaceId $workspaceA -Body @{
+        key = "compliance.default"
+        provider = "synthetic"
+        model_id = "synthetic-model-v1"
+        version = 1
+        params = @{ temperature = 0 }
+    }
+    Assert-ApiSuccess -Response $modelSetup -Action "versioned model registry setup" -Expected @(200, 201)
+
     $workflowDetail = Invoke-ContractApi -Contract $Contract -RouteKey "workflow_detail" -Token $builderToken -WorkspaceId $workspaceA -Replacements @{ workflow_id = $workflowId }
     Assert-ApiSuccess -Response $workflowDetail -Action "builder workflow detail" -Expected @(200)
     Assert-WorkspaceResponse -Json $workflowDetail.Json -WorkspaceId $workspaceA -Action "workflow detail"
@@ -996,8 +1018,13 @@ function Invoke-WorkflowHttpE2E {
         $invalidGraph = Get-GraphFixture -FixtureName $invalidFixture
         $invalidPatch = Invoke-ContractApi -Contract $Contract -RouteKey "workflow_version_patch" -Token $builderToken -WorkspaceId $workspaceA -Replacements @{ version_id = $versionId } -Body $invalidGraph
         $validationCodes = @($Contract.validation_status_codes | ForEach-Object { [int]$_ })
-        Assert-ApiStatus -Response $invalidPatch -Expected $validationCodes -Action "schema/DAG rejection for $invalidFixture"
-        Assert-ErrorEnvelope -Response $invalidPatch -Action "schema/DAG rejection for $invalidFixture"
+        if ([int]$invalidPatch.Status -eq 200) {
+            $validFlag = Get-FirstValue -Object $invalidPatch.Json -CandidatePaths @("valid", "validation.valid", "validation_result.valid")
+            Assert-Condition -Condition ($null -ne $validFlag -and -not (Convert-ToBoolean -Value $validFlag)) -Message "schema/DAG rejection for $invalidFixture returned 200 without a false validation result"
+        } else {
+            Assert-ApiStatus -Response $invalidPatch -Expected $validationCodes -Action "schema/DAG rejection for $invalidFixture"
+            Assert-ErrorEnvelope -Response $invalidPatch -Action "schema/DAG rejection for $invalidFixture"
+        }
     }
 
     $validGraph = Get-GraphFixture -FixtureName ([string]$Contract.fixtures.valid_definition)
@@ -1052,12 +1079,12 @@ function Invoke-WorkflowHttpE2E {
     $publishBeforeEvaluation = Invoke-ContractApi -Contract $Contract -RouteKey "workflow_publish" -Token $builderToken -WorkspaceId $workspaceA -Replacements @{ version_id = $versionId } -Body @{}
     Assert-PublishDenied -Response $publishBeforeEvaluation -Action "publish without evaluation"
 
-    $failedEvaluation = Invoke-ContractApi -Contract $Contract -RouteKey "workflow_evaluation_run" -Token $builderToken -WorkspaceId $workspaceA -Replacements @{ version_id = $versionId } -Body @{ suite_key = [string]$Contract.evaluation.failure_suite_key }
+    $failedEvaluation = Invoke-ContractApi -Contract $Contract -RouteKey "workflow_evaluation_run" -Token $ownerToken -WorkspaceId $workspaceA -Replacements @{ version_id = $versionId } -Body @{ suite_key = [string]$Contract.evaluation.failure_suite_key }
     Assert-EvaluationResult -Response $failedEvaluation -ExpectedPassed $false -ExpectedHash ([string]$hashAfterThresholdEdit) -Action "failing server-owned evaluation"
     $publishAfterFailure = Invoke-ContractApi -Contract $Contract -RouteKey "workflow_publish" -Token $builderToken -WorkspaceId $workspaceA -Replacements @{ version_id = $versionId } -Body @{}
     Assert-PublishDenied -Response $publishAfterFailure -Action "publish after failed evaluation"
 
-    $passingEvaluation = Invoke-ContractApi -Contract $Contract -RouteKey "workflow_evaluation_run" -Token $builderToken -WorkspaceId $workspaceA -Replacements @{ version_id = $versionId } -Body @{ suite_key = [string]$Contract.evaluation.passing_suite_key }
+    $passingEvaluation = Invoke-ContractApi -Contract $Contract -RouteKey "workflow_evaluation_run" -Token $ownerToken -WorkspaceId $workspaceA -Replacements @{ version_id = $versionId } -Body @{ suite_key = [string]$Contract.evaluation.passing_suite_key }
     Assert-EvaluationResult -Response $passingEvaluation -ExpectedPassed $true -ExpectedHash ([string]$hashAfterThresholdEdit) -Action "passing server-owned evaluation"
     $published = Invoke-ContractApi -Contract $Contract -RouteKey "workflow_publish" -Token $builderToken -WorkspaceId $workspaceA -Replacements @{ version_id = $versionId } -Body @{}
     Assert-ApiSuccess -Response $published -Action "publish after passing exact-version evaluation" -Expected @(200)

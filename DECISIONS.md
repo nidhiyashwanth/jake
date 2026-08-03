@@ -89,3 +89,11 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** The first real browser run found drift between the API contract, frontend payload shapes, source ingestion content type, and formula label. Contract-facing aliases keep the existing modular services reusable while the live browser gate proves the path users actually operate.
 - **Rejected alternative:** Accept arbitrary frontend payloads, silently use a second formula identifier, or disable CORS checks to make the alternate-port verifier pass.
 - **Remaining constraints:** Keep drafts human-editable and non-publishable, persist draft edits only after a real source interview exists, preserve signed-baseline immutability, and rerun the D-01 API plus browser gate when discovery or scoring changes.
+
+## D-012 - Treat workflow version IDs and server-owned evaluation as the public W-01 contract
+
+- **Date:** 2026-08-04
+- **Decision:** W-01 exposes stable workflow keys, ID-addressable immutable version routes, canonical form-driven DAG payloads, versioned prompt/model references, and server-owned synthetic evaluation suites. The read-only graph remains an inspection surface; publication requires a passing result bound to the exact definition hash.
+- **Why:** The live integration gate exposed drift between isolated frontend, backend, and verifier assumptions. A real product needs one durable ID contract, no client-forged evaluation result, and explicit proof that browser saves, workspace isolation, graph validation, and publish immutability operate against PostgreSQL.
+- **Rejected alternative:** Hide route/payload mismatches behind client adapters only, accept client-supplied pass/fail results, or treat a static graph screenshot as workflow persistence evidence.
+- **Remaining constraints:** Full golden-set evaluation, durable execution, connectors, review, ledger, governance, deployment, and launch packages remain separate dependency-gated work; published workflow children and evaluation results stay immutable.

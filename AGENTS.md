@@ -4,7 +4,7 @@ This workspace contains the research, product plan, and the runnable foundation 
 
 ## Current phase
 
-The harness baseline and F01 foundation are complete. The full documented product build is active: `SEC-01` is the current WIP item, and every subsequent package must be selected from `task.md` one at a time. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, `feature-list.json`, and `task.md` are the operational source of truth for agent work.
+The harness baseline, F01 foundation, and W-01 workflow-definition slice are passing. The full documented product build is active: `R-01` is the current WIP item, and every subsequent package must be selected from `task.md` one at a time. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, `feature-list.json`, and `task.md` are the operational source of truth for agent work.
 
 ## Start here
 
@@ -49,6 +49,12 @@ The current F01 product gate is:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
+```
+
+The current W-01 workflow-definition gate is:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-workflows.ps1
 ```
 
 The complete-product gate is the task board plus the relevant package checks. Do not mark a package passing until its row in `task.md`, its row in `feature-list.json`, and its executable evidence agree.
