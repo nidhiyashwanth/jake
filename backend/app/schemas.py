@@ -216,6 +216,310 @@ class OpportunityScoreRequest(BaseModel):
     input_provenance: dict[str, Any] = Field(default_factory=dict)
 
 
+WorkflowNodeType = Literal[
+    "trigger",
+    "fetch",
+    "parse",
+    "classify",
+    "extract",
+    "rule",
+    "score",
+    "llm",
+    "tool",
+    "approve",
+    "notify",
+    "halt",
+]
+
+
+class WorkflowNodeInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(min_length=1, max_length=64)
+    type: WorkflowNodeType
+    label: str = Field(min_length=1, max_length=240)
+    config: dict[str, Any] = Field(default_factory=dict)
+    position: dict[str, float] | None = None
+
+    @field_validator("key", "label")
+    @classmethod
+    def trim_workflow_node_text(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("workflow node text cannot be blank")
+        return value
+
+
+class _WorkflowNodeConfig(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+
+class TriggerNodeConfig(_WorkflowNodeConfig):
+    event: str | None = None
+    input_schema: dict[str, Any] | None = None
+
+
+class FetchNodeConfig(_WorkflowNodeConfig):
+    input: str | None = None
+    source: str | None = None
+    connector_key: str | None = None
+    resource: str | None = None
+
+
+class ParseNodeConfig(_WorkflowNodeConfig):
+    input: str | None = None
+    schema_: dict[str, Any] | None = Field(default=None, alias="schema")
+
+
+class ClassifyNodeConfig(_WorkflowNodeConfig):
+    input: str | None = None
+    labels: list[str] | None = None
+
+
+class ExtractNodeConfig(_WorkflowNodeConfig):
+    input: str | None = None
+    fields: dict[str, Any] | None = None
+
+
+class RuleNodeConfig(_WorkflowNodeConfig):
+    input: str | None = None
+    expression: str | None = None
+
+
+class ScoreNodeConfig(_WorkflowNodeConfig):
+    input: str | None = None
+    score_key: str | None = None
+
+
+class LlmNodeConfig(_WorkflowNodeConfig):
+    input: str | None = None
+    prompt_key: str | None = None
+    prompt_version: int | None = None
+    model_config_key: str | None = None
+    model_config_version: int | None = None
+    output_schema: dict[str, Any] | None = None
+
+
+class ToolNodeConfig(_WorkflowNodeConfig):
+    input: str | None = None
+    connector_key: str | None = None
+    tool_key: str | None = None
+    tool_name: str | None = None
+    write: bool = False
+    requires_approval: bool = False
+
+
+class ApproveNodeConfig(_WorkflowNodeConfig):
+    input: str | None = None
+    reason: str | None = None
+
+
+class NotifyNodeConfig(_WorkflowNodeConfig):
+    input: str | None = None
+    channel: str | None = None
+    recipient: str | None = None
+    template: str | None = None
+
+
+class HaltNodeConfig(_WorkflowNodeConfig):
+    input: str | None = None
+    reason: str | None = None
+
+
+class WorkflowEdgeInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    from_node: str = Field(min_length=1, max_length=64)
+    to_node: str = Field(min_length=1, max_length=64)
+    condition: dict[str, Any] | None = None
+
+    @field_validator("from_node", "to_node")
+    @classmethod
+    def trim_workflow_edge_key(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("workflow edge node keys cannot be blank")
+        return value
+
+
+class WorkflowThresholdInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(min_length=1, max_length=100)
+    value: float = Field(allow_inf_nan=False)
+    description: str | None = Field(default=None, max_length=240)
+
+    @field_validator("key", "description")
+    @classmethod
+    def trim_threshold_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("threshold text cannot be blank")
+        return value
+
+
+class WorkflowSpecInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str = Field(default="workflow.v1", max_length=40)
+    nodes: list[WorkflowNodeInput] = Field(default_factory=list, max_length=200)
+    edges: list[WorkflowEdgeInput] = Field(default_factory=list, max_length=400)
+    thresholds: list[WorkflowThresholdInput] = Field(default_factory=list, max_length=100)
+    baseline_id: str | None = Field(default=None, max_length=36)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class WorkflowCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=240)
+    description: str | None = Field(default=None, max_length=5000)
+    process_id: str | None = Field(default=None, max_length=36)
+    baseline_id: str | None = Field(default=None, max_length=36)
+    nodes: list[WorkflowNodeInput] = Field(default_factory=list, max_length=200)
+    edges: list[WorkflowEdgeInput] = Field(default_factory=list, max_length=400)
+    thresholds: list[WorkflowThresholdInput] = Field(default_factory=list, max_length=100)
+
+    @field_validator("name", "description")
+    @classmethod
+    def trim_workflow_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("workflow text cannot be blank")
+        return value
+
+
+class WorkflowUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=240)
+    description: str | None = Field(default=None, max_length=5000)
+
+    @model_validator(mode="after")
+    def require_workflow_edit(self) -> "WorkflowUpdate":
+        if not self.model_fields_set:
+            raise ValueError("name or description is required")
+        return self
+
+    @field_validator("name", "description")
+    @classmethod
+    def trim_optional_workflow_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("workflow text cannot be blank")
+        return value
+
+
+class WorkflowVersionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_version: int | None = Field(default=None, ge=1)
+    baseline_id: str | None = Field(default=None, max_length=36)
+    nodes: list[WorkflowNodeInput] | None = Field(default=None, max_length=200)
+    edges: list[WorkflowEdgeInput] | None = Field(default=None, max_length=400)
+    thresholds: list[WorkflowThresholdInput] | None = Field(default=None, max_length=100)
+
+
+class WorkflowVersionPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str | None = Field(default=None, max_length=40)
+    baseline_id: str | None = Field(default=None, max_length=36)
+    nodes: list[WorkflowNodeInput] | None = Field(default=None, max_length=200)
+    edges: list[WorkflowEdgeInput] | None = Field(default=None, max_length=400)
+    thresholds: list[WorkflowThresholdInput] | None = Field(default=None, max_length=100)
+    metadata: dict[str, Any] | None = None
+
+    @model_validator(mode="after")
+    def require_version_edit(self) -> "WorkflowVersionPatch":
+        if not self.model_fields_set:
+            raise ValueError("a workflow version field is required")
+        return self
+
+
+class WorkflowEvaluationCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    definition_hash: str = Field(min_length=64, max_length=64)
+    passed: bool
+    metrics: dict[str, Any] = Field(default_factory=dict)
+    failure_reasons: list[str] = Field(default_factory=list, max_length=100)
+    evaluator: str = Field(min_length=1, max_length=120)
+
+    @field_validator("definition_hash")
+    @classmethod
+    def validate_hash(cls, value: str) -> str:
+        value = value.strip().lower()
+        if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+            raise ValueError("definition_hash must be a SHA-256 hexadecimal hash")
+        return value
+
+    @field_validator("evaluator")
+    @classmethod
+    def trim_evaluator(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("evaluator cannot be blank")
+        return value
+
+    @model_validator(mode="after")
+    def require_failure_reasons_when_failed(self) -> "WorkflowEvaluationCreate":
+        if not self.passed and not self.failure_reasons:
+            raise ValueError("failure_reasons are required when passed is false")
+        return self
+
+
+class PromptCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(min_length=1, max_length=120)
+    description: str | None = Field(default=None, max_length=5000)
+    body: str = Field(min_length=1, max_length=100_000)
+    variables: list[str] = Field(default_factory=list, max_length=100)
+    output_schema: dict[str, Any] | None = None
+
+    @field_validator("key", "body", "description")
+    @classmethod
+    def trim_prompt_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        if not value.strip():
+            raise ValueError("prompt text cannot be blank")
+        return value.strip() if value == value.strip() else value
+
+
+class PromptVersionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    body: str = Field(min_length=1, max_length=100_000)
+    variables: list[str] = Field(default_factory=list, max_length=100)
+    output_schema: dict[str, Any] | None = None
+
+
+class ModelConfigCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(min_length=1, max_length=120)
+    provider: str = Field(min_length=1, max_length=80)
+    model_id: str = Field(min_length=1, max_length=160)
+    version: int | None = Field(default=None, ge=1)
+    params: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("key", "provider", "model_id")
+    @classmethod
+    def trim_model_config_text(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("model config text cannot be blank")
+        return value
+
+
 class DiscoveryDraftPatch(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

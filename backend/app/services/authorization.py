@@ -22,6 +22,29 @@ DISCOVERY_BUILD_ACTIONS = frozenset(
         "score.compute",
     }
 )
+WORKFLOW_READ_ACTIONS = frozenset(
+    {
+        "workflow.read",
+        "workflow.version.read",
+        "workflow.evaluation.read",
+        "prompt.read",
+        "model_config.read",
+    }
+)
+WORKFLOW_BUILD_ACTIONS = frozenset(
+    {
+        "workflow.create",
+        "workflow.update",
+        "workflow.version.create",
+        "workflow.version.update",
+        "workflow.validate",
+        "prompt.create",
+        "prompt.version.create",
+        "model_config.create",
+    }
+)
+WORKFLOW_PUBLISH_ACTION = "workflow.publish"
+WORKFLOW_EVALUATION_WRITE_ACTION = "workflow.evaluation.write"
 BASELINE_SIGN_ACTION = "baseline.sign"
 AUDIT_READ_ACTION = "audit.read"
 WRITE_ACTIONS = frozenset(
@@ -39,6 +62,9 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         GENERAL_READ_ACTIONS
         | DISCOVERY_READ_ACTIONS
         | DISCOVERY_BUILD_ACTIONS
+        | WORKFLOW_READ_ACTIONS
+        | WORKFLOW_BUILD_ACTIONS
+        | {WORKFLOW_PUBLISH_ACTION, WORKFLOW_EVALUATION_WRITE_ACTION}
         | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION}
         | WRITE_ACTIONS
         | MEMBERSHIP_ACTIONS
@@ -48,6 +74,9 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         GENERAL_READ_ACTIONS
         | DISCOVERY_READ_ACTIONS
         | DISCOVERY_BUILD_ACTIONS
+        | WORKFLOW_READ_ACTIONS
+        | WORKFLOW_BUILD_ACTIONS
+        | {WORKFLOW_PUBLISH_ACTION, WORKFLOW_EVALUATION_WRITE_ACTION}
         | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION}
         | WRITE_ACTIONS
         | MEMBERSHIP_ACTIONS
@@ -57,11 +86,16 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         GENERAL_READ_ACTIONS
         | DISCOVERY_READ_ACTIONS
         | DISCOVERY_BUILD_ACTIONS
+        | WORKFLOW_READ_ACTIONS
+        | WORKFLOW_BUILD_ACTIONS
+        | {WORKFLOW_PUBLISH_ACTION}
         | {"vendor.create", "document.upload", "document.verify"}
     ),
-    "operator": GENERAL_READ_ACTIONS | {"vendor.create", "document.upload", "document.verify", "review.update"},
-    "viewer": GENERAL_READ_ACTIONS | DISCOVERY_READ_ACTIONS,
-    "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"}) | DISCOVERY_READ_ACTIONS,
+    "operator": GENERAL_READ_ACTIONS | WORKFLOW_READ_ACTIONS | {"vendor.create", "document.upload", "document.verify", "review.update"},
+    "viewer": GENERAL_READ_ACTIONS | DISCOVERY_READ_ACTIONS | WORKFLOW_READ_ACTIONS,
+    "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"})
+    | DISCOVERY_READ_ACTIONS
+    | WORKFLOW_READ_ACTIONS,
 }
 
 

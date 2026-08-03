@@ -353,3 +353,184 @@ class DataAccessLog(Base):
     resource_type: Mapped[str] = mapped_column(String(80), nullable=False)
     purpose: Mapped[str] = mapped_column(String(160), nullable=False)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+
+class Workflow(WorkspaceScopedMixin, Base):
+    """A named workflow whose executable definitions are versioned separately."""
+
+    __tablename__ = "workflows"
+    __table_args__ = (UniqueConstraint("workspace_id", "name", name="uq_workflows_workspace_name"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    process_id: Mapped[str | None] = mapped_column(ForeignKey("processes.id"), nullable=True, index=True)
+    name: Mapped[str] = mapped_column(String(240), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    versions: Mapped[list["WorkflowVersion"]] = relationship(
+        back_populates="workflow", cascade="all, delete-orphan", order_by="WorkflowVersion.version"
+    )
+
+
+class WorkflowVersion(WorkspaceScopedMixin, Base):
+    """A draft is editable; a published version is database-enforced immutable."""
+
+    __tablename__ = "workflow_versions"
+    __table_args__ = (UniqueConstraint("workflow_id", "version", name="uq_workflow_versions_workflow_version"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    workflow_id: Mapped[str] = mapped_column(ForeignKey("workflows.id"), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(nullable=False)
+    schema_version: Mapped[str] = mapped_column(String(40), nullable=False, default="workflow.v1")
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    spec_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    definition_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    immutable_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    baseline_id: Mapped[str | None] = mapped_column(ForeignKey("baselines.id"), nullable=True, index=True)
+    eval_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    published_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    workflow: Mapped[Workflow] = relationship(back_populates="versions", foreign_keys=[workflow_id])
+    nodes: Mapped[list["WorkflowNode"]] = relationship(
+        back_populates="workflow_version", cascade="all, delete-orphan", order_by="WorkflowNode.node_key"
+    )
+    edges: Mapped[list["WorkflowEdge"]] = relationship(
+        back_populates="workflow_version", cascade="all, delete-orphan", order_by="WorkflowEdge.from_node"
+    )
+    thresholds: Mapped[list["WorkflowThreshold"]] = relationship(
+        back_populates="workflow_version", cascade="all, delete-orphan", order_by="WorkflowThreshold.key"
+    )
+    evaluations: Mapped[list["WorkflowEvaluationResult"]] = relationship(
+        back_populates="workflow_version", cascade="all, delete-orphan", order_by="WorkflowEvaluationResult.evaluated_at"
+    )
+
+
+class WorkflowNode(WorkspaceScopedMixin, Base):
+    __tablename__ = "workflow_nodes"
+    __table_args__ = (UniqueConstraint("workflow_version_id", "node_key", name="uq_workflow_nodes_version_key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    workflow_version_id: Mapped[str] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False, index=True)
+    node_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    node_type: Mapped[str] = mapped_column("type", String(20), nullable=False)
+    label: Mapped[str] = mapped_column(String(240), nullable=False)
+    config_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    position_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    sort_order: Mapped[int] = mapped_column(nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    workflow_version: Mapped[WorkflowVersion] = relationship(back_populates="nodes")
+
+
+class WorkflowEdge(WorkspaceScopedMixin, Base):
+    __tablename__ = "workflow_edges"
+    __table_args__ = (
+        UniqueConstraint(
+            "workflow_version_id", "from_node", "to_node", name="uq_workflow_edges_version_from_to"
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    workflow_version_id: Mapped[str] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False, index=True)
+    from_node: Mapped[str] = mapped_column(String(64), nullable=False)
+    to_node: Mapped[str] = mapped_column(String(64), nullable=False)
+    condition_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    workflow_version: Mapped[WorkflowVersion] = relationship(back_populates="edges")
+
+
+class WorkflowThreshold(WorkspaceScopedMixin, Base):
+    __tablename__ = "workflow_thresholds"
+    __table_args__ = (UniqueConstraint("workflow_version_id", "key", name="uq_workflow_thresholds_version_key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    workflow_version_id: Mapped[str] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
+    value: Mapped[float] = mapped_column(Float, nullable=False)
+    description: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    workflow_version: Mapped[WorkflowVersion] = relationship(back_populates="thresholds")
+
+
+class Prompt(WorkspaceScopedMixin, Base):
+    __tablename__ = "prompts"
+    __table_args__ = (UniqueConstraint("workspace_id", "key", name="uq_prompts_workspace_key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    key: Mapped[str] = mapped_column(String(120), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    versions: Mapped[list["PromptVersion"]] = relationship(
+        back_populates="prompt", cascade="all, delete-orphan", order_by="PromptVersion.version"
+    )
+
+
+class PromptVersion(WorkspaceScopedMixin, Base):
+    __tablename__ = "prompt_versions"
+    __table_args__ = (UniqueConstraint("prompt_id", "version", name="uq_prompt_versions_prompt_version"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    prompt_id: Mapped[str] = mapped_column(ForeignKey("prompts.id"), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(nullable=False)
+    body: Mapped[str] = mapped_column(Text, nullable=False)
+    variables_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    output_schema_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    canonical_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    prompt: Mapped[Prompt] = relationship(back_populates="versions")
+
+
+class ModelConfig(WorkspaceScopedMixin, Base):
+    __tablename__ = "model_configs"
+    __table_args__ = (UniqueConstraint("workspace_id", "key", "version", name="uq_model_configs_workspace_key_version"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    key: Mapped[str] = mapped_column(String(120), nullable=False)
+    version: Mapped[int] = mapped_column(nullable=False)
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    params_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class WorkflowEvaluationResult(WorkspaceScopedMixin, Base):
+    """The narrow E-01 seam: results are immutable and bound to an exact definition hash."""
+
+    __tablename__ = "workflow_evaluation_results"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    workflow_version_id: Mapped[str] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False, index=True)
+    definition_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    passed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    metrics_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    failure_reasons_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    evaluator: Mapped[str] = mapped_column(String(120), nullable=False)
+    created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    workflow_version: Mapped[WorkflowVersion] = relationship(back_populates="evaluations")

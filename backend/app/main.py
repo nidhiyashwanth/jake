@@ -4,6 +4,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from app.api.routes import router
+from app.api.workflow_routes import router as workflow_router
 from app.config import get_settings
 from app.errors import DomainError, domain_error_handler
 
@@ -33,3 +34,4 @@ async def validation_error_handler(_: Request, exc: RequestValidationError) -> J
 
 
 app.include_router(router)
+app.include_router(workflow_router)
