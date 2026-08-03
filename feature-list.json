@@ -1,0 +1,27 @@
+{
+  "_comment": "Harness scope is executable, not a memo. States are not_started | active | blocked | passing. WIP=1 is enforced by scripts/verify-harness.ps1.",
+  "wip_limit": 1,
+  "features": [
+    {
+      "id": "H01",
+      "behavior": "A fresh agent can identify the project, current phase, canonical instructions, architecture route, and verification command from repository files.",
+      "verification": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-harness.ps1 -Area Instructions",
+      "state": "passing",
+      "evidence": "scripts/verify-harness.ps1 -Area Instructions passed on 2026-08-03"
+    },
+    {
+      "id": "H02",
+      "behavior": "A fresh agent can resume from durable state, decisions, and a WIP-limited feature list without relying on chat history.",
+      "verification": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-harness.ps1 -Area State",
+      "state": "passing",
+      "evidence": "scripts/verify-harness.ps1 -Area State passed on 2026-08-03"
+    },
+    {
+      "id": "H03",
+      "behavior": "The repository has an executable completion contract that distinguishes the current harness gate from future runtime and end-to-end gates.",
+      "verification": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-harness.ps1 -Area Verification",
+      "state": "passing",
+      "evidence": "scripts/verify-harness.ps1 -Area Verification passed on 2026-08-03"
+    }
+  ]
+}

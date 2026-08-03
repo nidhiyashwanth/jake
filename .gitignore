@@ -1,0 +1,26 @@
+# Dependencies and local environments
+node_modules/
+.venv/
+venv/
+__pycache__/
+
+# Secrets and machine-local configuration
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Build, test, and runtime output
+dist/
+build/
+.next/
+coverage/
+artifacts/
+*.log
+
+# Editor and operating-system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
