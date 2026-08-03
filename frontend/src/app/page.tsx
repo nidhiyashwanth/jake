@@ -1,18 +1,25 @@
 "use client";
 
-import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { api, ApiRequestError } from "@/lib/api";
+import { API_BASE_URL, api, ApiRequestError, AUTH_MODE, DEV_AUTH_ENABLED, setActiveWorkspaceContext } from "@/lib/api";
+import AppHandoffView from "@/components/HandoffView";
+import { AppSidebar, AuthorizationDenied, MemberDisabled, SURFACE_ITEMS, WorkspaceHeader } from "@/components/WorkspaceChrome";
+import type { SurfaceKey } from "@/components/WorkspaceChrome";
+import { can, isDisabledMember, persistActiveWorkspaceId, readActiveWorkspaceId, roleLabel } from "@/lib/tenancy";
 import type {
   AuditEvent,
   Check,
   ComplianceDocument,
   ExtractedFields,
   ReviewTask,
+  SessionContext,
   StatusResponse,
   StatusSnapshot,
   Vendor,
   VendorDetail,
+  WorkspaceContext,
+  WorkspaceMode,
 } from "@/lib/types";
 
 const fieldDefinitions: Array<{ key: keyof ExtractedFields; label: string; hint: string }> = [
@@ -64,7 +71,330 @@ function statusText(status: StatusSnapshot | null): string {
   return status.status === "compliant" ? "Compliant" : "Needs review";
 }
 
+type AuthState = "loading" | "signed_out" | "expired" | "disabled" | "denied" | "failed" | "ready";
+
+interface ReviewDeskProps {
+  session: SessionContext;
+  workspace: WorkspaceContext;
+  activeSurface: SurfaceKey;
+  contextError: string | null;
+  contextBusy: boolean;
+  modeBusy: boolean;
+  onNavigate: (surface: SurfaceKey) => void;
+  onWorkspaceSelect: (workspace: WorkspaceContext) => void;
+  onModeChange: (mode: WorkspaceMode) => void;
+  onSignOut: () => void;
+  onSessionExpired: (error: ApiRequestError) => void;
+}
+
+function LoadingBoundary() {
+  return <main className="boundary-screen"><div className="boundary-loading"><div className="loader-ring" /><p>Checking workspace access...</p></div></main>;
+}
+
+function LoginBoundary({
+  state,
+  message,
+  email,
+  signingIn,
+  onEmailChange,
+  onDevelopmentSignIn,
+  onProviderSignIn,
+}: {
+  state: Exclude<AuthState, "loading" | "ready">;
+  message: string | null;
+  email: string;
+  signingIn: boolean;
+  onEmailChange: (value: string) => void;
+  onDevelopmentSignIn: (event: FormEvent<HTMLFormElement>) => void;
+  onProviderSignIn: () => void;
+}) {
+  const isBlocked = state === "disabled";
+  const isExpired = state === "expired";
+  return (
+    <main className="boundary-screen">
+      <section className={`boundary-card ${isBlocked ? "boundary-card--blocked" : ""}`}>
+        <div className="boundary-brand"><div className="brand-mark" aria-hidden="true"><span /><span /><span /></div><strong>Fieldnote</strong></div>
+        <p className="eyebrow">{isBlocked ? "Membership disabled" : isExpired ? "Session ended" : "Identity boundary"}</p>
+        <h1>{isBlocked ? "This account cannot enter the workspace." : "Keep the workspace boundary intact."}</h1>
+        <p>{message || (isExpired ? "Your session expired or was revoked. Sign in again to reload an authorized workspace context." : "Choose the identity path configured for this environment before any workspace data is requested.")}</p>
+        {isBlocked ? (
+          <div className="boundary-note"><span className="boundary-mark">!</span><span>Ask an organization owner to restore this membership. No workspace data has been loaded.</span></div>
+        ) : (
+          <>
+            {AUTH_MODE === "provider" && <button className="boundary-provider-button" onClick={onProviderSignIn} type="button">Continue with identity provider <span aria-hidden="true">-&gt;</span></button>}
+            {DEV_AUTH_ENABLED && (
+              <form className="dev-auth-form" onSubmit={onDevelopmentSignIn}>
+                <div className="dev-auth-label"><span>Local development path</span><span className="auth-mode-chip auth-mode-chip--dev">Not production auth</span></div>
+                <label htmlFor="dev-email">Email for local operator identity</label>
+                <div className="dev-auth-input-row"><input autoComplete="email" id="dev-email" onChange={(event) => onEmailChange(event.target.value)} placeholder="operator@example.com" required type="email" value={email} /><button className="button button--primary" disabled={signingIn} type="submit">{signingIn ? "Starting..." : "Start local session"}</button></div>
+                <p>Development mode calls the real API health endpoint first. The session is stored only for this browser tab and is never a production credential.</p>
+              </form>
+            )}
+            {!DEV_AUTH_ENABLED && AUTH_MODE !== "provider" && <div className="boundary-note"><span className="boundary-mark">i</span><span>Authentication is not configured for this build. Set the provider boundary before continuing.</span></div>}
+          </>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function SurfaceFrame({
+  session,
+  workspace,
+  activeSurface,
+  contextError,
+  contextBusy,
+  modeBusy,
+  onNavigate,
+  onWorkspaceSelect,
+  onModeChange,
+  onSignOut,
+  children,
+}: {
+  session: SessionContext;
+  workspace: WorkspaceContext;
+  activeSurface: SurfaceKey;
+  contextError: string | null;
+  contextBusy: boolean;
+  modeBusy: boolean;
+  onNavigate: (surface: SurfaceKey) => void;
+  onWorkspaceSelect: (workspace: WorkspaceContext) => void;
+  onModeChange: (mode: WorkspaceMode) => void;
+  onSignOut: () => void;
+  children: ReactNode;
+}) {
+  const item = SURFACE_ITEMS.find((surface) => surface.key === activeSurface);
+  return (
+    <main className="app-shell">
+      <AppSidebar activeSurface={activeSurface} activeWorkspace={workspace} busy={modeBusy || contextBusy} onNavigate={onNavigate} onWorkspaceSelect={onWorkspaceSelect} session={session} />
+      <section className="workspace">
+        <WorkspaceHeader authMode={session.auth_mode} eyebrow={item?.kicker || "Workspace surface"} modeBusy={modeBusy} onModeChange={onModeChange} onSignOut={onSignOut} session={session} title={item?.title || "Workspace"} workspace={workspace} />
+        {contextError && <div className="alert alert--error" role="alert"><strong>Context not changed.</strong> {contextError}</div>}
+        {children}
+      </section>
+    </main>
+  );
+}
+
+function FutureSurface({ surface, workspace }: { surface: SurfaceKey; workspace: WorkspaceContext }) {
+  const item = SURFACE_ITEMS.find((candidate) => candidate.key === surface);
+  return (
+    <section className="future-surface">
+      <div className="future-surface-index">{item?.icon || "--"}</div>
+      <p className="eyebrow">{item?.kicker || "Planned surface"}</p>
+      <h2>{item?.title || "Workspace surface"} is staged next.</h2>
+      <p>The navigation contract is ready for <strong>{workspace.name}</strong>, but this workstream only owns the T-01 tenancy boundary and the existing F01 review path. No pretend records are rendered here.</p>
+      <span className="future-surface-note">This route will be enabled when its package Definition of Done passes.</span>
+    </section>
+  );
+}
+
 export default function HomePage() {
+  const [authState, setAuthState] = useState<AuthState>("loading");
+  const [session, setSession] = useState<SessionContext | null>(null);
+  const [activeWorkspace, setActiveWorkspace] = useState<WorkspaceContext | null>(null);
+  const [activeSurface, setActiveSurface] = useState<SurfaceKey>("review");
+  const [authMessage, setAuthMessage] = useState<string | null>(null);
+  const [contextError, setContextError] = useState<string | null>(null);
+  const [contextBusy, setContextBusy] = useState(false);
+  const [modeBusy, setModeBusy] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+  const [devEmail, setDevEmail] = useState("");
+
+  const hydrateSession = useCallback((nextSession: SessionContext) => {
+    const persistedId = readActiveWorkspaceId(nextSession);
+    const nextWorkspace = nextSession.workspaces.find((workspace) => workspace.id === persistedId)
+      || nextSession.workspaces.find((workspace) => workspace.id === nextSession.active_workspace_id)
+      || nextSession.workspaces.find((workspace) => workspace.membership_status === "active")
+      || null;
+    setSession(nextSession);
+    if (isDisabledMember(nextSession, nextWorkspace)) {
+      setActiveWorkspace(nextWorkspace);
+      setActiveWorkspaceContext(null);
+      setAuthState("disabled");
+      setAuthMessage(`${nextSession.user.email} is disabled for this workspace.`);
+      return;
+    }
+    if (!nextWorkspace) {
+      setActiveWorkspace(null);
+      setActiveWorkspaceContext(null);
+      setAuthState("denied");
+      setAuthMessage("This identity has no active workspace membership.");
+      return;
+    }
+    setActiveWorkspace(nextWorkspace);
+    setActiveWorkspaceContext(nextWorkspace.id);
+    persistActiveWorkspaceId(nextSession, nextWorkspace.id);
+    setAuthMessage(null);
+    setContextError(null);
+    setAuthState("ready");
+  }, []);
+
+  const handleSessionExpired = useCallback((error: ApiRequestError) => {
+    setActiveWorkspaceContext(null);
+    setSession(null);
+    setActiveWorkspace(null);
+    setAuthState("expired");
+    setAuthMessage(error.message || "Your session is no longer authorized.");
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      try {
+        const liveSession = await api.getSession();
+        if (!cancelled) hydrateSession(liveSession);
+        return;
+      } catch (sessionError) {
+        const stored = api.getStoredDevelopmentSession();
+        if (!cancelled && stored && DEV_AUTH_ENABLED) {
+          try {
+            await api.health();
+            if (!cancelled) hydrateSession(stored);
+            return;
+          } catch {
+            // Fall through to the sign-in boundary when the local runtime is down.
+          }
+        }
+        if (cancelled) return;
+        if (sessionError instanceof ApiRequestError && sessionError.status === 403) {
+          setAuthState(sessionError.code === "MEMBER_DISABLED" ? "disabled" : "denied");
+          setAuthMessage(sessionError.message);
+        } else if (DEV_AUTH_ENABLED && sessionError instanceof ApiRequestError && [401, 404].includes(sessionError.status)) {
+          setAuthState("signed_out");
+          setAuthMessage("No active provider session was found. The explicitly labelled local development path is available below.");
+        } else {
+          setAuthState("failed");
+          setAuthMessage(errorMessage(sessionError));
+        }
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [hydrateSession]);
+
+  async function handleDevelopmentSignIn(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setSigningIn(true);
+    setAuthMessage(null);
+    try {
+      const nextSession = await api.startDevelopmentSession(devEmail);
+      hydrateSession(nextSession);
+    } catch (signInError) {
+      setAuthMessage(errorMessage(signInError));
+    } finally {
+      setSigningIn(false);
+    }
+  }
+
+  function handleProviderSignIn() {
+    if (typeof window === "undefined") return;
+    const returnTo = encodeURIComponent(window.location.href);
+    window.location.assign(`${API_BASE_URL}/api/auth/login?return_to=${returnTo}`);
+  }
+
+  async function handleSignOut() {
+    try {
+      await api.signOut();
+    } catch (signOutError) {
+      setContextError(errorMessage(signOutError));
+    }
+    setActiveWorkspaceContext(null);
+    setSession(null);
+    setActiveWorkspace(null);
+    setAuthState("signed_out");
+    setAuthMessage("You signed out. Workspace data has been cleared from this client session.");
+  }
+
+  async function handleWorkspaceSelect(nextWorkspace: WorkspaceContext) {
+    if (!session || !activeWorkspace || nextWorkspace.id === activeWorkspace.id) return;
+    if (nextWorkspace.membership_status !== "active") {
+      setContextError("That membership is disabled and cannot become the active workspace.");
+      return;
+    }
+    setContextBusy(true);
+    setContextError(null);
+    try {
+      let resolvedWorkspace = nextWorkspace;
+      try {
+        const response = await api.activateWorkspace(nextWorkspace.id);
+        if ("workspace" in response && response.workspace) resolvedWorkspace = response.workspace;
+        else if ("id" in response) resolvedWorkspace = response;
+      } catch (activationError) {
+        if (session.auth_mode !== "development" || !(activationError instanceof ApiRequestError) || ![404, 405].includes(activationError.status)) throw activationError;
+      }
+      const nextSession = { ...session, active_workspace_id: resolvedWorkspace.id, workspaces: session.workspaces.map((workspace) => workspace.id === resolvedWorkspace.id ? resolvedWorkspace : workspace) };
+      setSession(nextSession);
+      setActiveWorkspace(resolvedWorkspace);
+      setActiveWorkspaceContext(resolvedWorkspace.id);
+      persistActiveWorkspaceId(nextSession, resolvedWorkspace.id);
+      setActiveSurface("review");
+    } catch (activationError) {
+      if (activationError instanceof ApiRequestError && activationError.status === 401) handleSessionExpired(activationError);
+      else setContextError(errorMessage(activationError));
+    } finally {
+      setContextBusy(false);
+    }
+  }
+
+  async function handleModeChange(nextMode: WorkspaceMode) {
+    if (!session || !activeWorkspace || activeWorkspace.mode === nextMode) return;
+    setModeBusy(true);
+    setContextError(null);
+    try {
+      let resolvedWorkspace = { ...activeWorkspace, mode: nextMode };
+      try {
+        const response = await api.updateWorkspaceMode(activeWorkspace.id, nextMode);
+        if ("workspace" in response && response.workspace) resolvedWorkspace = response.workspace;
+        else if ("id" in response) resolvedWorkspace = response;
+      } catch (modeError) {
+        if (session.auth_mode !== "development" || !(modeError instanceof ApiRequestError) || ![404, 405].includes(modeError.status)) throw modeError;
+      }
+      const nextSession = { ...session, workspaces: session.workspaces.map((workspace) => workspace.id === resolvedWorkspace.id ? resolvedWorkspace : workspace) };
+      setSession(nextSession);
+      setActiveWorkspace(resolvedWorkspace);
+      setActiveWorkspaceContext(resolvedWorkspace.id);
+      persistActiveWorkspaceId(nextSession, resolvedWorkspace.id);
+      if (nextMode === "handoff") setActiveSurface("handoff");
+    } catch (modeError) {
+      if (modeError instanceof ApiRequestError && modeError.status === 401) handleSessionExpired(modeError);
+      else setContextError(errorMessage(modeError));
+    } finally {
+      setModeBusy(false);
+    }
+  }
+
+  function handleNavigate(surface: SurfaceKey) {
+    setContextError(null);
+    setActiveSurface(surface);
+  }
+
+  if (authState === "loading") return <LoadingBoundary />;
+  if (authState !== "ready" || !session || !activeWorkspace) {
+    if (authState === "disabled" && session) return <MemberDisabled email={session.user.email} />;
+    return <LoginBoundary email={devEmail} message={authMessage} onDevelopmentSignIn={handleDevelopmentSignIn} onEmailChange={setDevEmail} onProviderSignIn={handleProviderSignIn} signingIn={signingIn} state={authState === "ready" ? "failed" : authState} />;
+  }
+
+  const activeAllowed = SURFACE_ITEMS.find((item) => item.key === activeSurface)?.allowedRoles.includes(activeWorkspace.role) ?? false;
+  const surface = !activeAllowed ? (
+    <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>
+      <AuthorizationDenied role={activeWorkspace.role} />
+    </SurfaceFrame>
+  ) : activeSurface === "review" ? (
+    <ReviewDesk activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSessionExpired={handleSessionExpired} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace} />
+  ) : activeSurface === "handoff" ? (
+    <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>
+      <AppHandoffView onAuthFailure={handleSessionExpired} onOpenReviewDesk={() => setActiveSurface("review")} workspace={activeWorkspace} />
+    </SurfaceFrame>
+  ) : (
+    <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>
+      <FutureSurface surface={activeSurface} workspace={activeWorkspace} />
+    </SurfaceFrame>
+  );
+
+  return surface;
+}
+
+function ReviewDesk({ session, workspace, activeSurface, contextError, contextBusy, modeBusy, onNavigate, onWorkspaceSelect, onModeChange, onSignOut, onSessionExpired }: ReviewDeskProps) {
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   const [selectedVendor, setSelectedVendor] = useState<VendorDetail | null>(null);
@@ -83,6 +413,8 @@ export default function HomePage() {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const workspaceIdRef = useRef(workspace.id);
+  const canOperate = can(workspace.role, "operate_review_desk");
 
   const currentStatus = statusData?.current ?? selectedVendor?.latest_status ?? null;
   const currentDocument: ComplianceDocument | null = selectedVendor?.documents[0] ?? null;
@@ -93,11 +425,13 @@ export default function HomePage() {
 
   async function refreshVendors() {
     const response = await api.listVendors();
+    if (workspaceIdRef.current !== workspace.id) return;
     setVendors(response.items);
-    if (!selectedVendorId && response.items[0]) setSelectedVendorId(response.items[0].id);
+    setSelectedVendorId((currentId) => currentId && response.items.some((vendor) => vendor.id === currentId) ? currentId : response.items[0]?.id ?? null);
   }
 
   async function refreshDetails(vendorId: string) {
+    const requestedWorkspaceId = workspace.id;
     setDetailLoading(true);
     try {
       const [detail, ledgerResponse, reviewResponse] = await Promise.all([
@@ -111,13 +445,14 @@ export default function HomePage() {
       } catch (statusError) {
         if (!(statusError instanceof ApiRequestError) || statusError.status !== 404) throw statusError;
       }
+      if (workspaceIdRef.current !== requestedWorkspaceId) return;
       setSelectedVendor(detail);
       setStatusData(nextStatus);
       setLedger(ledgerResponse.items);
       setReviews(reviewResponse.items);
       setReviewValues({});
     } finally {
-      setDetailLoading(false);
+      if (workspaceIdRef.current === requestedWorkspaceId) setDetailLoading(false);
     }
   }
 
@@ -127,21 +462,34 @@ export default function HomePage() {
       await refreshVendors();
       if (vendorId) await refreshDetails(vendorId);
     } catch (refreshError) {
-      setError(errorMessage(refreshError));
+      reportError(refreshError);
     }
   }
 
   useEffect(() => {
+    workspaceIdRef.current = workspace.id;
+    setVendors([]);
+    setSelectedVendorId(null);
+    setSelectedVendor(null);
+    setStatusData(null);
+    setLedger([]);
+    setReviews([]);
+    setReviewValues({});
+    setSelectedFile(null);
+    setError(null);
+    setNotice(null);
+    setDetailLoading(false);
+    setInitialLoading(true);
     void (async () => {
       try {
         await refreshVendors();
       } catch (loadError) {
-        setError(errorMessage(loadError));
+        reportError(loadError);
       } finally {
-        setInitialLoading(false);
+        if (workspaceIdRef.current === workspace.id) setInitialLoading(false);
       }
     })();
-  }, []);
+  }, [workspace.id]);
 
   useEffect(() => {
     if (!selectedVendorId) {
@@ -151,11 +499,23 @@ export default function HomePage() {
       setReviews([]);
       return;
     }
-    void refreshDetails(selectedVendorId).catch((loadError) => setError(errorMessage(loadError)));
-  }, [selectedVendorId]);
+    void refreshDetails(selectedVendorId).catch((loadError) => reportError(loadError));
+  }, [selectedVendorId, workspace.id]);
+
+  function reportError(operationError: unknown) {
+    if (operationError instanceof ApiRequestError && operationError.status === 401) {
+      onSessionExpired(operationError);
+      return;
+    }
+    setError(errorMessage(operationError));
+  }
 
   async function handleCreateVendor(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canOperate) {
+      setError("Your role can view this desk but cannot create or change vendor records.");
+      return;
+    }
     const legalName = newVendorName.trim();
     if (!legalName) return;
     setCreating(true);
@@ -167,7 +527,7 @@ export default function HomePage() {
       setSelectedVendorId(vendor.id);
       setNotice(`${vendor.legal_name} is ready for its first COI.`);
     } catch (createError) {
-      setError(errorMessage(createError));
+      reportError(createError);
     } finally {
       setCreating(false);
     }
@@ -179,6 +539,10 @@ export default function HomePage() {
 
   async function handleUpload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!canOperate) {
+      setError("Your role can view this desk but cannot upload documents.");
+      return;
+    }
     if (!selectedVendorId || !selectedFile) return;
     setUploading(true);
     setError(null);
@@ -189,13 +553,17 @@ export default function HomePage() {
       await refreshAll(selectedVendorId);
       setNotice("COI uploaded. The extracted fields are ready for verification.");
     } catch (uploadError) {
-      setError(errorMessage(uploadError));
+      reportError(uploadError);
     } finally {
       setUploading(false);
     }
   }
 
   async function handleVerify(documentId: string) {
+    if (!canOperate) {
+      setError("Your role can view this desk but cannot run verification.");
+      return;
+    }
     setVerifyingDocumentId(documentId);
     setError(null);
     try {
@@ -203,13 +571,17 @@ export default function HomePage() {
       await refreshAll(selectedVendorId);
       setNotice(result.status.status === "compliant" ? "Verification passed. Proof is recorded." : "Verification needs a human review.");
     } catch (verifyError) {
-      setError(errorMessage(verifyError));
+      reportError(verifyError);
     } finally {
       setVerifyingDocumentId(null);
     }
   }
 
   async function handleReviewSave(review: ReviewTask) {
+    if (!canOperate) {
+      setError("Your role can view this desk but cannot resolve review tasks.");
+      return;
+    }
     const fieldValue = reviewValues[review.id] ?? editableValue(normalizedFields?.[review.correction_field]);
     if (!fieldValue.trim()) return;
     setSavingReviewId(review.id);
@@ -219,7 +591,7 @@ export default function HomePage() {
       await refreshAll(selectedVendorId);
       setNotice(result.status.status === "compliant" ? "Correction accepted. Vendor is now compliant." : "Correction saved. Another requirement still needs review.");
     } catch (reviewError) {
-      setError(errorMessage(reviewError));
+      reportError(reviewError);
     } finally {
       setSavingReviewId(null);
     }
@@ -229,14 +601,7 @@ export default function HomePage() {
 
   return (
     <main className="app-shell">
-      <aside className="sidebar">
-        <div className="brand-lockup">
-          <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
-          <div>
-            <p className="eyebrow">Fieldnote</p>
-            <p className="brand-title">Compliance desk</p>
-          </div>
-        </div>
+      <AppSidebar activeSurface={activeSurface} activeWorkspace={workspace} busy={modeBusy || contextBusy} onNavigate={onNavigate} onWorkspaceSelect={onWorkspaceSelect} session={session}>
         <div className="sidebar-meta">
           <span className="live-dot" />
           <span>F01 · local workspace</span>
@@ -272,38 +637,32 @@ export default function HomePage() {
         </div>
 
         <form className="new-vendor-form" onSubmit={handleCreateVendor}>
-          <label htmlFor="new-vendor">Add vendor</label>
+          <label htmlFor="new-vendor">Add vendor {canOperate ? "" : "(read-only)"}</label>
           <div className="input-with-action">
             <input
+              disabled={!canOperate}
               id="new-vendor"
               onChange={(event) => setNewVendorName(event.target.value)}
               placeholder="Legal name"
               value={newVendorName}
             />
-            <button aria-label="Add vendor" disabled={creating || !newVendorName.trim()} type="submit">+</button>
+            <button aria-label="Add vendor" disabled={!canOperate || creating || !newVendorName.trim()} type="submit">+</button>
           </div>
-          <p>Use the legal name printed on the certificate.</p>
+          <p>{canOperate ? "Use the legal name printed on the certificate." : "Ask an operator to add vendor records."}</p>
         </form>
 
-        <div className="sidebar-footer">
+        <div className="sidebar-footer review-sidebar-footer">
           <div className="footer-rule" />
           <p>Every decision keeps its source, reason, and timestamp.</p>
           <span>rules.v1 · append-only ledger</span>
         </div>
-      </aside>
+      </AppSidebar>
 
       <section className="workspace">
-        <header className="topbar">
-          <div>
-            <p className="eyebrow">Vendor proof / review queue</p>
-            <h1>Verification, with a paper trail.</h1>
-          </div>
-          <div className="topbar-right">
-            <div className="api-indicator"><span className="live-dot" /> API connected through local runtime</div>
-            <div className="avatar" aria-label="Operator">NY</div>
-          </div>
-        </header>
+        <WorkspaceHeader authMode={session.auth_mode} eyebrow="F01 / vendor proof" modeBusy={modeBusy} onModeChange={onModeChange} onSignOut={onSignOut} session={session} title="Verification, with a paper trail." workspace={workspace} />
 
+        {contextError && <div className="alert alert--error" role="alert"><strong>Context not changed.</strong> {contextError}</div>}
+        {!canOperate && <div className="read-only-banner" role="status"><strong>Read-only view.</strong> Your {roleLabel(workspace.role)} role can inspect proof and history but cannot change vendor records.</div>}
         {error && <div className="alert alert--error" role="alert"><strong>Action paused.</strong> {error}<button onClick={() => setError(null)} type="button">Dismiss</button></div>}
         {notice && <div className="alert alert--success" role="status"><span>✓</span> {notice}<button onClick={() => setNotice(null)} type="button">Dismiss</button></div>}
 
@@ -345,20 +704,20 @@ export default function HomePage() {
               </div>
             </section>
 
-            <section className="panel intake-panel">
+            <section className={`panel intake-panel ${!canOperate ? "intake-panel--readonly" : ""}`}>
               <div className="panel-heading">
                 <div><p className="eyebrow">01 / Intake</p><h3>Bring the certificate into the light.</h3></div>
                 <span className="panel-note">Text-readable PDF or TXT · 10 MB max</span>
               </div>
               <form className="upload-bar" onSubmit={handleUpload}>
-                <label className={`file-picker ${selectedFile ? "file-picker--selected" : ""}`} htmlFor="coi-file">
+                <label className={`file-picker ${selectedFile ? "file-picker--selected" : ""} ${!canOperate ? "file-picker--disabled" : ""}`} htmlFor="coi-file">
                   <span className="upload-glyph" aria-hidden="true">↑</span>
                   <span><strong>{selectedFile ? selectedFile.name : "Choose a COI"}</strong><small>{selectedFile ? `${Math.ceil(selectedFile.size / 1024)} KB ready to send` : "Drop a file or browse from this device"}</small></span>
-                  <input accept=".pdf,.txt,application/pdf,text/plain" id="coi-file" onChange={handleFileChange} ref={fileInputRef} type="file" />
+                  <input accept=".pdf,.txt,application/pdf,text/plain" disabled={!canOperate} id="coi-file" onChange={handleFileChange} ref={fileInputRef} type="file" />
                 </label>
                 <button className="button button--primary" disabled={!selectedFile || uploading} type="submit">{uploading ? "Reading…" : "Upload COI"}<span aria-hidden="true">↗</span></button>
               </form>
-              {selectedVendor.documents.length > 0 && <div className="document-list">{selectedVendor.documents.map((document) => <DocumentRow document={document} isVerifying={verifyingDocumentId === document.id} onVerify={handleVerify} key={document.id} />)}</div>}
+              {selectedVendor.documents.length > 0 && <div className="document-list">{selectedVendor.documents.map((document) => <DocumentRow canOperate={canOperate} document={document} isVerifying={verifyingDocumentId === document.id} onVerify={handleVerify} key={document.id} />)}</div>}
             </section>
 
             <div className="two-column-grid">
@@ -367,7 +726,7 @@ export default function HomePage() {
                 {normalizedFields ? <div className="field-table">{fieldDefinitions.map((field) => { const check = checksByKey.get(fieldKeyToRequirement(field.key)); return <div className="field-row" key={field.key}><div><span className="field-label">{field.label}</span><small>{field.hint}</small></div><strong className={normalizedFields[field.key] === null ? "value-missing" : ""}>{formatValue(normalizedFields[field.key])}</strong><span className={`mini-check ${check?.result === "pass" ? "mini-check--pass" : check ? "mini-check--fail" : "mini-check--quiet"}`}>{check?.result === "pass" ? "PASS" : check ? "CHECK" : "—"}</span></div>; })}</div> : <div className="panel-empty"><span>◎</span><p>Upload a COI to see extracted fields here.</p></div>}
               </section>
 
-              <section className="panel review-panel">
+              <section className={`panel review-panel ${!canOperate ? "review-panel--readonly" : ""}`}>
                 <div className="panel-heading panel-heading--compact"><div><p className="eyebrow">03 / Human review</p><h3>Exceptions to resolve</h3></div><span className="count-badge count-badge--dark">{vendorReviews.length.toString().padStart(2, "0")}</span></div>
                 {vendorReviews.length === 0 ? <div className="review-empty"><span className="review-empty-mark">{currentStatus?.status === "compliant" ? "✓" : "·"}</span><p>{currentStatus?.status === "compliant" ? "No exceptions. This vendor has a clean decision." : "Verification creates focused correction tasks here."}</p></div> : <div className="review-list">{vendorReviews.map((review) => <ReviewCard fieldValue={reviewValues[review.id] ?? editableValue(normalizedFields?.[review.correction_field])} isSaving={savingReviewId === review.id} onChange={(value) => setReviewValues((previous) => ({ ...previous, [review.id]: value }))} onSave={() => void handleReviewSave(review)} review={review} key={review.id} />)}</div>}
               </section>
@@ -409,7 +768,7 @@ function fieldKeyToRequirement(key: keyof ExtractedFields): string {
   return mapping[key as string];
 }
 
-function DocumentRow({ document, isVerifying, onVerify }: { document: ComplianceDocument; isVerifying: boolean; onVerify: (documentId: string) => void }) {
+function DocumentRow({ document, isVerifying, onVerify, canOperate }: { document: ComplianceDocument; isVerifying: boolean; onVerify: (documentId: string) => void; canOperate: boolean }) {
   return <div className="document-row"><div className="document-icon">COI</div><div className="document-copy"><strong>{document.filename}</strong><small>Uploaded {formatDate(document.created_at)} · {document.media_type || "text document"}</small></div><button className="button button--quiet" disabled={isVerifying} onClick={() => onVerify(document.id)} type="button">{isVerifying ? "Checking…" : "Verify"}<span aria-hidden="true">→</span></button></div>;
 }
 

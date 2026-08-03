@@ -1,6 +1,59 @@
 export type ComplianceStatus = "compliant" | "needs_review";
 export type CheckResult = "pass" | "fail" | "uncertain";
 
+export type UserRole = "owner" | "admin" | "builder" | "operator" | "viewer" | "auditor";
+export type MembershipStatus = "active" | "disabled" | "invited";
+export type WorkspaceMode = "delivery" | "handoff";
+export type AuthMode = "provider" | "development";
+
+export interface UserIdentity {
+  id: string;
+  email: string;
+  display_name: string;
+  initials: string;
+  status: MembershipStatus;
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  kind?: "internal" | "customer" | "partner" | string;
+}
+
+export interface WorkspaceContext {
+  id: string;
+  name: string;
+  slug?: string;
+  environment: "production" | "staging" | "sandbox" | "development" | string;
+  organization: Organization;
+  role: UserRole;
+  membership_status: MembershipStatus;
+  mode: WorkspaceMode;
+}
+
+export interface SessionContext {
+  user: UserIdentity;
+  organization: Organization;
+  workspaces: WorkspaceContext[];
+  active_workspace_id: string;
+  auth_mode: AuthMode;
+  expires_at?: string | null;
+}
+
+export interface WorkspaceListResponse {
+  items: WorkspaceContext[];
+}
+
+export interface WorkspaceActivationResponse {
+  workspace?: WorkspaceContext;
+  active_workspace_id?: string;
+}
+
+export interface SessionProblem {
+  code: "SESSION_EXPIRED" | "MEMBER_DISABLED" | "ACCESS_DENIED" | "AUTH_UNAVAILABLE";
+  message: string;
+}
+
 export interface StatusSnapshot {
   id: string;
   vendor_id: string;
