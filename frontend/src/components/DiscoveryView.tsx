@@ -192,34 +192,57 @@ function numberOrNull(value: unknown): number | null {
   return Number.isFinite(parsed) ? parsed : null;
 }
 
-function toMetricDraft(metrics?: Partial<DiscoveryMetrics> | null): MetricDraft {
+function metricValue(value: unknown): unknown {
+  if (value && typeof value === "object" && "value" in value) {
+    return (value as { value?: unknown }).value;
+  }
+  return value;
+}
+
+function toMetricDraft(metrics?: Partial<DiscoveryMetrics> | Record<string, unknown> | null): MetricDraft {
   return METRIC_FIELDS.reduce((draft, field) => {
-    draft[field.key] = stringValue(metrics?.[field.key]);
+    draft[field.key] = stringValue(metricValue(metrics?.[field.key]));
     return draft;
   }, { ...EMPTY_METRICS });
 }
 
 function toStepDraft(step: Partial<DiscoveryStep> | null | undefined, index: number): StepDraft {
+  const candidate = step as (Partial<DiscoveryStep> & { label?: unknown }) | null | undefined;
   return {
-    id: stringValue(step?.id) || `server-step-${index + 1}`,
-    title: stringValue(step?.title),
-    description: stringValue(step?.description),
-    system: stringValue(step?.system),
-    minutes_p50: stringValue(step?.minutes_p50),
-    minutes_p90: stringValue(step?.minutes_p90),
-    is_decision: Boolean(step?.is_decision),
+    id: stringValue(candidate?.id) || `server-step-${index + 1}`,
+    title: stringValue(candidate?.title || candidate?.label),
+    description: stringValue(candidate?.description),
+    system: stringValue(candidate?.system),
+    minutes_p50: stringValue(candidate?.minutes_p50),
+    minutes_p90: stringValue(candidate?.minutes_p90),
+    is_decision: Boolean(candidate?.is_decision),
   };
 }
 
 function recordFromResponse(response: DiscoveryResponse): DiscoveryRecord | null {
   const shaped = response as DiscoveryResponse & Partial<DiscoveryRecord>;
-  return shaped.item ?? shaped.process ?? shaped.record ?? shaped.items?.[0] ?? (shaped.process_id ? (shaped as DiscoveryRecord) : null);
+  const recordLike = shaped.process_id && ("name" in shaped || "trigger" in shaped || "steps" in shaped || "baselines" in shaped || "draft" in shaped);
+  return shaped.item ?? shaped.process ?? shaped.record ?? shaped.items?.[0] ?? (recordLike ? (shaped as DiscoveryRecord) : null);
 }
 
 function baselineFromResponse(response: DiscoveryResponse): SignedBaseline | null {
-  const shaped = response as DiscoveryResponse & { baseline?: SignedBaseline };
+  const shaped = response as DiscoveryResponse & Partial<SignedBaseline> & { baseline?: SignedBaseline };
   const record = recordFromResponse(response);
-  return shaped.baseline || record?.current_baseline || record?.baselines?.find((baseline) => baseline.status === "draft") || null;
+  const directBaseline = shaped.id && "version" in shaped && "metrics" in shaped ? (shaped as SignedBaseline) : null;
+  return shaped.baseline || directBaseline || record?.current_baseline || record?.baselines?.find((baseline) => baseline.status === "draft") || null;
+}
+
+function editableText(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object") {
+    const item = value as Record<string, unknown>;
+    return stringValue(item.question ?? item.description ?? item.label ?? item.key ?? item.code);
+  }
+  return stringValue(value);
+}
+
+function toEditableList(values: unknown): string[] {
+  return Array.isArray(values) ? values.map(editableText).filter((value) => value.trim()) : [];
 }
 
 function draftFromRecord(record: DiscoveryRecord): DiscoveryDraft | null {
@@ -236,8 +259,8 @@ function draftFromRecord(record: DiscoveryRecord): DiscoveryDraft | null {
       is_decision: Boolean(step.is_decision),
       id: step.id || `server-step-${index + 1}`,
     })),
-    exceptions: record.draft.exceptions || [],
-    baseline_questions: record.draft.baseline_questions || [],
+    exceptions: toEditableList(record.draft.exceptions),
+    baseline_questions: toEditableList(record.draft.baseline_questions),
   };
 }
 
@@ -256,11 +279,62 @@ function scoreInputsFromDraft(draft: ScoreInputDraft): Record<string, number | n
 }
 
 function toScoreInputDraft(score?: OpportunityScore | null): ScoreInputDraft {
+  const scoreInputs = score?.inputs || {};
+  const aliases: Record<keyof ScoreInputDraft, string[]> = {
+    structure_pct: ["structure_pct", "structure_score"],
+    rule_clarity_pct: ["rule_clarity_pct", "rule_clarity_score"],
+    exception_rate_pct: ["exception_rate_pct", "exception_rate", "rework_rate_pct"],
+    data_availability_pct: ["data_availability_pct", "data_availability_score"],
+    review_rate_pct: ["review_rate_pct", "review_rate"],
+    review_minutes: ["review_minutes"],
+    model_cost: ["model_cost", "model_cost_annual"],
+    infra_cost: ["infra_cost", "infra_cost_annual"],
+    effort_weeks: ["effort_weeks"],
+    risk_multiplier: ["risk_multiplier"],
+  };
   return Object.keys(EMPTY_SCORE_INPUTS).reduce((draft, key) => {
-    const value = score?.inputs?.[key];
-    draft[key as keyof ScoreInputDraft] = stringValue(value);
+    const typedKey = key as keyof ScoreInputDraft;
+    const inputKey = aliases[typedKey].find((candidate) => scoreInputs[candidate] !== undefined && scoreInputs[candidate] !== null);
+    const value = inputKey ? numberOrNull(scoreInputs[inputKey]) : null;
+    const displayValue = value === null ? null : key.endsWith("_pct") && value <= 1 ? value * 100 : value;
+    draft[typedKey] = stringValue(displayValue);
     return draft;
   }, { ...EMPTY_SCORE_INPUTS });
+}
+
+function scoreRequestFromDraft(draft: ScoreInputDraft): Record<string, number | string> {
+  const inputs = scoreInputsFromDraft(draft);
+  const request: Record<string, number | string> = { formula_version: "opportunity.v1" };
+  const ratioFields: Array<[keyof ScoreInputDraft, string]> = [
+    ["structure_pct", "structure_score"],
+    ["rule_clarity_pct", "rule_clarity_score"],
+    ["exception_rate_pct", "exception_rate"],
+    ["data_availability_pct", "data_availability_score"],
+    ["review_rate_pct", "review_rate"],
+  ];
+  for (const [draftKey, requestKey] of ratioFields) {
+    const value = inputs[draftKey];
+    if (value !== null) request[requestKey] = value / 100;
+  }
+  const numericAliases: Array<[keyof ScoreInputDraft, string]> = [
+    ["review_minutes", "review_minutes"],
+    ["model_cost", "model_cost_annual"],
+    ["infra_cost", "infra_cost_annual"],
+    ["effort_weeks", "effort_weeks"],
+    ["risk_multiplier", "risk_multiplier"],
+  ];
+  for (const [draftKey, requestKey] of numericAliases) {
+    const value = inputs[draftKey];
+    if (value !== null) request[requestKey] = value;
+  }
+  const structure = inputs.structure_pct;
+  const ruleClarity = inputs.rule_clarity_pct;
+  const exceptionRate = inputs.exception_rate_pct;
+  const dataAvailability = inputs.data_availability_pct;
+  if (structure !== null && ruleClarity !== null && exceptionRate !== null && dataAvailability !== null) {
+    request.confidence = (structure / 100 + ruleClarity / 100 + (1 - exceptionRate / 100) + dataAvailability / 100) / 4;
+  }
+  return request;
 }
 
 function formatMoney(value: number | null | undefined): string {
@@ -319,7 +393,7 @@ function calculateOpportunityScore(metricsDraft: MetricDraft, inputsDraft: Score
   if (effortWeeks <= 0 || riskMultiplier <= 0) return null;
 
   const currentAnnualCost = annualVolume * (p50Minutes / 60) * loadedRate + annualVolume * errorRate * costPerError;
-  const automatablePct = structure * 0.35 + ruleClarity * 0.30 + (1 - exceptionRate) * 0.20 + dataAvailability * 0.15;
+  const automatablePct = structure * 0.30 + ruleClarity * 0.30 + dataAvailability * 0.25 + (1 - exceptionRate) * 0.15;
   const confidence = structure * 0.25 + ruleClarity * 0.25 + (1 - exceptionRate) * 0.25 + dataAvailability * 0.25;
   const annualReviewCost = annualVolume * reviewRate * (reviewMinutes / 60) * loadedRate;
   const projectedSavings = currentAnnualCost * automatablePct - modelCost - infraCost - annualReviewCost;
@@ -339,7 +413,7 @@ function calculateOpportunityScore(metricsDraft: MetricDraft, inputsDraft: Score
     review_rate_pct: inputs.review_rate_pct as number,
     review_minutes: reviewMinutes,
     inputs,
-    formula_version: "d01.v1",
+    formula_version: "opportunity.v1",
     computed_at: null,
     provenance: baselineId ? `Deterministic preview tied to signed baseline ${baselineId}.` : "Deterministic preview from the current draft; sign a baseline to bind the score.",
   };
@@ -481,9 +555,10 @@ export default function DiscoveryView({ session, workspace, onAuthFailure }: Dis
   const canEdit = ["owner", "admin", "builder"].includes(workspace.role);
   const canSign = workspace.role === "owner" || workspace.role === "admin";
 
-  const applyRecord = useCallback((record: DiscoveryRecord) => {
+  const applyRecord = useCallback((record: DiscoveryRecord, localFallback?: { metrics?: MetricDraft; scoreInputs?: ScoreInputDraft }) => {
     const sourceDraft = draftFromRecord(record);
     const current = record.current_baseline || record.baselines?.find((baseline) => baseline.status === "signed") || null;
+    const metricSource = record.metrics || current?.metrics;
     setProcessId(record.process_id);
     setForm({
       processName: stringValue(record.name),
@@ -497,8 +572,8 @@ export default function DiscoveryView({ session, workspace, onAuthFailure }: Dis
       outputs: stringValue(record.outputs),
       failureModes: stringValue(record.failure_modes),
       steps: (record.steps || []).map((step, index) => toStepDraft(step, index)),
-      metrics: toMetricDraft(record.metrics),
-      scoreInputs: toScoreInputDraft(record.score),
+      metrics: metricSource ? toMetricDraft(metricSource) : localFallback?.metrics || { ...EMPTY_METRICS },
+      scoreInputs: record.score ? toScoreInputDraft(record.score) : localFallback?.scoreInputs || { ...EMPTY_SCORE_INPUTS },
       sourceType: sourceDraft?.source_type || "transcript",
       sourceName: sourceDraft?.source_name || "",
       sourceText: "",
@@ -635,24 +710,51 @@ export default function DiscoveryView({ session, workspace, onAuthFailure }: Dis
   }
 
   function buildPayload() {
+    const listFromText = (value: string) => value.split(/\r?\n/).map((item) => item.trim()).filter(Boolean);
     return {
-      process_id: processId,
-      workspace_id: workspace.id,
       name: form.processName.trim(),
       department: form.department.trim(),
       system_of_record: form.systemOfRecord.trim(),
       trigger: form.trigger.trim(),
-      inputs: form.inputs.trim(),
-      decisions: form.decisions.trim(),
-      exceptions: form.exceptions.trim(),
-      approvals: form.approvals.trim(),
-      outputs: form.outputs.trim(),
-      failure_modes: form.failureModes.trim(),
-      steps: form.steps.map((step) => ({ ...step, minutes_p50: numberValue(step.minutes_p50), minutes_p90: numberValue(step.minutes_p90) })),
-      metrics: metricsFromDraft(form.metrics),
-      score_inputs: scoreInputsFromDraft(form.scoreInputs),
-      draft: { exceptions: draftExceptions, baseline_questions: baselineQuestions },
-      source: { type: form.sourceType, name: form.sourceName.trim() || null },
+      inputs: listFromText(form.inputs),
+      decisions: listFromText(form.decisions),
+      exceptions: listFromText(form.exceptions),
+      approvals: listFromText(form.approvals),
+      outputs: listFromText(form.outputs),
+      failure_modes: listFromText(form.failureModes),
+      steps: form.steps
+        .filter((step) => step.description.trim() || step.title.trim())
+        .map((step) => ({
+          description: step.description.trim() || step.title.trim(),
+          system: step.system.trim() || null,
+          minutes_p50: numberValue(step.minutes_p50),
+          minutes_p90: numberValue(step.minutes_p90),
+          is_decision: step.is_decision,
+        })),
+    };
+  }
+
+  function buildDraftPatch() {
+    const nodes = form.steps
+      .filter((step) => step.description.trim() || step.title.trim())
+      .map((step, index) => ({
+        id: step.id || `step-${index + 1}`,
+        seq: index + 1,
+        type: step.is_decision ? "decision" : "step",
+        label: step.title.trim() || step.description.trim(),
+        title: step.title.trim() || step.description.trim(),
+        description: step.description.trim() || step.title.trim(),
+        system: step.system.trim() || null,
+        minutes_p50: numberValue(step.minutes_p50),
+        minutes_p90: numberValue(step.minutes_p90),
+        is_decision: step.is_decision,
+        human_editable: true,
+      }));
+    return {
+      draft_graph: { version: 2, status: "draft", publishable: false, nodes, edges: nodes.slice(1).map((node, index) => ({ from: nodes[index].id, to: node.id, condition: null })) },
+      exceptions: draftExceptions.map((value) => value.trim()).filter(Boolean),
+      baseline_questions: baselineQuestions.map((value) => value.trim()).filter(Boolean),
+      edited_by: session.user.email,
     };
   }
 
@@ -688,10 +790,20 @@ export default function DiscoveryView({ session, workspace, onAuthFailure }: Dis
     setBusyAction("save");
     setError(null);
     try {
+      const localMetrics = form.metrics;
+      const localScoreInputs = form.scoreInputs;
       const response = await api.saveDiscovery(buildPayload(), processId);
       const record = recordFromResponse(response);
       if (!record) throw new ApiRequestError("The save response did not include the workspace-scoped discovery record.", "DISCOVERY_RESPONSE_INVALID", 502);
-      applyRecord(record);
+      const draftResponse = draftReady && Boolean(draftMeta.generatedAt) ? await api.updateDiscoveryDraft(record.process_id, buildDraftPatch()) : null;
+      applyRecord(record, { metrics: localMetrics, scoreInputs: localScoreInputs });
+      if (draftResponse?.draft) {
+        const draft = draftResponse.draft;
+        setForm((previous) => ({ ...previous, steps: (draft.steps || []).map((step, index) => toStepDraft(step, index)) }));
+        setDraftExceptions(toEditableList(draft.exceptions));
+        setBaselineQuestions(toEditableList(draft.baseline_questions));
+        setDraftMeta({ state: "api", sourceName: draft.source_name || form.sourceName || undefined, generatedAt: draft.generated_at || new Date().toISOString() });
+      }
       setApiState("ready");
       setNotice("Draft saved by the D-01 API. It is still reviewable and not publishable from this surface.");
       setStage("draft");
@@ -722,8 +834,8 @@ export default function DiscoveryView({ session, workspace, onAuthFailure }: Dis
       const response = ingestion.draft ? { draft: ingestion.draft } : await api.getDiscoveryDraft(processId);
       const draft = response.draft;
       setForm((previous) => ({ ...previous, steps: (draft.steps || []).map((step, index) => toStepDraft(step, index)) }));
-      setDraftExceptions(draft.exceptions || []);
-      setBaselineQuestions(draft.baseline_questions || []);
+      setDraftExceptions(toEditableList(draft.exceptions));
+      setBaselineQuestions(toEditableList(draft.baseline_questions));
       setDraftMeta({ state: "api", sourceName: draft.source_name || form.sourceName || undefined, generatedAt: draft.generated_at || new Date().toISOString() });
       setDirty(true);
       setNotice("The API returned a draft. Review every step and exception before saving; nothing was published automatically.");
@@ -747,7 +859,7 @@ export default function DiscoveryView({ session, workspace, onAuthFailure }: Dis
     setBusyAction("score");
     setError(null);
     try {
-      const response = await api.computeDiscoveryScore(processId, signedBaseline.id, { inputs: scoreInputsFromDraft(form.scoreInputs), formula_version: "d01.v1" });
+      const response = await api.computeDiscoveryScore(processId, signedBaseline.id, scoreRequestFromDraft(form.scoreInputs));
       const record = recordFromResponse(response);
       const nextScore = response.score || record?.score || null;
       if (!nextScore?.id) throw new ApiRequestError("The score response did not include a deterministic opportunity score id.", "SCORE_RESPONSE_INVALID", 502);
@@ -980,12 +1092,12 @@ export default function DiscoveryView({ session, workspace, onAuthFailure }: Dis
           {stage === "score" && (
             <>
               <section className="discovery-section-heading"><div><p className="eyebrow">04 / Opportunity score</p><h3>Show the economics, then show where they came from.</h3><p>The score is deterministic and inspectable. It is a preview until the API returns a score bound to a signed baseline.</p></div><span className={`score-source-stamp ${scoreIsPreview ? "score-source-stamp--preview" : ""}`}>{scoreIsPreview ? "local formula preview" : "API score"}</span></section>
-              <section className="score-hero-panel"><div><p className="eyebrow">Priority score · {score?.formula_version || "d01.v1"}</p><strong>{score ? formatNumber(score.priority_score, 0) : "—"}</strong><p>{score ? "Projected annual value weighted by confidence, delivery effort, and risk." : "Capture baseline and score inputs to compute the priority."}</p></div><div className="score-hero-metrics"><div><span>Annual cost</span><strong>{formatMoney(score?.current_annual_cost)}</strong></div><div><span>Projected savings</span><strong className={score && score.projected_savings < 0 ? "value-negative" : ""}>{formatMoney(score?.projected_savings)}</strong></div><div><span>Confidence</span><strong>{formatPercent(score?.confidence)}</strong></div></div></section>
+              <section className="score-hero-panel"><div><p className="eyebrow">Priority score · {score?.formula_version || "opportunity.v1"}</p><strong>{score ? formatNumber(score.priority_score, 0) : "—"}</strong><p>{score ? "Projected annual value weighted by confidence, delivery effort, and risk." : "Capture baseline and score inputs to compute the priority."}</p></div><div className="score-hero-metrics"><div><span>Annual cost</span><strong>{formatMoney(score?.current_annual_cost)}</strong></div><div><span>Projected savings</span><strong className={score && score.projected_savings < 0 ? "value-negative" : ""}>{formatMoney(score?.projected_savings)}</strong></div><div><span>Confidence</span><strong>{formatPercent(score?.confidence)}</strong></div></div></section>
               <div className="score-layout">
                 <section className="discovery-panel"><div className="discovery-panel-heading"><div><p className="eyebrow">Inputs, not vibes</p><h4>Scoring assumptions</h4></div><span className="panel-note">Customer / delivery estimate</span></div><ScoreInputsEditor disabled={!canEdit} inputs={form.scoreInputs} onChange={updateScoreInput} /></section>
-                <aside className="discovery-panel score-binding-panel"><div className="discovery-panel-heading"><div><p className="eyebrow">Binding</p><h4>What this score means</h4></div></div><dl className="score-facts"><div><dt>Baseline</dt><dd>{signedBaseline ? `v${signedBaseline.version}` : "Not signed"}</dd></div><div><dt>Source</dt><dd>{scoreIsPreview ? "Current local draft" : "D-01 API response"}</dd></div><div><dt>Formula</dt><dd>{score?.formula_version || "d01.v1"}</dd></div><div><dt>Last computed</dt><dd>{formatDate(score?.computed_at)}</dd></div></dl>{!signedBaseline && <div className="score-binding-warning"><span>!</span><p>Do not use this preview in a value report until the baseline is signed and the score is returned with its baseline id.</p></div>}<button className="button button--quiet score-refresh-button" disabled={!processId || busyAction !== null} onClick={() => void handleRefreshScore()} type="button">{busyAction === "score" ? "Asking API…" : "Refresh score from API"}</button></aside>
+                <aside className="discovery-panel score-binding-panel"><div className="discovery-panel-heading"><div><p className="eyebrow">Binding</p><h4>What this score means</h4></div></div><dl className="score-facts"><div><dt>Baseline</dt><dd>{signedBaseline ? `v${signedBaseline.version}` : "Not signed"}</dd></div><div><dt>Source</dt><dd>{scoreIsPreview ? "Current local draft" : "D-01 API response"}</dd></div><div><dt>Formula</dt><dd>{score?.formula_version || "opportunity.v1"}</dd></div><div><dt>Last computed</dt><dd>{formatDate(score?.computed_at)}</dd></div></dl>{!signedBaseline && <div className="score-binding-warning"><span>!</span><p>Do not use this preview in a value report until the baseline is signed and the score is returned with its baseline id.</p></div>}<button className="button button--quiet score-refresh-button" disabled={!processId || busyAction !== null} onClick={() => void handleRefreshScore()} type="button">{busyAction === "score" ? "Asking API…" : "Refresh score from API"}</button></aside>
               </div>
-              <section className="discovery-panel formula-panel"><div className="discovery-panel-heading"><div><p className="eyebrow">Formula breakdown</p><h4>Every line has a source.</h4></div><span className="field-source-badge">d01.v1</span></div><div className="formula-list"><FormulaRow label="Current annual cost" formula="volume/mo × 12 × p50 min ÷ 60 × loaded rate + volume/mo × 12 × error rate × cost/error" value={formatMoney(score?.current_annual_cost)} source="Signed baseline metrics" /><FormulaRow label="Automatable percentage" formula="35% structure + 30% rule clarity + 20% (1 − exception rate) + 15% data availability" value={formatPercent(score?.automatable_pct)} source="Scoring assumptions" /><FormulaRow label="Projected savings" formula="annual cost × automatable % − model cost − infra cost − annual review cost" value={formatMoney(score?.projected_savings)} source="Baseline + scoring assumptions" /><FormulaRow label="Priority score" formula="projected savings × confidence ÷ (effort weeks × risk multiplier)" value={formatNumber(score?.priority_score, 0)} source={signedBaseline ? `Baseline v${signedBaseline.version}` : "Not bound to a signed baseline"} /></div></section>
+              <section className="discovery-panel formula-panel"><div className="discovery-panel-heading"><div><p className="eyebrow">Formula breakdown</p><h4>Every line has a source.</h4></div><span className="field-source-badge">opportunity.v1</span></div><div className="formula-list"><FormulaRow label="Current annual cost" formula="volume/mo × 12 × p50 min ÷ 60 × loaded rate + volume/mo × 12 × error rate × cost/error" value={formatMoney(score?.current_annual_cost)} source="Signed baseline metrics" /><FormulaRow label="Automatable percentage" formula="30% structure + 30% rule clarity + 25% data availability + 15% (1 − exception rate)" value={formatPercent(score?.automatable_pct)} source="Scoring assumptions" /><FormulaRow label="Projected savings" formula="annual cost × automatable % − model cost − infra cost − annual review cost" value={formatMoney(score?.projected_savings)} source="Baseline + scoring assumptions" /><FormulaRow label="Priority score" formula="projected savings × confidence ÷ (effort weeks × risk multiplier)" value={formatNumber(score?.priority_score, 0)} source={signedBaseline ? `Baseline v${signedBaseline.version}` : "Not bound to a signed baseline"} /></div></section>
               <section className="discovery-panel cost-bridge-panel"><div className="discovery-panel-heading"><div><p className="eyebrow">Cost bridge</p><h4>What moves the number?</h4></div><span className="panel-note">A negative result is useful evidence.</span></div>{score ? <div className="cost-bridge"><CostBridgeRow label="Current annual cost" value={score.current_annual_cost} tone="current" max={Math.max(Math.abs(score.current_annual_cost), Math.abs(score.projected_savings), 1)} /><CostBridgeRow label="Automation opportunity" value={score.current_annual_cost * score.automatable_pct} tone="opportunity" max={Math.max(Math.abs(score.current_annual_cost), Math.abs(score.projected_savings), 1)} /><CostBridgeRow label="Review + model + infra" value={score.projected_savings - score.current_annual_cost * score.automatable_pct} tone="cost" max={Math.max(Math.abs(score.current_annual_cost), Math.abs(score.projected_savings), 1)} /><CostBridgeRow label="Projected net savings" value={score.projected_savings} tone={score.projected_savings < 0 ? "negative" : "savings"} max={Math.max(Math.abs(score.current_annual_cost), Math.abs(score.projected_savings), 1)} /></div> : <div className="discovery-empty discovery-empty--small"><span>○</span><p>The cost bridge will appear after all baseline and scoring inputs are captured.</p></div>}</section>
               <div className="discovery-action-bar"><div><strong>{scoreIsPreview ? "Preview only until the API binds it." : `Score returned for baseline ${score?.baseline_id || "—"}.`}</strong><small>Scores and value events must retain their formula version.</small></div><div className="discovery-action-buttons"><button className="button button--quiet" onClick={() => setStage("baseline")} type="button">Back to baseline</button><button className="button button--dark" onClick={() => setStage("intake")} type="button">Edit intake <span aria-hidden="true">→</span></button></div></div>
             </>

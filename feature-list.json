@@ -55,14 +55,14 @@
       "id": "D-01",
       "behavior": "A workflow owner can capture discovery, sign an immutable baseline, and inspect deterministic opportunity scoring inputs and outputs.",
       "verification": "Discovery, signature, immutability, formula, and scoring E2E suite",
-      "state": "active",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-discovery.ps1 static and real Compose/PostgreSQL E2E passed; backend PostgreSQL suite passed 14 tests; frontend typecheck/build passed; live Playwright browser flow verified authenticated structured intake, multipart SOP/transcript ingestion, human draft save, signed immutable baseline, and canonical opportunity.v1 score binding."
     },
     {
       "id": "W-01",
       "behavior": "A builder can define a versioned DAG workflow and publish only an immutable version that passes its evaluation gate.",
       "verification": "DAG validation, version immutability, read-only graph, and publish-gate E2E suite",
-      "state": "not_started",
+      "state": "active",
       "evidence": ""
     },
     {

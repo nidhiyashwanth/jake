@@ -25,9 +25,13 @@ from app.models import (
     User,
     Vendor,
     Workspace,
+    new_id,
 )
 from app.schemas import (
     DevelopmentLogin,
+    DiscoveryDraftPatch,
+    DiscoveryExceptionCreate,
+    DiscoveryQuestionAnswer,
     BaselineCreate,
     BaselineSign,
     BaselineUpdate,
@@ -631,6 +635,304 @@ def get_opportunity_score(score_id: str, db: ScopedDb) -> dict[str, Any]:
     )
     db.commit()
     return score_payload(score)
+
+
+def _latest_interview(db: Session, process_id: str, workspace_id: str) -> ProcessInterview:
+    interview = db.scalar(
+        select(ProcessInterview)
+        .where(
+            ProcessInterview.process_id == process_id,
+            ProcessInterview.workspace_id == workspace_id,
+        )
+        .order_by(ProcessInterview.captured_at.desc())
+    )
+    if interview is None:
+        raise DomainError("DRAFT_NOT_FOUND", "Ingest an SOP or transcript before editing the discovery draft", 404)
+    return interview
+
+
+def _nested_baseline(db: Session, process_id: str, baseline_id: str, workspace_id: str) -> Baseline:
+    baseline = get_baseline_or_404(db, baseline_id, workspace_id)
+    if baseline.process_id != process_id:
+        raise DomainError("BASELINE_NOT_FOUND", "The baseline does not belong to this discovery", 404)
+    return baseline
+
+
+@router.post("/discoveries", status_code=201)
+def create_discovery_alias(payload: ProcessCreate, db: ScopedDb) -> dict[str, Any]:
+    return create_discovery_process(payload, db)
+
+
+@router.get("/discoveries")
+def list_discoveries_alias(db: ScopedDb) -> dict[str, Any]:
+    return list_discovery_processes(db)
+
+
+@router.get("/discoveries/{discovery_id}")
+def get_discovery_alias(discovery_id: str, db: ScopedDb) -> dict[str, Any]:
+    payload = get_discovery_process(discovery_id, db)
+    return {
+        **payload,
+        "process": payload,
+        "discovery": payload,
+        "ingestions": payload.get("interviews", []),
+        "baseline_questions": (
+            payload.get("interviews", [])[0].get("baseline_questions", [])
+            if payload.get("interviews")
+            else []
+        ),
+    }
+
+
+@router.patch("/discoveries/{discovery_id}")
+def patch_discovery_alias(discovery_id: str, payload: ProcessUpdate, db: ScopedDb) -> dict[str, Any]:
+    return patch_discovery_process(discovery_id, payload, db)
+
+
+@router.post("/discoveries/{discovery_id}/ingestions", status_code=201)
+async def ingest_discovery_alias(
+    discovery_id: str,
+    db: ScopedDb,
+    file: UploadFile | None = File(default=None),
+    source_type: str = Form(default="transcript"),
+    source_name: str | None = Form(default=None),
+    content: str | None = Form(default=None),
+) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "discovery.interview.ingest", target_type="discovery", target_id=discovery_id)
+    process = get_process_or_404(db, discovery_id, context.workspace_id)
+    if source_type not in {"sop", "transcript", "screen_recording_narration"}:
+        raise DomainError("INVALID_SOURCE_TYPE", "source_type must be sop, transcript, or screen_recording_narration", 422)
+    source_text = content or ""
+    if file is not None:
+        source_bytes = await file.read(500_001)
+        if len(source_bytes) > 500_000:
+            raise DomainError("SOURCE_TOO_LARGE", "Discovery source must be at most 500000 bytes", 413)
+        source_text = source_bytes.decode("utf-8", errors="replace")
+        await file.close()
+    if not source_text.strip():
+        raise DomainError("SOURCE_REQUIRED", "An SOP or transcript file/content is required", 422)
+    interview = create_interview(
+        db,
+        process,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        source_type=source_type,
+        source_text=source_text,
+        transcript_ref=source_name,
+    )
+    db.commit()
+    db.refresh(interview)
+    payload = interview_payload(interview)
+    payload["ingestion_id"] = interview.id
+    return payload
+
+
+@router.get("/discoveries/{discovery_id}/draft")
+def get_discovery_draft_alias(discovery_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "discovery.read", target_type="discovery", target_id=discovery_id)
+    draft = interview_payload(_latest_interview(db, discovery_id, context.workspace_id))
+    db.commit()
+    return {"process_id": discovery_id, "draft": draft["draft"], **draft}
+
+
+@router.patch("/discoveries/{discovery_id}/draft")
+def patch_discovery_draft_alias(
+    discovery_id: str,
+    payload: DiscoveryDraftPatch,
+    db: ScopedDb,
+) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "discovery.update", target_type="discovery", target_id=discovery_id)
+    interview = _latest_interview(db, discovery_id, context.workspace_id)
+    if "draft_graph" in payload.model_fields_set:
+        graph = payload.draft_graph
+        if isinstance(graph, list):
+            graph = {"version": 2, "status": "draft", "publishable": False, "nodes": graph, "edges": []}
+        interview.draft_graph = graph or {"version": 2, "status": "draft", "publishable": False, "nodes": [], "edges": []}
+    if "exceptions" in payload.model_fields_set:
+        interview.exception_list = list(payload.exceptions or [])
+    if "baseline_questions" in payload.model_fields_set:
+        interview.baseline_questions = list(payload.baseline_questions or [])
+    append_audit_log(
+        db,
+        action="discovery.draft_updated",
+        target_type="discovery",
+        target_id=discovery_id,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        after={"edited_by": payload.edited_by or "human", "interview_id": interview.id},
+    )
+    db.commit()
+    db.refresh(interview)
+    return interview_payload(interview)
+
+
+@router.post("/discoveries/{discovery_id}/questions/{question_id}/answer")
+def answer_discovery_question_alias(
+    discovery_id: str,
+    question_id: str,
+    payload: DiscoveryQuestionAnswer,
+    db: ScopedDb,
+) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "discovery.update", target_type="discovery_question", target_id=question_id)
+    interview = _latest_interview(db, discovery_id, context.workspace_id)
+    questions = list(interview.baseline_questions or [])
+    question = next(
+        (item for item in questions if isinstance(item, dict) and item.get("id") == question_id),
+        None,
+    )
+    if question is None:
+        raise DomainError("QUESTION_NOT_FOUND", "The discovery question was not found", 404)
+    question["answer"] = payload.answer
+    question["status"] = "answered"
+    question["answered"] = True
+    interview.baseline_questions = questions
+    append_audit_log(
+        db,
+        action="discovery.question_answered",
+        target_type="discovery_question",
+        target_id=question_id,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        after={"process_id": discovery_id, "answered_by": payload.answered_by or "human"},
+    )
+    db.commit()
+    return {"id": question_id, "status": "answered", "question": question, "answer": payload.answer}
+
+
+@router.post("/discoveries/{discovery_id}/exceptions", status_code=201)
+def add_discovery_exception_alias(
+    discovery_id: str,
+    payload: DiscoveryExceptionCreate,
+    db: ScopedDb,
+) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "discovery.update", target_type="discovery_exception", target_id=discovery_id)
+    interview = _latest_interview(db, discovery_id, context.workspace_id)
+    if payload.origin.casefold() != "human":
+        raise DomainError("HUMAN_ORIGIN_REQUIRED", "Exceptions in the review surface must be captured by a human", 422)
+    exception = {
+        "id": new_id(),
+        "code": payload.code,
+        "description": payload.description,
+        "frequency_per_month": payload.frequency_per_month,
+        "severity": payload.severity,
+        "origin": "human",
+        "captured_by": payload.captured_by or context.user_id,
+        "editable": True,
+    }
+    interview.exception_list = [*(interview.exception_list or []), exception]
+    append_audit_log(
+        db,
+        action="discovery.exception_created",
+        target_type="discovery_exception",
+        target_id=exception["id"],
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        after={"process_id": discovery_id, "origin": "human", "code": payload.code},
+    )
+    db.commit()
+    return exception
+
+
+@router.post("/discoveries/{discovery_id}/baselines", status_code=201)
+def create_discovery_baseline_alias(
+    discovery_id: str,
+    payload: BaselineCreate,
+    db: ScopedDb,
+) -> dict[str, Any]:
+    return create_discovery_baseline(discovery_id, payload, db)
+
+
+@router.get("/discoveries/{discovery_id}/baselines")
+def list_discovery_baselines_alias(discovery_id: str, db: ScopedDb) -> dict[str, Any]:
+    return list_discovery_baselines(discovery_id, db)
+
+
+@router.get("/discoveries/{discovery_id}/baselines/{baseline_id}")
+def get_nested_discovery_baseline(discovery_id: str, baseline_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "baseline.read", target_type="baseline", target_id=baseline_id)
+    baseline = _nested_baseline(db, discovery_id, baseline_id, context.workspace_id)
+    db.commit()
+    return baseline_payload(db, baseline, workspace_id=context.workspace_id)
+
+
+@router.post("/discoveries/{discovery_id}/baselines/{baseline_id}/sign")
+def sign_nested_discovery_baseline(
+    discovery_id: str,
+    baseline_id: str,
+    payload: BaselineSign,
+    db: ScopedDb,
+) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "baseline.sign", target_type="baseline", target_id=baseline_id)
+    baseline = _nested_baseline(db, discovery_id, baseline_id, context.workspace_id)
+    sign_baseline(
+        db,
+        baseline,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        signature_note=payload.attestation or payload.signature_note,
+    )
+    db.commit()
+    db.refresh(baseline)
+    return baseline_payload(db, baseline, workspace_id=context.workspace_id)
+
+
+@router.get("/discoveries/{discovery_id}/baselines/{baseline_id}/export")
+def export_nested_discovery_baseline(discovery_id: str, baseline_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "baseline.read", target_type="baseline", target_id=baseline_id)
+    baseline = _nested_baseline(db, discovery_id, baseline_id, context.workspace_id)
+    if baseline.status != "signed":
+        raise DomainError("BASELINE_NOT_SIGNED", "Only a signed baseline can be exported", 409)
+    payload = export_baseline(db, baseline, workspace_id=context.workspace_id)
+    append_audit_log(
+        db,
+        action="discovery.baseline.exported",
+        target_type="baseline",
+        target_id=baseline.id,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        after={"canonical_hash": baseline.canonical_hash, "version": baseline.version},
+    )
+    db.commit()
+    return payload
+
+
+@router.post("/discoveries/{discovery_id}/baselines/{baseline_id}/scores", status_code=201)
+def score_nested_discovery_baseline(
+    discovery_id: str,
+    baseline_id: str,
+    payload: OpportunityScoreRequest,
+    db: ScopedDb,
+) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "score.compute", target_type="baseline", target_id=baseline_id)
+    _nested_baseline(db, discovery_id, baseline_id, context.workspace_id)
+    score = calculate_score(
+        db,
+        get_baseline_or_404(db, baseline_id, context.workspace_id),
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        request_inputs=payload,
+    )
+    db.commit()
+    db.refresh(score)
+    return {"score": score_payload(score), **score_payload(score)}
+
+
+@router.post("/baselines/{baseline_id}/scores", status_code=201)
+def score_discovery_baseline_plural(
+    baseline_id: str,
+    payload: OpportunityScoreRequest,
+    db: ScopedDb,
+) -> dict[str, Any]:
+    return score_discovery_baseline(baseline_id, payload, db)
 
 
 @router.post("/vendors", status_code=201)

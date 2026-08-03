@@ -31,6 +31,7 @@ $portEnvironment = [ordered]@{
     FRONTEND_PORT = [string]$frontendPort
     POSTGRES_PORT = [string]$postgresPort
     NEXT_PUBLIC_API_BASE_URL = $apiBaseUrl
+    ALLOWED_ORIGINS = "http://localhost:$frontendPort,http://localhost:3000"
 }
 $previousEnvironment = @{}
 $hadEnvironment = @{}
@@ -374,11 +375,17 @@ function Invoke-Compose {
 function Get-HttpErrorBody {
     param([Parameter(Mandatory)]$Exception)
 
+    if ($null -ne $Exception.ErrorDetails -and -not [string]::IsNullOrWhiteSpace([string]$Exception.ErrorDetails.Message)) {
+        return [string]$Exception.ErrorDetails.Message
+    }
     $response = $Exception.Response
     if ($null -eq $response) {
         return $Exception.Message
     }
     try {
+        if ($null -ne $response.Content -and -not [string]::IsNullOrWhiteSpace([string]$response.Content)) {
+            return [string]$response.Content
+        }
         $reader = [System.IO.StreamReader]::new($response.GetResponseStream())
         try {
             return $reader.ReadToEnd()
@@ -445,6 +452,15 @@ function Invoke-Api {
         }
         $status = [int]$webResponse.StatusCode
         $responseBody = Get-HttpErrorBody -Exception $_.Exception
+        if ([string]::IsNullOrWhiteSpace($responseBody)) {
+            $fallbackHeaders = @{}
+            foreach ($headerKey in $requestHeaders.Keys) {
+                $fallbackHeaders[$headerKey] = [string]$requestHeaders[$headerKey]
+            }
+            $fallback = Invoke-HttpClientFallback -Method $Method -Uri $uri -Body $Body -Headers $fallbackHeaders
+            $status = $fallback.Status
+            $responseBody = $fallback.Body
+        }
     }
 
     Assert-NoCredentialText -Text $responseBody -Action "$Method $Path response"
@@ -475,6 +491,36 @@ function Invoke-ContractApi {
 
     $route = Get-ContractRoute -Contract $Contract -RouteKey $RouteKey -Replacements $Replacements
     Invoke-Api -Method $route.Method -Path $route.Path -Body $Body -Token $Token -Headers $Headers
+}
+
+function Invoke-HttpClientFallback {
+    param(
+        [Parameter(Mandatory)][string]$Method,
+        [Parameter(Mandatory)][string]$Uri,
+        [AllowNull()][object]$Body,
+        [hashtable]$Headers = @{}
+    )
+
+    Add-Type -AssemblyName System.Net.Http
+    $client = [System.Net.Http.HttpClient]::new()
+    $request = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::new($Method), $Uri)
+    try {
+        foreach ($headerKey in $Headers.Keys) {
+            $null = $request.Headers.TryAddWithoutValidation($headerKey, [string]$Headers[$headerKey])
+        }
+        if ($null -ne $Body) {
+            $json = $Body | ConvertTo-Json -Depth 30 -Compress
+            $request.Content = [System.Net.Http.StringContent]::new($json, [System.Text.Encoding]::UTF8, "application/json")
+        }
+        $response = $client.SendAsync($request).GetAwaiter().GetResult()
+        return [pscustomobject]@{
+            Status = [int]$response.StatusCode
+            Body = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
+        }
+    } finally {
+        $request.Dispose()
+        $client.Dispose()
+    }
 }
 
 function Invoke-MultipartIngest {
@@ -863,7 +909,7 @@ try {
     $discoveryA = Get-EntityId -Json $createA.Json -CandidatePaths @("id", "discovery.id", "process.id") -Action "workspace A discovery creation"
     Assert-DiscoveryIntake -Json $createA.Json -Contract $contract -Action "workspace A discovery creation"
     $draftStatusA = Get-FirstValue -Object $createA.Json -CandidatePaths @("status", "draft_status", "discovery.status", "process.status")
-    Assert-Condition -Condition ([string]$draftStatusA).ToLowerInvariant() -in @("draft", "intake_draft", "draft_pending_review") -Message "structured discovery intake did not start in draft status"
+    Assert-Condition -Condition ((([string]$draftStatusA).ToLowerInvariant()) -in @("draft", "intake_draft", "draft_pending_review")) -Message "structured discovery intake did not start in draft status"
 
     $payloadB = New-DiscoveryPayload -Name "Subcontractor COI renewal B $runTag" -Tag $runTag
     $createB = Invoke-ContractApi -Contract $contract -RouteKey "discovery_create" -Token $tokenB -Body $payloadB
@@ -957,7 +1003,7 @@ try {
     $answer = Invoke-ContractApi -Contract $contract -RouteKey "discovery_question_answer" -Token $tokenA -Replacements @{ discovery_id = $discoveryA; question_id = $questionId } -Body @{ answer = "The sponsor requires a documented human decision for any missing endorsement."; answered_by = "human_operator" }
     Assert-ApiSuccess -Response $answer -Action "human baseline question answer" -Expected @(200, 201)
     $answerStatus = Get-FirstValue -Object $answer.Json -CandidatePaths @("status", "question.status", "answer.status")
-    Assert-Condition -Condition ([string]$answerStatus).ToLowerInvariant() -in @("answered", "resolved") -Message "baseline question did not become answered"
+    Assert-Condition -Condition ((([string]$answerStatus).ToLowerInvariant()) -in @("answered", "resolved")) -Message "baseline question did not become answered"
     $answerText = Get-FirstValue -Object $answer.Json -CandidatePaths @("answer", "question.answer", "answer.value")
     Assert-Condition -Condition ([string]$answerText -like "*documented human decision*") -Message "human baseline question answer was not retained"
 
@@ -972,7 +1018,7 @@ try {
     Assert-ApiSuccess -Response $exception -Action "human exception capture" -Expected @(200, 201)
     $exceptionId = Get-EntityId -Json $exception.Json -CandidatePaths @("id", "exception.id", "exception_id") -Action "human exception capture"
     $exceptionOrigin = Get-FirstValue -Object $exception.Json -CandidatePaths @("origin", "source", "exception.origin", "exception.source")
-    Assert-Condition -Condition ([string]$exceptionOrigin).ToLowerInvariant() -eq "human" -Message "exception capture did not retain human origin"
+    Assert-Condition -Condition ((([string]$exceptionOrigin).ToLowerInvariant()) -eq "human") -Message "exception capture did not retain human origin"
     Assert-Condition -Condition (-not [string]::IsNullOrWhiteSpace($exceptionId)) -Message "human exception capture returned no id"
 
     $metricsV1 = New-DiscoveryMetrics
@@ -985,7 +1031,7 @@ try {
     Assert-ApiSuccess -Response $baselineDraft -Action "baseline version 1 creation" -Expected @(201)
     $baselineV1 = Get-EntityId -Json $baselineDraft.Json -CandidatePaths @("id", "baseline.id", "baseline_id") -Action "baseline version 1 creation"
     $baselineV1Status = Get-FirstValue -Object $baselineDraft.Json -CandidatePaths @("status", "baseline.status")
-    Assert-Condition -Condition ([string]$baselineV1Status).ToLowerInvariant() -eq "draft" -Message "baseline version 1 was not created as draft"
+    Assert-Condition -Condition ((([string]$baselineV1Status).ToLowerInvariant()) -eq "draft") -Message "baseline version 1 was not created as draft"
     $baselineV1Version = [int](Get-FirstValue -Object $baselineDraft.Json -CandidatePaths @("version", "baseline.version", "baseline_version"))
     Assert-Condition -Condition ($baselineV1Version -eq 1) -Message "first baseline did not receive version 1"
 
@@ -997,7 +1043,7 @@ try {
     }
     Assert-ApiSuccess -Response $signV1 -Action "sponsor signing baseline version 1" -Expected @(200)
     $signedV1Status = Get-FirstValue -Object $signV1.Json -CandidatePaths @("status", "baseline.status")
-    Assert-Condition -Condition ([string]$signedV1Status).ToLowerInvariant() -eq "signed" -Message "baseline version 1 did not become signed"
+    Assert-Condition -Condition ((([string]$signedV1Status).ToLowerInvariant()) -eq "signed") -Message "baseline version 1 did not become signed"
     $signedV1Hash = Get-FirstValue -Object $signV1.Json -CandidatePaths @("canonical_hash", "hash", "baseline.canonical_hash", "baseline.hash")
     Assert-Sha256 -Value $signedV1Hash -Action "signed baseline version 1"
     $signedV1At = Get-FirstValue -Object $signV1.Json -CandidatePaths @("signed_at", "baseline.signed_at")
@@ -1050,7 +1096,7 @@ try {
     }
     Assert-ApiSuccess -Response $signV2 -Action "sponsor signing baseline version 2" -Expected @(200)
     $signedV2Status = Get-FirstValue -Object $signV2.Json -CandidatePaths @("status", "baseline.status")
-    Assert-Condition -Condition ([string]$signedV2Status).ToLowerInvariant() -eq "signed" -Message "baseline version 2 did not become signed"
+    Assert-Condition -Condition ((([string]$signedV2Status).ToLowerInvariant()) -eq "signed") -Message "baseline version 2 did not become signed"
     $signedV2Hash = Get-FirstValue -Object $signV2.Json -CandidatePaths @("canonical_hash", "hash", "baseline.canonical_hash", "baseline.hash")
     Assert-Sha256 -Value $signedV2Hash -Action "signed baseline version 2"
     Assert-Condition -Condition ($signedV2Hash -ne $signedV1Hash) -Message "distinct signed baseline versions reused the same canonical hash"
@@ -1109,7 +1155,10 @@ try {
     $projectionRepeat = Get-ScoreProjection -Json $scoreRepeat.Json
     Assert-Condition -Condition ((($projection1 | ConvertTo-Json -Depth 20 -Compress) -eq ($projectionRepeat | ConvertTo-Json -Depth 20 -Compress))) -Message "repeated identical score inputs produced different formula-versioned outputs"
 
-    $scoreChangedBody = $scoreBody.Clone()
+    $scoreChangedBody = [ordered]@{}
+    foreach ($scoreKey in $scoreBody.Keys) {
+        $scoreChangedBody[$scoreKey] = $scoreBody[$scoreKey]
+    }
     $scoreChangedBody.automatable_pct = 0.40
     $scoreChanged = Invoke-ContractApi -Contract $contract -RouteKey "score_compute" -Token $tokenA -Replacements @{ baseline_id = $baselineV2 } -Body $scoreChangedBody
     Assert-ApiSuccess -Response $scoreChanged -Action "changed opportunity score input" -Expected @(200, 201)

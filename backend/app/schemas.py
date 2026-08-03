@@ -26,6 +26,7 @@ class ProcessStepInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     description: str = Field(min_length=1, max_length=2000)
+    seq: int | None = Field(default=None, ge=1)
     system: str | None = Field(default=None, max_length=160)
     minutes_p50: float | None = Field(default=None, ge=0)
     minutes_p90: float | None = Field(default=None, ge=0)
@@ -63,6 +64,17 @@ class ProcessCreate(BaseModel):
     approvals: list[Any] = Field(default_factory=list)
     outputs: list[Any] = Field(default_factory=list)
     failure_modes: list[Any] = Field(default_factory=list)
+    baseline_metrics: dict[str, Any] | list[Any] | None = None
+    captured_by: str | None = Field(default=None, max_length=120)
+    client_reference: str | None = Field(default=None, max_length=240)
+
+    @model_validator(mode="after")
+    def require_structured_intake(self) -> "ProcessCreate":
+        required = ("trigger", "inputs", "steps", "decisions", "exceptions", "approvals", "outputs", "failure_modes")
+        missing = [field for field in required if field not in self.model_fields_set or not getattr(self, field)]
+        if missing:
+            raise ValueError("structured discovery intake is missing: " + ", ".join(missing))
+        return self
 
     @field_validator("name", "department", "system_of_record")
     @classmethod
@@ -153,6 +165,9 @@ class BaselineCreate(BaseModel):
     metrics: dict[str, Any] | list[BaselineMetricInput] = Field(default_factory=dict)
     notes: str | None = Field(default=None, max_length=5000)
     supersedes_baseline_id: str | None = Field(default=None, max_length=36)
+    source: str | None = Field(default=None, max_length=120)
+    period_start: str | None = Field(default=None, max_length=40)
+    period_end: str | None = Field(default=None, max_length=40)
 
 
 class BaselineUpdate(BaseModel):
@@ -172,6 +187,11 @@ class BaselineSign(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     signature_note: str | None = Field(default=None, max_length=2000)
+    signer_name: str | None = Field(default=None, max_length=200)
+    signer_email: str | None = Field(default=None, max_length=320)
+    attestation: str | None = Field(default=None, max_length=4000)
+    signer: dict[str, Any] | None = None
+    confirm_immutable: bool | None = None
 
 
 class OpportunityScoreRequest(BaseModel):
@@ -190,7 +210,43 @@ class OpportunityScoreRequest(BaseModel):
     infra_cost_annual: float | None = Field(default=None, ge=0)
     model_cost: float | None = Field(default=None, ge=0)
     infra_cost: float | None = Field(default=None, ge=0)
+    automatable_pct: float | None = Field(default=None, ge=0, le=1)
+    formula_version: str | None = Field(default=None, max_length=40)
+    inputs: dict[str, Any] | None = None
     input_provenance: dict[str, Any] = Field(default_factory=dict)
+
+
+class DiscoveryDraftPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    draft_graph: dict[str, Any] | list[Any] | None = None
+    exceptions: list[Any] | None = None
+    baseline_questions: list[Any] | None = None
+    edited_by: str | None = Field(default=None, max_length=120)
+
+    @model_validator(mode="after")
+    def require_draft_change(self) -> "DiscoveryDraftPatch":
+        if not self.model_fields_set.intersection({"draft_graph", "exceptions", "baseline_questions"}):
+            raise ValueError("draft_graph, exceptions, or baseline_questions is required")
+        return self
+
+
+class DiscoveryQuestionAnswer(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    answer: str = Field(min_length=1, max_length=4000)
+    answered_by: str | None = Field(default=None, max_length=120)
+
+
+class DiscoveryExceptionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    code: str | None = Field(default=None, max_length=120)
+    description: str = Field(min_length=1, max_length=4000)
+    frequency_per_month: float | None = Field(default=None, ge=0)
+    severity: str | None = Field(default=None, max_length=40)
+    origin: str = Field(default="human", max_length=40)
+    captured_by: str | None = Field(default=None, max_length=120)
 
 
 RoleValue = Literal["owner", "admin", "builder", "operator", "reviewer", "viewer", "auditor"]

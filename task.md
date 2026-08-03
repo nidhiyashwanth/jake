@@ -60,8 +60,8 @@ The documented non-product items remain deliberately deferred unless the owner c
 | SEC-01 | Local secret/config hygiene | F01 | passing | ignored `.env`, no tracked credential defaults, config/Compose/secret scan pass |
 | H-01 | Full-product harness and task continuity | SEC-01 | passing | fresh-session test, task/state consistency, clean-exit verifier |
 | T-01 | Organizations, workspaces, auth, RBAC, RLS | H-01 | passing | 2026-08-04: live Compose/API/browser tenant-isolation, role, RLS, session, audit, and F01 evidence passed |
-| D-01 | Discovery, signed baselines, opportunity scoring | T-01 | active | discovery-to-signed-baseline workflow and formula tests |
-| W-01 | Workflow definitions, DAG versioning, designer, publish gate | D-01 | not_started | immutable-version and eval-gated publish E2E |
+| D-01 | Discovery, signed baselines, opportunity scoring | T-01 | passing | 2026-08-04: static contract, real Compose/PostgreSQL API E2E, backend suite, and live Discovery Studio browser flow passed |
+| W-01 | Workflow definitions, DAG versioning, designer, publish gate | D-01 | active | immutable-version and eval-gated publish E2E |
 | R-01 | Durable runtime, workers, outbox, model boundary | W-01 | not_started | crash/retry/idempotency/replay integration suite |
 | V-01 | Full review desk, queue, provenance, corrections | R-01 | not_started | keyboard/operator workflow and provenance E2E |
 | C-01 | MCP gateway, connectors, vault, notifications | R-01 | not_started | scoped connector sandbox and credential/audit tests |
@@ -88,8 +88,8 @@ The documented non-product items remain deliberately deferred unless the owner c
 
 ### H-01 - Full-product harness and continuity
 
-- [ ] Add `task.md` routing to `AGENTS.md`, `README.md`, `PROGRESS.md`, and `docs/WORKFLOW.md`.
-- [ ] Add task-board/state consistency checks to the harness.
+- [x] Add `task.md` routing to `AGENTS.md`, `README.md`, `PROGRESS.md`, and `docs/WORKFLOW.md`.
+- [x] Add task-board/state consistency checks to the harness.
 - [x] Add a final-product gate that refuses to pass while any required package is open and then runs harness, secret, runtime, and repository checks.
 - [x] Add a fresh-session test: a new agent can identify scope, current task, run path, verification, blockers, and next action from repository files only.
 - **Verification:** `scripts/verify-harness.ps1 -Area All`; `scripts/verify-fresh-session.ps1`; `scripts/verify-product.ps1` correctly blocks while required packages remain open; clean feature branch.
@@ -105,12 +105,12 @@ The documented non-product items remain deliberately deferred unless the owner c
 
 ### D-01 - Discovery, signed baseline, and opportunity scoring
 
-- [ ] Build structured discovery intake for trigger, inputs, steps, decisions, exceptions, approvals, outputs, and failure modes.
-- [ ] Add SOP/transcript ingestion that produces a human-editable draft graph, exception list, and baseline questions; no autonomous publish.
-- [ ] Capture p50/p90 time, volume, loaded cost, errors, rework, cycle time, headcount, backlog, chase volume, lapse incidents, and audit-prep hours.
-- [ ] Freeze, hash, sign, version, and export a baseline; never mutate a signed version.
-- [ ] Implement visible annual-cost, projected-savings, confidence, effort, risk, and priority formulas with input provenance.
-- **Verification:** formula/property tests, signed-baseline immutability, sponsor-signature audit E2E, discovery-to-score UI flow.
+- [x] Build structured discovery intake for trigger, inputs, steps, decisions, exceptions, approvals, outputs, and failure modes.
+- [x] Add SOP/transcript ingestion that produces a human-editable draft graph, exception list, and baseline questions; no autonomous publish.
+- [x] Capture p50/p90 time, volume, loaded cost, errors, rework, cycle time, headcount, backlog, chase volume, lapse incidents, and audit-prep hours.
+- [x] Freeze, hash, sign, version, and export a baseline; never mutate a signed version.
+- [x] Implement visible annual-cost, projected-savings, confidence, effort, risk, and priority formulas with input provenance.
+- **Verification:** `scripts/verify-discovery.ps1` passed static and real Compose/PostgreSQL E2E; backend PostgreSQL suite passed 14 tests; frontend `npm run typecheck` and `npm run build` passed; live Playwright browser flow passed authenticated intake, multipart ingestion, human draft persistence, signed baseline, and `opportunity.v1` score binding.
 
 ### W-01 - Workflow definitions, versioning, and designer
 

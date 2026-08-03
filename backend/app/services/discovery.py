@@ -99,6 +99,7 @@ METRIC_ALIASES = {
     "backlog": "peak_backlog",
     "chase_volume": "chase_volume_per_month",
     "lapse_incidents": "lapse_incidents_per_month",
+    "lapse_incidents_per_year": "lapse_incidents_per_month",
     "audit_prep_hours": "audit_prep_hours_per_month",
     "model_cost": "model_cost_annual",
     "infra_cost": "infra_cost_annual",
@@ -210,10 +211,12 @@ def baseline_questions(metrics: dict[str, dict[str, Any]] | None = None) -> list
     present = metrics or {}
     return [
         {
+            "id": f"question-{key}",
             "key": key,
             "question": question,
             "required": True,
             "answered": key in present,
+            "status": "answered" if key in present else "open",
             "editable": True,
         }
         for key, question in _QUESTION_LABELS.items()
@@ -465,6 +468,15 @@ def create_process(
         actor_id=actor_id,
         after={"name": process.name, "owner_user_id": process.owner_user_id, "step_count": len(payload.steps)},
     )
+    append_audit_log(
+        db,
+        action="discovery.created",
+        target_type="discovery",
+        target_id=process.id,
+        workspace_id=workspace_id,
+        actor_id=actor_id,
+        after={"name": process.name, "status": "draft"},
+    )
     return process
 
 
@@ -533,6 +545,15 @@ def update_process(db: Session, process: Process, *, workspace_id: str, actor_id
             actor_id=actor_id,
             after=changed,
         )
+        append_audit_log(
+            db,
+            action="discovery.draft_updated",
+            target_type="discovery",
+            target_id=process.id,
+            workspace_id=workspace_id,
+            actor_id=actor_id,
+            after={"fields": sorted(changed)},
+        )
     return process
 
 
@@ -569,6 +590,15 @@ def create_interview(
         workspace_id=workspace_id,
         actor_id=actor_id,
         after={"process_id": process.id, "source_type": source_type, "node_count": len(graph["nodes"])},
+    )
+    append_audit_log(
+        db,
+        action="discovery.ingested",
+        target_type="discovery",
+        target_id=process.id,
+        workspace_id=workspace_id,
+        actor_id=actor_id,
+        after={"interview_id": interview.id, "source_type": source_type, "human_review_required": True},
     )
     return interview
 
@@ -656,6 +686,15 @@ def create_baseline(
         workspace_id=workspace_id,
         actor_id=actor_id,
         after={"process_id": process.id, "version": baseline.version, "status": baseline.status, "metric_count": len(metrics)},
+    )
+    append_audit_log(
+        db,
+        action="baseline.created",
+        target_type="baseline",
+        target_id=baseline.id,
+        workspace_id=workspace_id,
+        actor_id=actor_id,
+        after={"process_id": process.id, "version": baseline.version, "status": baseline.status},
     )
     return baseline
 
@@ -752,11 +791,30 @@ def sign_baseline(
             "signature_note": signature_note,
         },
     )
+    append_audit_log(
+        db,
+        action="baseline.signed",
+        target_type="baseline",
+        target_id=baseline.id,
+        workspace_id=workspace_id,
+        actor_id=actor_id,
+        after={"version": baseline.version, "canonical_hash": baseline.canonical_hash},
+    )
+    if baseline.supersedes_baseline_id:
+        append_audit_log(
+            db,
+            action="baseline.superseded",
+            target_type="baseline",
+            target_id=baseline.supersedes_baseline_id,
+            workspace_id=workspace_id,
+            actor_id=actor_id,
+            after={"superseded_by_baseline_id": baseline.id, "version": baseline.version},
+        )
     return baseline
 
 
 def _percent_fraction(value: float, key: str) -> float:
-    if key.endswith("_pct") or value > 1:
+    if value > 1:
         return value / 100
     return value
 
@@ -777,6 +835,10 @@ def calculate_score(
         raise DomainError("BASELINE_INCOMPLETE", "Baseline is missing required metrics: " + ", ".join(missing), 422)
 
     provided = request_inputs.model_dump(exclude_none=True)
+    nested_inputs = provided.pop("inputs", None)
+    if isinstance(nested_inputs, dict):
+        provided = {**nested_inputs, **provided}
+    provided.pop("formula_version", None)
     user_provenance = provided.pop("input_provenance", {}) or {}
     aliases = {
         "structure_score": ("structure_score",),
@@ -849,7 +911,22 @@ def calculate_score(
     rule_component = resolved["rule_clarity_score"] * 0.30
     data_component = resolved["data_availability_score"] * 0.25
     exception_component = (1 - min(max(resolved["exception_rate"], 0), 1)) * 0.15
-    automatable_pct = min(max(structure_component + rule_component + data_component + exception_component, 0), 1)
+    if "automatable_pct" in provided:
+        automatable_pct = _percent_fraction(_number(provided["automatable_pct"], key="automatable_pct"), "automatable_pct")
+        automatable_pct = min(max(automatable_pct, 0), 1)
+        provenance["automatable_pct"] = {
+            "source": "score_request",
+            "metric_key": "automatable_pct",
+            "user_provenance": user_provenance.get("automatable_pct"),
+        }
+    else:
+        automatable_pct = min(max(structure_component + rule_component + data_component + exception_component, 0), 1)
+        provenance["automatable_pct"] = {
+            "source": "derived",
+            "metric_key": None,
+            "user_provenance": None,
+        }
+    resolved["automatable_pct"] = automatable_pct
     if resolved["review_rate"] < 0:
         resolved["review_rate"] = max(0.0, 1 - automatable_pct)
         provenance["review_rate"] = {"source": "derived", "metric_key": None, "user_provenance": None}
@@ -923,6 +1000,15 @@ def calculate_score(
             "priority_score": priority_score,
         },
     )
+    append_audit_log(
+        db,
+        action="opportunity_score.computed",
+        target_type="opportunity_score",
+        target_id=score.id,
+        workspace_id=workspace_id,
+        actor_id=actor_id,
+        after={"baseline_id": baseline.id, "formula_version": FORMULA_VERSION},
+    )
     return score
 
 
@@ -954,6 +1040,12 @@ def process_payload(db: Session, process: Process, *, workspace_id: str, actor_i
         )
     return {
         "id": process.id,
+        "process_id": process.id,
+        "workspace_id": process.workspace_id,
+        "status": "draft",
+        "draft_status": "draft",
+        "human_review_required": True,
+        "publish_allowed": False,
         "name": process.name,
         "department": process.department,
         "owner_user_id": process.owner_user_id,
@@ -982,6 +1074,9 @@ def process_payload(db: Session, process: Process, *, workspace_id: str, actor_i
         "interviews": [interview_payload(item) for item in interviews],
         "baselines": [baseline_payload(db, item, workspace_id=workspace_id) for item in baselines],
         "opportunity_scores": [score_payload(item) for item in scores],
+        "draft": interview_payload(interviews[0])["draft"] if interviews else None,
+        "current_baseline": baseline_payload(db, baselines[0], workspace_id=workspace_id) if baselines else None,
+        "score": score_payload(scores[0]) if scores else None,
     }
 
 
@@ -992,6 +1087,18 @@ def interview_payload(interview: ProcessInterview) -> dict[str, Any]:
         "source_type": interview.source_type,
         "transcript_ref": interview.transcript_ref,
         "draft_graph": interview.draft_graph,
+        "draft": {
+            "source_type": interview.source_type,
+            "source_name": interview.transcript_ref,
+            "generated_at": interview.captured_at.isoformat(),
+            "steps": interview.draft_graph.get("nodes", []),
+            "exceptions": interview.exception_list,
+            "baseline_questions": interview.baseline_questions,
+        },
+        "status": "draft",
+        "draft_status": "draft",
+        "human_review_required": True,
+        "publish_allowed": False,
         "exception_list": interview.exception_list,
         "baseline_questions": interview.baseline_questions,
         "human_editable": True,
@@ -1038,6 +1145,7 @@ def score_payload(score: OpportunityScore) -> dict[str, Any]:
         "baseline_id": score.baseline_id,
         "formula_version": score.formula_version,
         "annual_cost": score.annual_cost,
+        "current_annual_cost": score.annual_cost,
         "projected_savings": score.projected_savings,
         "automatable_pct": score.automatable_pct,
         "confidence": score.confidence,

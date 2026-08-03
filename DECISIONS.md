@@ -81,3 +81,11 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** The first real browser run exposed that compile-time UI behavior, CORS, and API authorization must be verified together. A UI-only session shell is not a tenant boundary, and a database RLS policy is not exercised by a superuser connection.
 - **Rejected alternative:** Keep unauthenticated browser fallback as the only path, rely on frontend workspace headers without bearer authentication, or treat mocked browser responses as sufficient proof.
 - **Remaining constraints:** Keep the local fallback clearly labeled, use a non-superuser application database role for production RLS enforcement, preserve the six-role capability matrix, and rerun the live Compose/API/browser gate whenever the auth or tenancy boundary changes.
+
+## D-011 - Keep D-01 contract aliases and browser proof aligned with the canonical formula
+
+- **Date:** 2026-08-04
+- **Decision:** Expose the D-01 discovery contract through workspace-scoped aliases while retaining the existing service boundaries, send browser source ingestion as multipart form data, and use `opportunity.v1` with the same deterministic weights in the UI preview and API score request. Alternate verifier ports must be explicit CORS origins rather than an open-origin fallback.
+- **Why:** The first real browser run found drift between the API contract, frontend payload shapes, source ingestion content type, and formula label. Contract-facing aliases keep the existing modular services reusable while the live browser gate proves the path users actually operate.
+- **Rejected alternative:** Accept arbitrary frontend payloads, silently use a second formula identifier, or disable CORS checks to make the alternate-port verifier pass.
+- **Remaining constraints:** Keep drafts human-editable and non-publishable, persist draft edits only after a real source interview exists, preserve signed-baseline immutability, and rerun the D-01 API plus browser gate when discovery or scoring changes.

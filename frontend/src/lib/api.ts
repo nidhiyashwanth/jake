@@ -331,11 +331,22 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   ingestDiscoverySource: (processId: string, payload: { source_type: DiscoverySourceType; source_name?: string; content: string }) =>
-    request<{ ingestion_id?: string; draft?: DiscoveryDraft }>(`/api/discoveries/${processId}/ingestions`, {
-      method: "POST",
+    (() => {
+      const formData = new FormData();
+      formData.append("source_type", payload.source_type === "screen_recording" ? "screen_recording_narration" : payload.source_type);
+      if (payload.source_name) formData.append("source_name", payload.source_name);
+      formData.append("content", payload.content);
+      return request<{ ingestion_id?: string; draft?: DiscoveryDraft }>(`/api/discoveries/${processId}/ingestions`, {
+        method: "POST",
+        body: formData,
+      });
+    })(),
+  getDiscoveryDraft: (processId: string) => request<DiscoveryDraftResponse>(`/api/discoveries/${processId}/draft`),
+  updateDiscoveryDraft: (processId: string, payload: Record<string, unknown>) =>
+    request<DiscoveryDraftResponse>(`/api/discoveries/${processId}/draft`, {
+      method: "PATCH",
       body: JSON.stringify(payload),
     }),
-  getDiscoveryDraft: (processId: string) => request<DiscoveryDraftResponse>(`/api/discoveries/${processId}/draft`),
   answerDiscoveryQuestion: (processId: string, questionId: string, answer: string) =>
     request<DiscoveryResponse>(`/api/discoveries/${processId}/questions/${questionId}/answer`, {
       method: "POST",
