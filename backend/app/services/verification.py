@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.errors import DomainError
-from app.models import AuditEvent, ComplianceCheck, ComplianceDocument, ComplianceStatus, ReviewTask, Vendor, utc_now
+from app.models import AuditEvent, ComplianceCheck, ComplianceDocument, ComplianceStatus, ReviewTask, Vendor, new_id, utc_now
 from app.services.documents import as_date
 
 
@@ -155,6 +155,7 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
     reviews: list[ReviewTask] = []
     for result in results:
         check = ComplianceCheck(
+            id=new_id(),
             vendor_id=vendor.id,
             document_id=document.id,
             run_id=run_id,
@@ -240,6 +241,6 @@ def history_payload(db: Session, vendor_id: str) -> list[dict[str, Any]]:
     rows = db.scalars(
         select(ComplianceStatus)
         .where(ComplianceStatus.vendor_id == vendor_id)
-        .order_by(ComplianceStatus.as_of.desc())
+        .order_by(ComplianceStatus.as_of.desc(), ComplianceStatus.id.desc())
     ).all()
     return [status_payload(row) for row in rows]

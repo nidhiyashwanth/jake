@@ -30,6 +30,6 @@ def latest_status(db: Session, vendor_id: str) -> ComplianceStatus | None:
     return db.scalar(
         select(ComplianceStatus)
         .where(ComplianceStatus.vendor_id == vendor_id)
-        .order_by(ComplianceStatus.as_of.desc())
+        .order_by(ComplianceStatus.as_of.desc(), ComplianceStatus.id.desc())
         .limit(1)
     )

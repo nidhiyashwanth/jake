@@ -50,7 +50,9 @@ def extract_text(content: bytes, filename: str, media_type: str) -> str:
 
 def _first_label_value(text: str, labels: tuple[str, ...]) -> str | None:
     for label in labels:
-        match = re.search(rf"(?im)^\s*(?:{label})\s*[:\-]\s*(.+?)\s*$", text)
+        # Keep label matching on one physical line. Using ``\s`` here would
+        # let an empty label consume the next field through a newline.
+        match = re.search(rf"(?im)^[ \t]*(?:{label})[ \t]*[:\-][ \t]*(.+?)[ \t]*$", text)
         if match:
             value = " ".join(match.group(1).strip().split())
             return value or None
