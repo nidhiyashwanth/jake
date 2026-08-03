@@ -1,0 +1,245 @@
+from dataclasses import dataclass
+from datetime import date
+from typing import Any
+from uuid import uuid4
+
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.config import get_settings
+from app.errors import DomainError
+from app.models import AuditEvent, ComplianceCheck, ComplianceDocument, ComplianceStatus, ReviewTask, Vendor, utc_now
+from app.services.documents import as_date
+
+
+@dataclass(frozen=True)
+class RuleResult:
+    key: str
+    label: str
+    field: str
+    result: str
+    reason_code: str
+    message: str
+    observed_value: Any
+    required_value: Any
+
+
+def _same_name(left: Any, right: Any) -> bool:
+    if not isinstance(left, str) or not isinstance(right, str):
+        return False
+    return " ".join(left.casefold().split()) == " ".join(right.casefold().split())
+
+
+def evaluate_rules(vendor: Vendor, fields: dict[str, Any], today: date | None = None) -> list[RuleResult]:
+    settings = get_settings()
+    today = today or date.today()
+    expiry = as_date(fields.get("policy_expiry"))
+    occurrence = fields.get("gl_occurrence_limit")
+    rules = [
+        RuleResult(
+            "named_insured_match",
+            "Named insured matches vendor legal name",
+            "named_insured",
+            "pass" if _same_name(fields.get("named_insured"), vendor.legal_name) else "fail",
+            "PASS" if _same_name(fields.get("named_insured"), vendor.legal_name) else ("FIELD_MISSING" if not fields.get("named_insured") else "NAME_MISMATCH"),
+            "Named insured matches the vendor legal name."
+            if _same_name(fields.get("named_insured"), vendor.legal_name)
+            else f"Observed {fields.get('named_insured') or 'no value'}; expected {vendor.legal_name}.",
+            fields.get("named_insured"),
+            vendor.legal_name,
+        ),
+        RuleResult(
+            "certificate_holder_match",
+            "Certificate holder matches contracting entity",
+            "certificate_holder",
+            "pass" if _same_name(fields.get("certificate_holder"), settings.required_certificate_holder) else "fail",
+            "PASS" if _same_name(fields.get("certificate_holder"), settings.required_certificate_holder) else ("FIELD_MISSING" if not fields.get("certificate_holder") else "HOLDER_MISMATCH"),
+            "Certificate holder matches the seeded contracting entity."
+            if _same_name(fields.get("certificate_holder"), settings.required_certificate_holder)
+            else f"Observed {fields.get('certificate_holder') or 'no value'}; expected {settings.required_certificate_holder}.",
+            fields.get("certificate_holder"),
+            settings.required_certificate_holder,
+        ),
+        RuleResult(
+            "gl_occurrence_minimum",
+            "General liability occurrence limit meets minimum",
+            "gl_occurrence_limit",
+            "pass" if isinstance(occurrence, int) and occurrence >= settings.minimum_gl_occurrence_limit else "fail",
+            "PASS" if isinstance(occurrence, int) and occurrence >= settings.minimum_gl_occurrence_limit else ("FIELD_MISSING" if occurrence is None else "LIMIT_BELOW_MINIMUM"),
+            "The GL occurrence limit meets the seeded minimum."
+            if isinstance(occurrence, int) and occurrence >= settings.minimum_gl_occurrence_limit
+            else f"Observed {occurrence or 'no value'}; minimum is {settings.minimum_gl_occurrence_limit}.",
+            occurrence,
+            settings.minimum_gl_occurrence_limit,
+        ),
+        RuleResult(
+            "policy_not_expired",
+            "Policy expiry is in the future",
+            "policy_expiry",
+            "pass" if expiry is not None and expiry >= today else "fail",
+            "PASS" if expiry is not None and expiry >= today else ("FIELD_MISSING" if expiry is None else "POLICY_EXPIRED"),
+            "Policy is valid on the verification date."
+            if expiry is not None and expiry >= today
+            else f"Observed {fields.get('policy_expiry') or 'no value'}; verification date is {today.isoformat()}.",
+            fields.get("policy_expiry"),
+            f">={today.isoformat()}",
+        ),
+        RuleResult(
+            "additional_insured_present",
+            "Additional insured endorsement is present",
+            "additional_insured",
+            "pass" if fields.get("additional_insured") is True else "fail",
+            "PASS" if fields.get("additional_insured") is True else ("FIELD_MISSING" if fields.get("additional_insured") is None else "ENDORSEMENT_MISSING"),
+            "Additional insured is marked present." if fields.get("additional_insured") is True else "Additional insured is missing or not confirmed.",
+            fields.get("additional_insured"),
+            True,
+        ),
+        RuleResult(
+            "waiver_of_subrogation_present",
+            "Waiver of subrogation is present",
+            "waiver_of_subrogation",
+            "pass" if fields.get("waiver_of_subrogation") is True else "fail",
+            "PASS" if fields.get("waiver_of_subrogation") is True else ("FIELD_MISSING" if fields.get("waiver_of_subrogation") is None else "ENDORSEMENT_MISSING"),
+            "Waiver of subrogation is marked present." if fields.get("waiver_of_subrogation") is True else "Waiver of subrogation is missing or not confirmed.",
+            fields.get("waiver_of_subrogation"),
+            True,
+        ),
+    ]
+    return rules
+
+
+def check_payload(check: ComplianceCheck) -> dict[str, Any]:
+    return {
+        "id": check.id,
+        "requirement_key": check.requirement_key,
+        "label": check.label,
+        "result": check.result,
+        "reason_code": check.reason_code,
+        "message": check.message,
+        "observed_value": check.observed_value,
+        "required_value": check.required_value,
+        "created_at": check.created_at.isoformat(),
+    }
+
+
+def status_payload(status: ComplianceStatus) -> dict[str, Any]:
+    return {
+        "id": status.id,
+        "vendor_id": status.vendor_id,
+        "document_id": status.document_id,
+        "as_of": status.as_of.isoformat(),
+        "status": status.status,
+        "failing_requirements": status.failing_requirements,
+        "computed_by_version": status.computed_by_version,
+        "evidence": status.evidence,
+    }
+
+
+def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, actor_type: str = "system") -> dict[str, Any]:
+    settings = get_settings()
+    run_id = str(uuid4())
+    now = utc_now()
+    results = evaluate_rules(vendor, document.extracted_fields)
+
+    old_open_tasks = db.scalars(
+        select(ReviewTask).where(
+            ReviewTask.document_id == document.id,
+            ReviewTask.status == "open",
+        )
+    ).all()
+    for task in old_open_tasks:
+        task.status = "superseded"
+        task.resolved_at = now
+
+    checks: list[ComplianceCheck] = []
+    reviews: list[ReviewTask] = []
+    for result in results:
+        check = ComplianceCheck(
+            vendor_id=vendor.id,
+            document_id=document.id,
+            run_id=run_id,
+            requirement_key=result.key,
+            label=result.label,
+            result=result.result,
+            reason_code=result.reason_code,
+            message=result.message,
+            observed_value=result.observed_value,
+            required_value=result.required_value,
+        )
+        db.add(check)
+        checks.append(check)
+        if result.result != "pass":
+            review = ReviewTask(
+                vendor_id=vendor.id,
+                document_id=document.id,
+                check_id=check.id,
+                requirement_key=result.key,
+                correction_field=result.field,
+                reason_code=result.reason_code,
+                status="open",
+            )
+            db.add(review)
+            reviews.append(review)
+    db.flush()
+
+    failing = [result.key for result in results if result.result != "pass"]
+    status = "compliant" if not failing else "needs_review"
+    evidence = {
+        "document_filename": document.filename,
+        "normalized_fields": document.extracted_fields,
+        "checks": [check_payload(check) for check in checks],
+        "review_task_ids": [review.id for review in reviews],
+    }
+    snapshot = ComplianceStatus(
+        vendor_id=vendor.id,
+        document_id=document.id,
+        as_of=now,
+        status=status,
+        failing_requirements=failing,
+        computed_by_version=settings.rules_version,
+        evidence=evidence,
+    )
+    db.add(snapshot)
+    db.flush()
+    db.add(
+        AuditEvent(
+            vendor_id=vendor.id,
+            event_type="verification_completed",
+            actor_type=actor_type,
+            entity_type="compliance_status",
+            entity_id=snapshot.id,
+            payload={"status": status, "failing_requirements": failing, "document_id": document.id},
+        )
+    )
+    db.commit()
+
+    return {
+        "run_id": run_id,
+        "status": status_payload(snapshot),
+        "checks": [check_payload(check) for check in checks],
+        "review_tasks": [review_payload(review) for review in reviews],
+    }
+
+
+def review_payload(review: ReviewTask) -> dict[str, Any]:
+    return {
+        "id": review.id,
+        "vendor_id": review.vendor_id,
+        "document_id": review.document_id,
+        "check_id": review.check_id,
+        "requirement_key": review.requirement_key,
+        "correction_field": review.correction_field,
+        "reason_code": review.reason_code,
+        "status": review.status,
+        "created_at": review.created_at.isoformat(),
+        "resolved_at": review.resolved_at.isoformat() if review.resolved_at else None,
+    }
+
+
+def history_payload(db: Session, vendor_id: str) -> list[dict[str, Any]]:
+    rows = db.scalars(
+        select(ComplianceStatus)
+        .where(ComplianceStatus.vendor_id == vendor_id)
+        .order_by(ComplianceStatus.as_of.desc())
+    ).all()
+    return [status_payload(row) for row in rows]
