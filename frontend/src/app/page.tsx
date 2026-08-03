@@ -1,0 +1,422 @@
+"use client";
+
+import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
+
+import { api, ApiRequestError } from "@/lib/api";
+import type {
+  AuditEvent,
+  Check,
+  ComplianceDocument,
+  ExtractedFields,
+  ReviewTask,
+  StatusResponse,
+  StatusSnapshot,
+  Vendor,
+  VendorDetail,
+} from "@/lib/types";
+
+const fieldDefinitions: Array<{ key: keyof ExtractedFields; label: string; hint: string }> = [
+  { key: "named_insured", label: "Named insured", hint: "Must match the vendor legal name" },
+  { key: "certificate_holder", label: "Certificate holder", hint: "Seeded contracting entity" },
+  { key: "gl_occurrence_limit", label: "GL occurrence limit", hint: "Minimum $2,000,000" },
+  { key: "policy_expiry", label: "Policy expiry", hint: "Must be valid today" },
+  { key: "additional_insured", label: "Additional insured", hint: "Endorsement present" },
+  { key: "waiver_of_subrogation", label: "Waiver of subrogation", hint: "Endorsement present" },
+];
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === "") return "Not found";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return `$${value.toLocaleString("en-US")}`;
+  return String(value);
+}
+
+function editableValue(value: unknown): string {
+  if (value === null || value === undefined) return "";
+  if (typeof value === "boolean") return value ? "yes" : "no";
+  return String(value);
+}
+
+function formatDate(value: string | null | undefined): string {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return value;
+  return new Intl.DateTimeFormat("en-IN", { day: "2-digit", month: "short", year: "numeric" }).format(date);
+}
+
+function friendlyEventName(value: string): string {
+  return value.replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function errorMessage(error: unknown): string {
+  if (error instanceof ApiRequestError) return `${error.message} (${error.code})`;
+  if (error instanceof Error) return error.message;
+  return "Something went wrong. Try that action again.";
+}
+
+function statusClass(status: StatusSnapshot | null): string {
+  if (!status) return "status-pill status-pill--quiet";
+  return status.status === "compliant" ? "status-pill status-pill--good" : "status-pill status-pill--warn";
+}
+
+function statusText(status: StatusSnapshot | null): string {
+  if (!status) return "Awaiting verification";
+  return status.status === "compliant" ? "Compliant" : "Needs review";
+}
+
+export default function HomePage() {
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
+  const [selectedVendor, setSelectedVendor] = useState<VendorDetail | null>(null);
+  const [statusData, setStatusData] = useState<StatusResponse | null>(null);
+  const [ledger, setLedger] = useState<AuditEvent[]>([]);
+  const [reviews, setReviews] = useState<ReviewTask[]>([]);
+  const [initialLoading, setInitialLoading] = useState(true);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [verifyingDocumentId, setVerifyingDocumentId] = useState<string | null>(null);
+  const [savingReviewId, setSavingReviewId] = useState<string | null>(null);
+  const [newVendorName, setNewVendorName] = useState("");
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [reviewValues, setReviewValues] = useState<Record<string, string>>({});
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const currentStatus = statusData?.current ?? selectedVendor?.latest_status ?? null;
+  const currentDocument: ComplianceDocument | null = selectedVendor?.documents[0] ?? null;
+  const normalizedFields = currentStatus?.evidence.normalized_fields ?? currentDocument?.extracted_fields ?? null;
+  const currentChecks = currentStatus?.evidence.checks ?? [];
+  const checksByKey = useMemo(() => new Map(currentChecks.map((check) => [check.requirement_key, check])), [currentChecks]);
+  const vendorReviews = reviews.filter((review) => review.vendor_id === selectedVendorId && review.status === "open");
+
+  async function refreshVendors() {
+    const response = await api.listVendors();
+    setVendors(response.items);
+    if (!selectedVendorId && response.items[0]) setSelectedVendorId(response.items[0].id);
+  }
+
+  async function refreshDetails(vendorId: string) {
+    setDetailLoading(true);
+    try {
+      const [detail, ledgerResponse, reviewResponse] = await Promise.all([
+        api.getVendor(vendorId),
+        api.getLedger(vendorId),
+        api.getReviews(),
+      ]);
+      let nextStatus: StatusResponse | null = null;
+      try {
+        nextStatus = await api.getStatus(vendorId);
+      } catch (statusError) {
+        if (!(statusError instanceof ApiRequestError) || statusError.status !== 404) throw statusError;
+      }
+      setSelectedVendor(detail);
+      setStatusData(nextStatus);
+      setLedger(ledgerResponse.items);
+      setReviews(reviewResponse.items);
+      setReviewValues({});
+    } finally {
+      setDetailLoading(false);
+    }
+  }
+
+  async function refreshAll(vendorId: string | null = selectedVendorId) {
+    setError(null);
+    try {
+      await refreshVendors();
+      if (vendorId) await refreshDetails(vendorId);
+    } catch (refreshError) {
+      setError(errorMessage(refreshError));
+    }
+  }
+
+  useEffect(() => {
+    void (async () => {
+      try {
+        await refreshVendors();
+      } catch (loadError) {
+        setError(errorMessage(loadError));
+      } finally {
+        setInitialLoading(false);
+      }
+    })();
+  }, []);
+
+  useEffect(() => {
+    if (!selectedVendorId) {
+      setSelectedVendor(null);
+      setStatusData(null);
+      setLedger([]);
+      setReviews([]);
+      return;
+    }
+    void refreshDetails(selectedVendorId).catch((loadError) => setError(errorMessage(loadError)));
+  }, [selectedVendorId]);
+
+  async function handleCreateVendor(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const legalName = newVendorName.trim();
+    if (!legalName) return;
+    setCreating(true);
+    setError(null);
+    try {
+      const vendor = await api.createVendor(legalName);
+      setNewVendorName("");
+      await refreshVendors();
+      setSelectedVendorId(vendor.id);
+      setNotice(`${vendor.legal_name} is ready for its first COI.`);
+    } catch (createError) {
+      setError(errorMessage(createError));
+    } finally {
+      setCreating(false);
+    }
+  }
+
+  function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
+    setSelectedFile(event.target.files?.[0] ?? null);
+  }
+
+  async function handleUpload(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!selectedVendorId || !selectedFile) return;
+    setUploading(true);
+    setError(null);
+    try {
+      await api.uploadDocument(selectedVendorId, selectedFile);
+      setSelectedFile(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      await refreshAll(selectedVendorId);
+      setNotice("COI uploaded. The extracted fields are ready for verification.");
+    } catch (uploadError) {
+      setError(errorMessage(uploadError));
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function handleVerify(documentId: string) {
+    setVerifyingDocumentId(documentId);
+    setError(null);
+    try {
+      const result = await api.verifyDocument(documentId);
+      await refreshAll(selectedVendorId);
+      setNotice(result.status.status === "compliant" ? "Verification passed. Proof is recorded." : "Verification needs a human review.");
+    } catch (verifyError) {
+      setError(errorMessage(verifyError));
+    } finally {
+      setVerifyingDocumentId(null);
+    }
+  }
+
+  async function handleReviewSave(review: ReviewTask) {
+    const fieldValue = reviewValues[review.id] ?? editableValue(normalizedFields?.[review.correction_field]);
+    if (!fieldValue.trim()) return;
+    setSavingReviewId(review.id);
+    setError(null);
+    try {
+      const result = await api.updateReview(review.id, fieldValue, review.correction_field);
+      await refreshAll(selectedVendorId);
+      setNotice(result.status.status === "compliant" ? "Correction accepted. Vendor is now compliant." : "Correction saved. Another requirement still needs review.");
+    } catch (reviewError) {
+      setError(errorMessage(reviewError));
+    } finally {
+      setSavingReviewId(null);
+    }
+  }
+
+  const selectedName = selectedVendor?.legal_name ?? "Select a vendor";
+
+  return (
+    <main className="app-shell">
+      <aside className="sidebar">
+        <div className="brand-lockup">
+          <div className="brand-mark" aria-hidden="true"><span /><span /><span /></div>
+          <div>
+            <p className="eyebrow">Fieldnote</p>
+            <p className="brand-title">Compliance desk</p>
+          </div>
+        </div>
+        <div className="sidebar-meta">
+          <span className="live-dot" />
+          <span>F01 · local workspace</span>
+        </div>
+
+        <div className="sidebar-section-heading">
+          <span>Vendors</span>
+          <span className="count-badge">{vendors.length.toString().padStart(2, "0")}</span>
+        </div>
+
+        <div className="vendor-list" aria-label="Vendors">
+          {initialLoading ? (
+            <div className="skeleton-list" aria-label="Loading vendors"><span /><span /><span /></div>
+          ) : vendors.length === 0 ? (
+            <p className="sidebar-empty">No vendors yet. Add the first one below.</p>
+          ) : (
+            vendors.map((vendor) => (
+              <button
+                className={`vendor-row ${vendor.id === selectedVendorId ? "vendor-row--active" : ""}`}
+                key={vendor.id}
+                onClick={() => { setNotice(null); setSelectedVendorId(vendor.id); }}
+                type="button"
+              >
+                <span className={`vendor-status-dot ${vendor.latest_status?.status === "compliant" ? "vendor-status-dot--good" : vendor.latest_status ? "vendor-status-dot--warn" : ""}`} />
+                <span className="vendor-row-copy">
+                  <strong>{vendor.legal_name}</strong>
+                  <small>{vendor.latest_status ? statusText(vendor.latest_status) : "No verification yet"}</small>
+                </span>
+                <span className="row-arrow" aria-hidden="true">↗</span>
+              </button>
+            ))
+          )}
+        </div>
+
+        <form className="new-vendor-form" onSubmit={handleCreateVendor}>
+          <label htmlFor="new-vendor">Add vendor</label>
+          <div className="input-with-action">
+            <input
+              id="new-vendor"
+              onChange={(event) => setNewVendorName(event.target.value)}
+              placeholder="Legal name"
+              value={newVendorName}
+            />
+            <button aria-label="Add vendor" disabled={creating || !newVendorName.trim()} type="submit">+</button>
+          </div>
+          <p>Use the legal name printed on the certificate.</p>
+        </form>
+
+        <div className="sidebar-footer">
+          <div className="footer-rule" />
+          <p>Every decision keeps its source, reason, and timestamp.</p>
+          <span>rules.v1 · append-only ledger</span>
+        </div>
+      </aside>
+
+      <section className="workspace">
+        <header className="topbar">
+          <div>
+            <p className="eyebrow">Vendor proof / review queue</p>
+            <h1>Verification, with a paper trail.</h1>
+          </div>
+          <div className="topbar-right">
+            <div className="api-indicator"><span className="live-dot" /> API connected through local runtime</div>
+            <div className="avatar" aria-label="Operator">NY</div>
+          </div>
+        </header>
+
+        {error && <div className="alert alert--error" role="alert"><strong>Action paused.</strong> {error}<button onClick={() => setError(null)} type="button">Dismiss</button></div>}
+        {notice && <div className="alert alert--success" role="status"><span>✓</span> {notice}<button onClick={() => setNotice(null)} type="button">Dismiss</button></div>}
+
+        {!initialLoading && vendors.length === 0 ? (
+          <section className="empty-state">
+            <div className="empty-illustration" aria-hidden="true"><span>+</span><i /><i /><i /></div>
+            <p className="eyebrow">Start with one vendor</p>
+            <h2>Make the first certificate legible.</h2>
+            <p>Add a legal vendor name in the left rail, then upload a text-readable COI. The desk will show what it saw and why each rule passed or failed.</p>
+          </section>
+        ) : detailLoading && !selectedVendor ? (
+          <section className="loading-state"><div className="loader-ring" /><p>Opening {selectedName}…</p></section>
+        ) : selectedVendor ? (
+          <div className="content-stack">
+            <section className="vendor-heading">
+              <div>
+                <div className="breadcrumb"><span>Vendors</span><b>/</b><span>{selectedVendor.legal_name}</span></div>
+                <h2>{selectedVendor.legal_name}</h2>
+                <p>One view for observed evidence, exceptions, and the decision made on the day.</p>
+              </div>
+              <div className={statusClass(currentStatus)}><span className="status-dot" />{statusText(currentStatus)}</div>
+            </section>
+
+            <section className="overview-grid">
+              <div className="metric-card metric-card--accent">
+                <span className="card-kicker">Current decision</span>
+                <strong>{currentStatus ? statusText(currentStatus) : "Not verified"}</strong>
+                <small>{currentStatus ? `${currentStatus.failing_requirements.length} open exception${currentStatus.failing_requirements.length === 1 ? "" : "s"}` : "Upload and run the seeded rules"}</small>
+              </div>
+              <div className="metric-card">
+                <span className="card-kicker">Last snapshot</span>
+                <strong>{currentStatus ? formatDate(currentStatus.as_of) : "—"}</strong>
+                <small>{currentStatus ? `Version ${currentStatus.computed_by_version}` : "No point-in-time record yet"}</small>
+              </div>
+              <div className="metric-card">
+                <span className="card-kicker">Documents</span>
+                <strong>{selectedVendor.documents.length.toString().padStart(2, "0")}</strong>
+                <small>{selectedVendor.documents.length ? "COI evidence on file" : "Waiting for intake"}</small>
+              </div>
+            </section>
+
+            <section className="panel intake-panel">
+              <div className="panel-heading">
+                <div><p className="eyebrow">01 / Intake</p><h3>Bring the certificate into the light.</h3></div>
+                <span className="panel-note">Text-readable PDF or TXT · 10 MB max</span>
+              </div>
+              <form className="upload-bar" onSubmit={handleUpload}>
+                <label className={`file-picker ${selectedFile ? "file-picker--selected" : ""}`} htmlFor="coi-file">
+                  <span className="upload-glyph" aria-hidden="true">↑</span>
+                  <span><strong>{selectedFile ? selectedFile.name : "Choose a COI"}</strong><small>{selectedFile ? `${Math.ceil(selectedFile.size / 1024)} KB ready to send` : "Drop a file or browse from this device"}</small></span>
+                  <input accept=".pdf,.txt,application/pdf,text/plain" id="coi-file" onChange={handleFileChange} ref={fileInputRef} type="file" />
+                </label>
+                <button className="button button--primary" disabled={!selectedFile || uploading} type="submit">{uploading ? "Reading…" : "Upload COI"}<span aria-hidden="true">↗</span></button>
+              </form>
+              {selectedVendor.documents.length > 0 && <div className="document-list">{selectedVendor.documents.map((document) => <DocumentRow document={document} isVerifying={verifyingDocumentId === document.id} onVerify={handleVerify} key={document.id} />)}</div>}
+            </section>
+
+            <div className="two-column-grid">
+              <section className="panel observations-panel">
+                <div className="panel-heading panel-heading--compact"><div><p className="eyebrow">02 / What we saw</p><h3>Normalized fields</h3></div><span className="tiny-label">{currentStatus ? "from latest snapshot" : "from latest document"}</span></div>
+                {normalizedFields ? <div className="field-table">{fieldDefinitions.map((field) => { const check = checksByKey.get(fieldKeyToRequirement(field.key)); return <div className="field-row" key={field.key}><div><span className="field-label">{field.label}</span><small>{field.hint}</small></div><strong className={normalizedFields[field.key] === null ? "value-missing" : ""}>{formatValue(normalizedFields[field.key])}</strong><span className={`mini-check ${check?.result === "pass" ? "mini-check--pass" : check ? "mini-check--fail" : "mini-check--quiet"}`}>{check?.result === "pass" ? "PASS" : check ? "CHECK" : "—"}</span></div>; })}</div> : <div className="panel-empty"><span>◎</span><p>Upload a COI to see extracted fields here.</p></div>}
+              </section>
+
+              <section className="panel review-panel">
+                <div className="panel-heading panel-heading--compact"><div><p className="eyebrow">03 / Human review</p><h3>Exceptions to resolve</h3></div><span className="count-badge count-badge--dark">{vendorReviews.length.toString().padStart(2, "0")}</span></div>
+                {vendorReviews.length === 0 ? <div className="review-empty"><span className="review-empty-mark">{currentStatus?.status === "compliant" ? "✓" : "·"}</span><p>{currentStatus?.status === "compliant" ? "No exceptions. This vendor has a clean decision." : "Verification creates focused correction tasks here."}</p></div> : <div className="review-list">{vendorReviews.map((review) => <ReviewCard fieldValue={reviewValues[review.id] ?? editableValue(normalizedFields?.[review.correction_field])} isSaving={savingReviewId === review.id} onChange={(value) => setReviewValues((previous) => ({ ...previous, [review.id]: value }))} onSave={() => void handleReviewSave(review)} review={review} key={review.id} />)}</div>}
+              </section>
+            </div>
+
+            <section className="panel requirements-panel">
+              <div className="panel-heading"><div><p className="eyebrow">04 / Rule ledger</p><h3>Every requirement gets a reason.</h3></div><span className="panel-note">Deterministic checks · {currentStatus?.computed_by_version ?? "rules.v1"}</span></div>
+              {currentChecks.length === 0 ? <div className="panel-empty panel-empty--wide"><span>◌</span><p>Verify the latest document to populate the requirement matrix.</p></div> : <div className="requirements-table"><div className="requirements-head"><span>Requirement</span><span>Observed</span><span>Expected</span><span>Decision</span></div>{currentChecks.map((check) => <RequirementRow check={check} key={check.id} />)}</div>}
+            </section>
+
+            <div className="two-column-grid two-column-grid--bottom">
+              <section className="panel history-panel">
+                <div className="panel-heading panel-heading--compact"><div><p className="eyebrow">05 / Point in time</p><h3>Status history</h3></div><span className="tiny-label">Append-only</span></div>
+                {statusData?.history.length ? <div className="history-list">{statusData.history.map((snapshot, index) => <div className="history-row" key={snapshot.id}><span className={`history-marker ${snapshot.status === "compliant" ? "history-marker--good" : ""}`} /> <div><strong>{statusText(snapshot)}</strong><small>{formatDate(snapshot.as_of)} · {snapshot.failing_requirements.length} exception{snapshot.failing_requirements.length === 1 ? "" : "s"}</small></div><span className="history-index">{String(statusData.history.length - index).padStart(2, "0")}</span></div>)}</div> : <div className="panel-empty"><span>◷</span><p>Each verification decision will become a snapshot.</p></div>}
+              </section>
+              <section className="panel ledger-panel">
+                <div className="panel-heading panel-heading--compact"><div><p className="eyebrow">06 / Evidence trail</p><h3>Audit ledger</h3></div><span className="tiny-label">{ledger.length} events</span></div>
+                {ledger.length ? <div className="ledger-list">{ledger.slice(0, 6).map((event) => <div className="ledger-row" key={event.id}><span className="ledger-icon" aria-hidden="true">↳</span><div><strong>{friendlyEventName(event.event_type)}</strong><small>{event.actor_type} · {formatDate(event.occurred_at)}</small></div></div>)}</div> : <div className="panel-empty"><span>⌁</span><p>Uploads, decisions, and corrections will appear here.</p></div>}
+              </section>
+            </div>
+          </div>
+        ) : (
+          <section className="loading-state"><div className="loader-ring" /><p>Preparing the review desk…</p></section>
+        )}
+      </section>
+    </main>
+  );
+}
+
+function fieldKeyToRequirement(key: keyof ExtractedFields): string {
+  const mapping: Record<string, string> = {
+    named_insured: "named_insured_match",
+    certificate_holder: "certificate_holder_match",
+    gl_occurrence_limit: "gl_occurrence_minimum",
+    policy_expiry: "policy_not_expired",
+    additional_insured: "additional_insured_present",
+    waiver_of_subrogation: "waiver_of_subrogation_present",
+  };
+  return mapping[key as string];
+}
+
+function DocumentRow({ document, isVerifying, onVerify }: { document: ComplianceDocument; isVerifying: boolean; onVerify: (documentId: string) => void }) {
+  return <div className="document-row"><div className="document-icon">COI</div><div className="document-copy"><strong>{document.filename}</strong><small>Uploaded {formatDate(document.created_at)} · {document.media_type || "text document"}</small></div><button className="button button--quiet" disabled={isVerifying} onClick={() => onVerify(document.id)} type="button">{isVerifying ? "Checking…" : "Verify"}<span aria-hidden="true">→</span></button></div>;
+}
+
+function ReviewCard({ review, fieldValue, isSaving, onChange, onSave }: { review: ReviewTask; fieldValue: string; isSaving: boolean; onChange: (value: string) => void; onSave: () => void }) {
+  return <div className="review-card"><div className="review-card-top"><span className="review-flag">{review.reason_code}</span><span className="review-field">{review.correction_field.replaceAll("_", " ")}</span></div><strong>Confirm the observed value</strong><p>This correction is written to the document record and triggers a new verification snapshot.</p><div className="review-input-row"><input aria-label={`Correction for ${review.correction_field}`} onChange={(event) => onChange(event.target.value)} value={fieldValue} /><button className="button button--dark" disabled={isSaving || !fieldValue.trim()} onClick={onSave} type="button">{isSaving ? "Saving…" : "Re-check"}</button></div></div>;
+}
+
+function RequirementRow({ check }: { check: Check }) {
+  return <div className="requirements-row"><div><strong>{check.label}</strong><small>{check.reason_code}</small></div><span>{formatValue(check.observed_value)}</span><span>{formatValue(check.required_value)}</span><span className={`decision decision--${check.result}`}><i />{check.result === "pass" ? "Pass" : "Review"}</span></div>;
+}
