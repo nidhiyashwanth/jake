@@ -22,6 +22,12 @@ REQUIRED_TABLES = {
     "audit_events",
     "audit_logs",
     "data_access_logs",
+    "processes",
+    "process_steps",
+    "process_interviews",
+    "baselines",
+    "baseline_metrics",
+    "opportunity_scores",
 }
 
 
@@ -48,7 +54,20 @@ def test_alembic_creates_required_postgres_schema() -> None:
                 text("SELECT relforcerowsecurity FROM pg_class WHERE relname = 'vendors'")
             ).scalar_one() is True
             assert connection.execute(
-                text("SELECT count(*) FROM pg_policies WHERE tablename IN ('vendors', 'audit_logs', 'data_access_logs')")
-            ).scalar_one() >= 5
+                text(
+                    "SELECT count(*) FROM pg_policies WHERE tablename IN "
+                    "('vendors', 'audit_logs', 'data_access_logs', 'processes', 'process_steps', "
+                    "'process_interviews', 'baselines', 'baseline_metrics', 'opportunity_scores')"
+                )
+            ).scalar_one() >= 11
+            assert connection.execute(
+                text("SELECT relforcerowsecurity FROM pg_class WHERE relname = 'baselines'")
+            ).scalar_one() is True
+            assert connection.execute(
+                text(
+                    "SELECT count(*) FROM pg_trigger "
+                    "WHERE tgname IN ('baselines_signed_immutable', 'baseline_metrics_signed_immutable')"
+                )
+            ).scalar_one() == 2
     finally:
         engine.dispose()

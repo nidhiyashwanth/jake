@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import DateTime, ForeignKey, JSON, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, JSON, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -105,6 +105,140 @@ class WorkspaceContext(Base):
 
 class WorkspaceScopedMixin:
     workspace_id: Mapped[str] = mapped_column(ForeignKey("workspaces.id"), nullable=False, index=True)
+
+
+class Process(WorkspaceScopedMixin, Base):
+    __tablename__ = "processes"
+    __table_args__ = (UniqueConstraint("workspace_id", "name", name="uq_processes_workspace_name"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(240), nullable=False)
+    department: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    owner_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    system_of_record: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    trigger_json: Mapped[Any] = mapped_column(JSON, nullable=False, default=dict)
+    inputs_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    decisions_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    exceptions_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    approvals_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    outputs_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    failure_modes_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    steps: Mapped[list["ProcessStep"]] = relationship(back_populates="process", cascade="all, delete-orphan")
+    interviews: Mapped[list["ProcessInterview"]] = relationship(
+        back_populates="process", cascade="all, delete-orphan"
+    )
+    baselines: Mapped[list["Baseline"]] = relationship(back_populates="process", cascade="all, delete-orphan")
+    opportunity_scores: Mapped[list["OpportunityScore"]] = relationship(
+        back_populates="process", cascade="all, delete-orphan"
+    )
+
+
+class ProcessStep(WorkspaceScopedMixin, Base):
+    __tablename__ = "process_steps"
+    __table_args__ = (UniqueConstraint("process_id", "seq", name="uq_process_steps_process_seq"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    process_id: Mapped[str] = mapped_column(ForeignKey("processes.id"), nullable=False, index=True)
+    seq: Mapped[int] = mapped_column(nullable=False)
+    description: Mapped[str] = mapped_column(Text, nullable=False)
+    system: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    minutes_p50: Mapped[float | None] = mapped_column(Float, nullable=True)
+    minutes_p90: Mapped[float | None] = mapped_column(Float, nullable=True)
+    is_decision: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    process: Mapped[Process] = relationship(back_populates="steps")
+
+
+class ProcessInterview(WorkspaceScopedMixin, Base):
+    __tablename__ = "process_interviews"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    process_id: Mapped[str] = mapped_column(ForeignKey("processes.id"), nullable=False, index=True)
+    source_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    transcript_ref: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    source_text: Mapped[str] = mapped_column(Text, nullable=False)
+    draft_graph: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    exception_list: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    baseline_questions: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    captured_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    captured_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    process: Mapped[Process] = relationship(back_populates="interviews")
+
+
+class Baseline(WorkspaceScopedMixin, Base):
+    __tablename__ = "baselines"
+    __table_args__ = (UniqueConstraint("process_id", "version", name="uq_baselines_process_version"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    process_id: Mapped[str] = mapped_column(ForeignKey("processes.id"), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft")
+    snapshot_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    signed_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    signed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    canonical_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, unique=True)
+    supersedes_baseline_id: Mapped[str | None] = mapped_column(
+        ForeignKey("baselines.id"), nullable=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    process: Mapped[Process] = relationship(back_populates="baselines", foreign_keys=[process_id])
+    supersedes: Mapped["Baseline | None"] = relationship(
+        remote_side=[id], foreign_keys=[supersedes_baseline_id], uselist=False
+    )
+    metrics: Mapped[list["BaselineMetric"]] = relationship(
+        back_populates="baseline", cascade="all, delete-orphan", order_by="BaselineMetric.key"
+    )
+
+
+class BaselineMetric(WorkspaceScopedMixin, Base):
+    __tablename__ = "baseline_metrics"
+    __table_args__ = (UniqueConstraint("baseline_id", "key", name="uq_baseline_metrics_baseline_key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    baseline_id: Mapped[str] = mapped_column(ForeignKey("baselines.id"), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
+    value: Mapped[float] = mapped_column(Float, nullable=False)
+    unit: Mapped[str] = mapped_column(String(40), nullable=False)
+    source: Mapped[str] = mapped_column(String(80), nullable=False, default="customer_asserted")
+    provenance_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    baseline: Mapped[Baseline] = relationship(back_populates="metrics")
+
+
+class OpportunityScore(WorkspaceScopedMixin, Base):
+    __tablename__ = "opportunity_scores"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    process_id: Mapped[str] = mapped_column(ForeignKey("processes.id"), nullable=False, index=True)
+    baseline_id: Mapped[str] = mapped_column(ForeignKey("baselines.id"), nullable=False, index=True)
+    formula_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    annual_cost: Mapped[float] = mapped_column(Float, nullable=False)
+    projected_savings: Mapped[float] = mapped_column(Float, nullable=False)
+    automatable_pct: Mapped[float] = mapped_column(Float, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    effort_weeks: Mapped[float] = mapped_column(Float, nullable=False)
+    risk_multiplier: Mapped[float] = mapped_column(Float, nullable=False)
+    priority_score: Mapped[float] = mapped_column(Float, nullable=False)
+    inputs_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    component_breakdown_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    input_provenance_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    process: Mapped[Process] = relationship(back_populates="opportunity_scores")
 
 
 class Vendor(WorkspaceScopedMixin, Base):

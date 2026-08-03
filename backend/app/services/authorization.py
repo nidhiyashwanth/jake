@@ -11,6 +11,18 @@ ROLE_ALIASES = {"reviewer": "operator"}
 VALID_ROLES = CANONICAL_ROLES | ROLE_ALIASES.keys()
 
 GENERAL_READ_ACTIONS = frozenset({"workspace.read", "vendor.read", "review.read"})
+DISCOVERY_READ_ACTIONS = frozenset({"discovery.read", "baseline.read", "score.read"})
+DISCOVERY_BUILD_ACTIONS = frozenset(
+    {
+        "discovery.create",
+        "discovery.update",
+        "discovery.interview.ingest",
+        "baseline.create",
+        "baseline.update",
+        "score.compute",
+    }
+)
+BASELINE_SIGN_ACTION = "baseline.sign"
 AUDIT_READ_ACTION = "audit.read"
 WRITE_ACTIONS = frozenset(
     {
@@ -23,12 +35,33 @@ WRITE_ACTIONS = frozenset(
 MEMBERSHIP_ACTIONS = frozenset({"member.read", "member.invite", "member.role_change", "member.disable"})
 
 ROLE_ACTIONS: dict[str, frozenset[str]] = {
-    "owner": GENERAL_READ_ACTIONS | {AUDIT_READ_ACTION} | WRITE_ACTIONS | MEMBERSHIP_ACTIONS | {"workspace.manage"},
-    "admin": GENERAL_READ_ACTIONS | {AUDIT_READ_ACTION} | WRITE_ACTIONS | MEMBERSHIP_ACTIONS | {"workspace.manage"},
-    "builder": GENERAL_READ_ACTIONS | {"vendor.create", "document.upload", "document.verify"},
+    "owner": (
+        GENERAL_READ_ACTIONS
+        | DISCOVERY_READ_ACTIONS
+        | DISCOVERY_BUILD_ACTIONS
+        | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION}
+        | WRITE_ACTIONS
+        | MEMBERSHIP_ACTIONS
+        | {"workspace.manage"}
+    ),
+    "admin": (
+        GENERAL_READ_ACTIONS
+        | DISCOVERY_READ_ACTIONS
+        | DISCOVERY_BUILD_ACTIONS
+        | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION}
+        | WRITE_ACTIONS
+        | MEMBERSHIP_ACTIONS
+        | {"workspace.manage"}
+    ),
+    "builder": (
+        GENERAL_READ_ACTIONS
+        | DISCOVERY_READ_ACTIONS
+        | DISCOVERY_BUILD_ACTIONS
+        | {"vendor.create", "document.upload", "document.verify"}
+    ),
     "operator": GENERAL_READ_ACTIONS | {"vendor.create", "document.upload", "document.verify", "review.update"},
-    "viewer": frozenset({"workspace.read", "vendor.read", "review.read"}),
-    "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"}),
+    "viewer": GENERAL_READ_ACTIONS | DISCOVERY_READ_ACTIONS,
+    "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"}) | DISCOVERY_READ_ACTIONS,
 }
 
 

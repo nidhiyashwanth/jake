@@ -22,6 +22,177 @@ class ReviewUpdate(BaseModel):
     field: str | None = None
 
 
+class ProcessStepInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    description: str = Field(min_length=1, max_length=2000)
+    system: str | None = Field(default=None, max_length=160)
+    minutes_p50: float | None = Field(default=None, ge=0)
+    minutes_p90: float | None = Field(default=None, ge=0)
+    is_decision: bool = False
+
+    @field_validator("description", "system")
+    @classmethod
+    def trim_step_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("text cannot be blank")
+        return value
+
+    @model_validator(mode="after")
+    def p90_not_below_p50(self) -> "ProcessStepInput":
+        if self.minutes_p50 is not None and self.minutes_p90 is not None and self.minutes_p90 < self.minutes_p50:
+            raise ValueError("minutes_p90 cannot be below minutes_p50")
+        return self
+
+
+class ProcessCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=240)
+    department: str | None = Field(default=None, max_length=160)
+    owner_user_id: str | None = Field(default=None, max_length=36)
+    system_of_record: str | None = Field(default=None, max_length=160)
+    trigger: Any = None
+    inputs: list[Any] = Field(default_factory=list)
+    steps: list[ProcessStepInput] = Field(default_factory=list, max_length=200)
+    decisions: list[Any] = Field(default_factory=list)
+    exceptions: list[Any] = Field(default_factory=list)
+    approvals: list[Any] = Field(default_factory=list)
+    outputs: list[Any] = Field(default_factory=list)
+    failure_modes: list[Any] = Field(default_factory=list)
+
+    @field_validator("name", "department", "system_of_record")
+    @classmethod
+    def trim_process_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("text cannot be blank")
+        return value
+
+
+class ProcessUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str | None = Field(default=None, min_length=1, max_length=240)
+    department: str | None = Field(default=None, max_length=160)
+    owner_user_id: str | None = Field(default=None, max_length=36)
+    system_of_record: str | None = Field(default=None, max_length=160)
+    trigger: Any = None
+    inputs: list[Any] | None = None
+    steps: list[ProcessStepInput] | None = Field(default=None, max_length=200)
+    decisions: list[Any] | None = None
+    exceptions: list[Any] | None = None
+    approvals: list[Any] | None = None
+    outputs: list[Any] | None = None
+    failure_modes: list[Any] | None = None
+
+    @field_validator("name", "department", "system_of_record")
+    @classmethod
+    def trim_optional_process_text(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("text cannot be blank")
+        return value
+
+
+class InterviewCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_type: Literal["sop", "transcript", "screen_recording_narration"] = "transcript"
+    content: str | None = Field(default=None, min_length=1, max_length=500_000)
+    transcript: str | None = Field(default=None, min_length=1, max_length=500_000)
+    sop_text: str | None = Field(default=None, min_length=1, max_length=500_000)
+    transcript_ref: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def require_content(self) -> "InterviewCreate":
+        if not any(value for value in (self.content, self.transcript, self.sop_text)):
+            raise ValueError("content, transcript, or sop_text is required")
+        return self
+
+    @property
+    def source_content(self) -> str:
+        return self.content or self.transcript or self.sop_text or ""
+
+
+class InterviewUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source_text: str | None = Field(default=None, min_length=1, max_length=500_000)
+    draft_graph: dict[str, Any] | None = None
+    exception_list: list[Any] | None = None
+    baseline_questions: list[Any] | None = None
+
+    @model_validator(mode="after")
+    def require_edit(self) -> "InterviewUpdate":
+        if not self.model_fields_set:
+            raise ValueError("at least one draft field is required")
+        return self
+
+
+class BaselineMetricInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(min_length=1, max_length=100)
+    value: float
+    unit: str | None = Field(default=None, max_length=40)
+    source: str = Field(default="customer_asserted", min_length=1, max_length=80)
+    provenance: dict[str, Any] = Field(default_factory=dict)
+
+
+class BaselineCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    metrics: dict[str, Any] | list[BaselineMetricInput] = Field(default_factory=dict)
+    notes: str | None = Field(default=None, max_length=5000)
+    supersedes_baseline_id: str | None = Field(default=None, max_length=36)
+
+
+class BaselineUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    metrics: dict[str, Any] | list[BaselineMetricInput] | None = None
+    notes: str | None = Field(default=None, max_length=5000)
+
+    @model_validator(mode="after")
+    def require_draft_edit(self) -> "BaselineUpdate":
+        if not self.model_fields_set:
+            raise ValueError("metrics or notes is required")
+        return self
+
+
+class BaselineSign(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    signature_note: str | None = Field(default=None, max_length=2000)
+
+
+class OpportunityScoreRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    structure_score: float | None = Field(default=None, ge=0, le=1)
+    rule_clarity_score: float | None = Field(default=None, ge=0, le=1)
+    data_availability_score: float | None = Field(default=None, ge=0, le=1)
+    exception_rate: float | None = Field(default=None, ge=0, le=1)
+    confidence: float | None = Field(default=None, ge=0, le=1)
+    effort_weeks: float | None = Field(default=None, gt=0)
+    risk_multiplier: float | None = Field(default=None, gt=0)
+    review_rate: float | None = Field(default=None, ge=0, le=1)
+    review_minutes: float | None = Field(default=None, ge=0)
+    model_cost_annual: float | None = Field(default=None, ge=0)
+    infra_cost_annual: float | None = Field(default=None, ge=0)
+    model_cost: float | None = Field(default=None, ge=0)
+    infra_cost: float | None = Field(default=None, ge=0)
+    input_provenance: dict[str, Any] = Field(default_factory=dict)
+
+
 RoleValue = Literal["owner", "admin", "builder", "operator", "reviewer", "viewer", "auditor"]
 
 

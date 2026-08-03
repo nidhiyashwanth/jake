@@ -13,10 +13,14 @@ from app.models import (
     AuditEvent,
     AuditLog,
     AuthSession,
+    Baseline,
+    OpportunityScore,
     ComplianceDocument,
     ComplianceStatus,
     Membership,
     Organization,
+    Process,
+    ProcessInterview,
     ReviewTask,
     User,
     Vendor,
@@ -24,8 +28,16 @@ from app.models import (
 )
 from app.schemas import (
     DevelopmentLogin,
+    BaselineCreate,
+    BaselineSign,
+    BaselineUpdate,
+    InterviewCreate,
+    InterviewUpdate,
     MemberInvite,
     MemberPatch,
+    OpportunityScoreRequest,
+    ProcessCreate,
+    ProcessUpdate,
     ReviewUpdate,
     VendorCreate,
     WorkspaceModeUpdate,
@@ -34,6 +46,25 @@ from app.schemas import (
 from app.services.audit import append_audit_log, append_data_access_log
 from app.services.authorization import authorize, normalize_role, require_workspace
 from app.services.documents import coerce_correction, extract_document_fields
+from app.services.discovery import (
+    baseline_payload,
+    calculate_score,
+    create_baseline,
+    create_interview,
+    create_process,
+    export_baseline,
+    get_baseline_or_404,
+    get_interview_or_404,
+    get_process_or_404,
+    get_score_or_404,
+    interview_payload,
+    process_payload,
+    score_payload,
+    sign_baseline,
+    update_baseline,
+    update_interview,
+    update_process,
+)
 from app.services.repositories import get_document_or_404, get_review_or_404, get_vendor_or_404, latest_status
 from app.services.tenancy import (
     RequestContext,
@@ -309,6 +340,297 @@ def logout(request: Request, db: ScopedDb) -> dict[str, Any]:
         )
         db.commit()
     return {"revoked": True, "session_id": context.session_id}
+
+
+@router.post("/processes", status_code=201)
+def create_discovery_process(payload: ProcessCreate, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "discovery.create", target_type="process", target_id=payload.name)
+    process = create_process(
+        db,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        payload=payload,
+    )
+    db.commit()
+    db.refresh(process)
+    return process_payload(db, process, workspace_id=context.workspace_id)
+
+
+@router.get("/processes")
+def list_discovery_processes(db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "discovery.read")
+    processes = db.scalars(
+        select(Process)
+        .where(Process.workspace_id == context.workspace_id)
+        .order_by(Process.name.asc())
+    ).all()
+    items = [process_payload(db, process, workspace_id=context.workspace_id, actor_id=context.user_id) for process in processes]
+    db.commit()
+    return {"items": items}
+
+
+@router.get("/processes/{process_id}")
+def get_discovery_process(process_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "discovery.read", target_type="process", target_id=process_id)
+    process = get_process_or_404(db, process_id, context.workspace_id)
+    payload = process_payload(db, process, workspace_id=context.workspace_id, actor_id=context.user_id)
+    db.commit()
+    return payload
+
+
+@router.patch("/processes/{process_id}")
+def patch_discovery_process(process_id: str, payload: ProcessUpdate, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "discovery.update", target_type="process", target_id=process_id)
+    process = get_process_or_404(db, process_id, context.workspace_id)
+    update_process(db, process, workspace_id=context.workspace_id, actor_id=context.user_id, payload=payload)
+    db.commit()
+    db.refresh(process)
+    return process_payload(db, process, workspace_id=context.workspace_id)
+
+
+@router.post("/processes/{process_id}/interviews", status_code=201)
+def ingest_process_interview(process_id: str, payload: InterviewCreate, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "discovery.interview.ingest", target_type="process", target_id=process_id)
+    process = get_process_or_404(db, process_id, context.workspace_id)
+    interview = create_interview(
+        db,
+        process,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        source_type=payload.source_type,
+        source_text=payload.source_content,
+        transcript_ref=payload.transcript_ref,
+    )
+    db.commit()
+    db.refresh(interview)
+    return interview_payload(interview)
+
+
+@router.get("/processes/{process_id}/interviews")
+def list_process_interviews(process_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "discovery.read", target_type="process", target_id=process_id)
+    get_process_or_404(db, process_id, context.workspace_id)
+    interviews = db.scalars(
+        select(ProcessInterview)
+        .where(
+            ProcessInterview.process_id == process_id,
+            ProcessInterview.workspace_id == context.workspace_id,
+        )
+        .order_by(ProcessInterview.captured_at.desc())
+    ).all()
+    append_data_access_log(
+        db,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        artifact_id=process_id,
+        resource_type="process_interviews",
+        purpose="interview_list",
+    )
+    db.commit()
+    return {"items": [interview_payload(item) for item in interviews]}
+
+
+@router.patch("/process-interviews/{interview_id}")
+def patch_process_interview(interview_id: str, payload: InterviewUpdate, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "discovery.update", target_type="process_interview", target_id=interview_id)
+    interview = get_interview_or_404(db, interview_id, context.workspace_id)
+    update_interview(
+        db,
+        interview,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        payload=payload,
+    )
+    db.commit()
+    db.refresh(interview)
+    return interview_payload(interview)
+
+
+@router.post("/processes/{process_id}/baselines", status_code=201)
+def create_discovery_baseline(process_id: str, payload: BaselineCreate, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "baseline.create", target_type="process", target_id=process_id)
+    process = get_process_or_404(db, process_id, context.workspace_id)
+    baseline = create_baseline(
+        db,
+        process,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        raw_metrics=payload.metrics,
+        notes=payload.notes,
+        supersedes_baseline_id=payload.supersedes_baseline_id,
+    )
+    db.commit()
+    db.refresh(baseline)
+    return baseline_payload(db, baseline, workspace_id=context.workspace_id)
+
+
+@router.get("/processes/{process_id}/baselines")
+def list_discovery_baselines(process_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "baseline.read", target_type="process", target_id=process_id)
+    get_process_or_404(db, process_id, context.workspace_id)
+    baselines = db.scalars(
+        select(Baseline)
+        .where(Baseline.process_id == process_id, Baseline.workspace_id == context.workspace_id)
+        .order_by(Baseline.version.desc())
+    ).all()
+    append_data_access_log(
+        db,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        artifact_id=process_id,
+        resource_type="baselines",
+        purpose="baseline_list",
+    )
+    db.commit()
+    return {"items": [baseline_payload(db, item, workspace_id=context.workspace_id) for item in baselines]}
+
+
+@router.get("/baselines/{baseline_id}")
+def get_discovery_baseline(baseline_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "baseline.read", target_type="baseline", target_id=baseline_id)
+    baseline = get_baseline_or_404(db, baseline_id, context.workspace_id)
+    payload = baseline_payload(db, baseline, workspace_id=context.workspace_id)
+    append_data_access_log(
+        db,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        artifact_id=baseline.id,
+        resource_type="baseline",
+        purpose="baseline_read",
+    )
+    db.commit()
+    return payload
+
+
+@router.patch("/baselines/{baseline_id}")
+def patch_discovery_baseline(baseline_id: str, payload: BaselineUpdate, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "baseline.update", target_type="baseline", target_id=baseline_id)
+    baseline = get_baseline_or_404(db, baseline_id, context.workspace_id)
+    update_baseline(
+        db,
+        baseline,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        raw_metrics=payload.metrics,
+        notes=payload.notes,
+        fields_set=payload.model_fields_set,
+    )
+    db.commit()
+    db.refresh(baseline)
+    return baseline_payload(db, baseline, workspace_id=context.workspace_id)
+
+
+@router.post("/baselines/{baseline_id}/sign")
+def sign_discovery_baseline(
+    baseline_id: str,
+    db: ScopedDb,
+    payload: BaselineSign | None = None,
+) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "baseline.sign", target_type="baseline", target_id=baseline_id)
+    baseline = get_baseline_or_404(db, baseline_id, context.workspace_id)
+    sign_baseline(
+        db,
+        baseline,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        signature_note=payload.signature_note if payload else None,
+    )
+    db.commit()
+    db.refresh(baseline)
+    return baseline_payload(db, baseline, workspace_id=context.workspace_id)
+
+
+@router.get("/baselines/{baseline_id}/export")
+def export_discovery_baseline(baseline_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "baseline.read", target_type="baseline", target_id=baseline_id)
+    baseline = get_baseline_or_404(db, baseline_id, context.workspace_id)
+    if baseline.status != "signed":
+        raise DomainError("BASELINE_NOT_SIGNED", "Only a signed baseline can be exported", 409)
+    payload = export_baseline(db, baseline, workspace_id=context.workspace_id)
+    append_audit_log(
+        db,
+        action="discovery.baseline.exported",
+        target_type="baseline",
+        target_id=baseline.id,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        after={"canonical_hash": baseline.canonical_hash, "version": baseline.version},
+    )
+    db.commit()
+    return payload
+
+
+@router.post("/baselines/{baseline_id}/score", status_code=201)
+def score_discovery_baseline(
+    baseline_id: str,
+    payload: OpportunityScoreRequest,
+    db: ScopedDb,
+) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "score.compute", target_type="baseline", target_id=baseline_id)
+    baseline = get_baseline_or_404(db, baseline_id, context.workspace_id)
+    score = calculate_score(
+        db,
+        baseline,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        request_inputs=payload,
+    )
+    db.commit()
+    db.refresh(score)
+    return score_payload(score)
+
+
+@router.get("/processes/{process_id}/opportunity-scores")
+def list_opportunity_scores(process_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "score.read", target_type="process", target_id=process_id)
+    get_process_or_404(db, process_id, context.workspace_id)
+    scores = db.scalars(
+        select(OpportunityScore)
+        .where(OpportunityScore.process_id == process_id, OpportunityScore.workspace_id == context.workspace_id)
+        .order_by(OpportunityScore.computed_at.desc())
+    ).all()
+    append_data_access_log(
+        db,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        artifact_id=process_id,
+        resource_type="opportunity_scores",
+        purpose="score_list",
+    )
+    db.commit()
+    return {"items": [score_payload(item) for item in scores]}
+
+
+@router.get("/opportunity-scores/{score_id}")
+def get_opportunity_score(score_id: str, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "score.read", target_type="opportunity_score", target_id=score_id)
+    score = get_score_or_404(db, score_id, context.workspace_id)
+    append_data_access_log(
+        db,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        artifact_id=score.id,
+        resource_type="opportunity_score",
+        purpose="score_read",
+    )
+    db.commit()
+    return score_payload(score)
 
 
 @router.post("/vendors", status_code=201)
