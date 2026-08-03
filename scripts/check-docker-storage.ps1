@@ -9,11 +9,19 @@ $ErrorActionPreference = "Stop"
 function Resolve-DockerExecutable {
     $command = Get-Command docker -ErrorAction SilentlyContinue
     if ($command) {
+        $dockerBin = Split-Path -Parent $command.Source
+        if (($env:Path -split ';') -notcontains $dockerBin) {
+            $env:Path = "$dockerBin;$env:Path"
+        }
         return $command.Source
     }
 
     $knownPath = "C:\Program Files\Docker\Docker\resources\bin\docker.exe"
     if (Test-Path -LiteralPath $knownPath) {
+        $dockerBin = Split-Path -Parent $knownPath
+        if (($env:Path -split ';') -notcontains $dockerBin) {
+            $env:Path = "$dockerBin;$env:Path"
+        }
         return $knownPath
     }
 

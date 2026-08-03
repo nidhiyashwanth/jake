@@ -16,11 +16,19 @@ $tempFixture = $null
 function Resolve-DockerExecutable {
     $command = Get-Command docker -ErrorAction SilentlyContinue
     if ($command) {
+        $dockerBin = Split-Path -Parent $command.Source
+        if (($env:Path -split ';') -notcontains $dockerBin) {
+            $env:Path = "$dockerBin;$env:Path"
+        }
         return $command.Source
     }
 
     $knownPath = "C:\Program Files\Docker\Docker\resources\bin\docker.exe"
     if (Test-Path -LiteralPath $knownPath) {
+        $dockerBin = Split-Path -Parent $knownPath
+        if (($env:Path -split ';') -notcontains $dockerBin) {
+            $env:Path = "$dockerBin;$env:Path"
+        }
         return $knownPath
     }
 
@@ -38,8 +46,15 @@ $composePrefix = @(
 function Invoke-Docker {
     param([Parameter(Mandatory)][string[]]$Arguments)
 
-    $output = @(& $dockerExe @Arguments 2>&1)
-    if ($LASTEXITCODE -ne 0) {
+    $previousErrorActionPreference = $ErrorActionPreference
+    $ErrorActionPreference = "Continue"
+    try {
+        $output = @(& $dockerExe @Arguments 2>&1)
+        $exitCode = $LASTEXITCODE
+    } finally {
+        $ErrorActionPreference = $previousErrorActionPreference
+    }
+    if ($exitCode -ne 0) {
         throw "Docker command failed: $dockerExe $($Arguments -join ' ')`n$($output -join "`n")"
     }
     return $output
@@ -120,6 +135,7 @@ function Invoke-MultipartUpload {
         [Parameter(Mandatory)][string]$FilePath
     )
 
+    Add-Type -AssemblyName System.Net.Http
     $client = [System.Net.Http.HttpClient]::new()
     $form = [System.Net.Http.MultipartFormDataContent]::new()
     try {
