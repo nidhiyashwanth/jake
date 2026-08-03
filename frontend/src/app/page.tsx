@@ -5,6 +5,7 @@ import { ChangeEvent, FormEvent, ReactNode, useCallback, useEffect, useMemo, use
 import { API_BASE_URL, api, ApiRequestError, AUTH_MODE, DEV_AUTH_ENABLED, setActiveWorkspaceContext } from "@/lib/api";
 import AppHandoffView from "@/components/HandoffView";
 import DiscoveryView from "@/components/DiscoveryView";
+import WorkflowStudio from "@/components/WorkflowStudio";
 import { AppSidebar, AuthorizationDenied, MemberDisabled, SURFACE_ITEMS, WorkspaceHeader } from "@/components/WorkspaceChrome";
 import type { SurfaceKey } from "@/components/WorkspaceChrome";
 import { can, isDisabledMember, persistActiveWorkspaceId, readActiveWorkspaceId, roleLabel } from "@/lib/tenancy";
@@ -389,6 +390,10 @@ export default function HomePage() {
   ) : activeSurface === "discovery" ? (
     <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>
       <DiscoveryView onAuthFailure={handleSessionExpired} session={session} workspace={activeWorkspace} />
+    </SurfaceFrame>
+  ) : activeSurface === "workflows" ? (
+    <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>
+      <WorkflowStudio onAuthFailure={handleSessionExpired} session={session} workspace={activeWorkspace} />
     </SurfaceFrame>
   ) : (
     <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>

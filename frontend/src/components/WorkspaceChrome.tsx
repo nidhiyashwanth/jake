@@ -18,7 +18,7 @@ interface SurfaceItem {
 export const SURFACE_ITEMS: SurfaceItem[] = [
   { key: "review", title: "Review desk", kicker: "F01 / live", icon: "01", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
   { key: "handoff", title: "Field handoff", kicker: "T-01 / live", icon: "02", allowedRoles: ["owner", "admin", "operator", "viewer", "auditor"], live: true },
-  { key: "workflows", title: "Workflows", kicker: "T-03 / next", icon: "03", allowedRoles: ["owner", "admin", "builder", "operator", "viewer"] },
+  { key: "workflows", title: "Workflows", kicker: "W-01 / active", icon: "03", allowedRoles: ["owner", "admin", "builder", "operator", "viewer"], live: true },
   { key: "discovery", title: "Discovery studio", kicker: "D-01 / active", icon: "04", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
   { key: "connections", title: "Connections", kicker: "C-01 / next", icon: "05", allowedRoles: ["owner", "admin", "builder"] },
   { key: "ledger", title: "Audit ledger", kicker: "G-01 / next", icon: "06", allowedRoles: ["owner", "admin", "auditor"] },

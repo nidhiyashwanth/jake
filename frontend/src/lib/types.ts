@@ -270,3 +270,142 @@ export interface DiscoveryDraftResponse {
   process_id?: string | null;
   draft: DiscoveryDraft;
 }
+
+export const WORKFLOW_NODE_TYPES = [
+  "trigger",
+  "fetch",
+  "parse",
+  "classify",
+  "extract",
+  "rule",
+  "score",
+  "llm",
+  "tool",
+  "approve",
+  "notify",
+  "halt",
+] as const;
+
+export type WorkflowNodeType = (typeof WORKFLOW_NODE_TYPES)[number];
+export type WorkflowStatus = "draft" | "published" | "archived" | string;
+export type WorkflowVersionStatus = "draft" | "published" | "superseded" | "archived" | string;
+export type EvaluationGateStatus = "not_run" | "pending" | "passed" | "failed" | string;
+
+export interface WorkflowThreshold {
+  key: string;
+  value: number | null;
+  label?: string;
+  unit?: string;
+}
+
+export interface WorkflowPromptReference {
+  key: string;
+  version: number | null;
+}
+
+export interface WorkflowModelConfigReference {
+  key: string;
+  provider: string;
+  version: number | null;
+}
+
+export interface WorkflowNode {
+  id: string;
+  node_key: string;
+  type: WorkflowNodeType;
+  label: string;
+  config: Record<string, unknown>;
+}
+
+export interface WorkflowEdge {
+  id: string;
+  from_node: string;
+  to_node: string;
+  condition: string | null;
+}
+
+export interface WorkflowSpec {
+  schema_version: string;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  thresholds: WorkflowThreshold[];
+  prompts: WorkflowPromptReference[];
+  model_configs: WorkflowModelConfigReference[];
+}
+
+export interface WorkflowValidationIssue {
+  code: string;
+  path: string;
+  message: string;
+  severity: "error" | "warning";
+  node_key?: string | null;
+}
+
+export interface EvaluationGate {
+  status: EvaluationGateStatus;
+  run_id?: string | null;
+  evaluated_at?: string | null;
+  failure_reasons: string[];
+  metric_deltas?: Record<string, number | string | null>;
+}
+
+export interface WorkflowSummary {
+  id: string;
+  workspace_id: string;
+  process_id?: string | null;
+  name: string;
+  status: WorkflowStatus;
+  updated_at?: string | null;
+  current_version_id?: string | null;
+  current_version?: number | null;
+  latest_hash?: string | null;
+}
+
+export interface WorkflowVersion {
+  id: string;
+  workflow_id: string;
+  version: number;
+  status: WorkflowVersionStatus;
+  spec: WorkflowSpec;
+  immutable_hash: string | null;
+  created_at?: string | null;
+  published_at?: string | null;
+  published_by?: string | null;
+  eval_run_id?: string | null;
+  eval_gate: EvaluationGate;
+  validation_errors: WorkflowValidationIssue[];
+}
+
+export interface WorkflowDetail {
+  workflow: WorkflowSummary;
+  versions: WorkflowVersion[];
+  draft_version?: WorkflowVersion | null;
+}
+
+export interface WorkflowListResponse {
+  items: WorkflowSummary[];
+}
+
+export interface WorkflowResponse {
+  item?: WorkflowDetail;
+  workflow?: WorkflowDetail;
+}
+
+export interface WorkflowVersionResponse {
+  item?: WorkflowVersion;
+  version?: WorkflowVersion;
+}
+
+export interface WorkflowValidationResponse {
+  version?: WorkflowVersion;
+  validation_errors?: WorkflowValidationIssue[];
+  errors?: WorkflowValidationIssue[];
+}
+
+export interface WorkflowPublishResponse {
+  version?: WorkflowVersion;
+  published?: boolean;
+  evaluation_gate?: EvaluationGate;
+  eval_gate?: EvaluationGate;
+  failure_reasons?: string[];
+}

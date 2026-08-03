@@ -2,10 +2,12 @@
   "name": "ai-ops-compliance-desk",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
+    "test": "node --experimental-strip-types --test tests/workflow-contract.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

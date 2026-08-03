@@ -16,7 +16,16 @@ import type {
   WorkspaceActivationResponse,
   WorkspaceContext,
   WorkspaceListResponse,
+  WorkflowDetail,
+  WorkflowListResponse,
+  WorkflowPublishResponse,
+  WorkflowResponse,
+  WorkflowSpec,
+  WorkflowValidationResponse,
+  WorkflowVersion,
+  WorkflowVersionResponse,
 } from "./types";
+import { normalizeWorkflowDetail, normalizeWorkflowList, normalizeWorkflowVersion, serializeWorkflowSpec } from "./workflow-contract";
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
 const AUTH_MODE: AuthMode = process.env.NEXT_PUBLIC_AUTH_MODE === "provider" ? "provider" : "development";
@@ -376,6 +385,34 @@ export const api = {
       body: JSON.stringify(payload),
     }),
   getOpportunityScore: (scoreId: string) => request<DiscoveryResponse>(`/api/opportunity-scores/${scoreId}`),
+  listWorkflows: async (): Promise<WorkflowListResponse> => normalizeWorkflowList(await request<unknown>("/api/workflows")),
+  getWorkflow: async (workflowId: string): Promise<WorkflowDetail> => normalizeWorkflowDetail(await request<WorkflowResponse>(`/api/workflows/${workflowId}`)),
+  createWorkflow: async (payload: { name: string; process_id?: string | null }): Promise<WorkflowDetail> =>
+    normalizeWorkflowDetail(await request<WorkflowResponse>("/api/workflows", { method: "POST", body: JSON.stringify(payload) })),
+  updateWorkflow: async (workflowId: string, payload: { name?: string; process_id?: string | null }): Promise<WorkflowDetail> =>
+    normalizeWorkflowDetail(await request<WorkflowResponse>(`/api/workflows/${workflowId}`, { method: "PATCH", body: JSON.stringify(payload) })),
+  createWorkflowVersion: async (workflowId: string, spec: WorkflowSpec, sourceVersionId?: string | null): Promise<WorkflowVersion> =>
+    normalizeWorkflowVersion(
+      await request<WorkflowVersionResponse>(`/api/workflows/${workflowId}/versions`, {
+        method: "POST",
+        body: JSON.stringify({ spec: serializeWorkflowSpec(spec), source_version_id: sourceVersionId || undefined }),
+      }),
+      workflowId,
+    ),
+  updateWorkflowVersion: async (workflowId: string, versionId: string, spec: WorkflowSpec): Promise<WorkflowVersion> =>
+    normalizeWorkflowVersion(
+      await request<WorkflowVersionResponse>(`/api/workflows/${workflowId}/versions/${versionId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ spec: serializeWorkflowSpec(spec) }),
+      }),
+      workflowId,
+    ),
+  validateWorkflowVersion: (workflowId: string, versionId: string) =>
+    request<WorkflowValidationResponse>(`/api/workflows/${workflowId}/versions/${versionId}/validate`, { method: "POST" }),
+  evaluateWorkflowVersion: (workflowId: string, versionId: string) =>
+    request<WorkflowVersionResponse>(`/api/workflows/${workflowId}/versions/${versionId}/evaluate`, { method: "POST" }),
+  publishWorkflowVersion: (workflowId: string, versionId: string) =>
+    request<WorkflowPublishResponse>(`/api/workflows/${workflowId}/versions/${versionId}/publish`, { method: "POST" }),
 };
 
 function setActiveWorkspaceContext(workspaceId: string | null) {
