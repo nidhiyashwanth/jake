@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from app.config import get_settings
 from app.errors import DomainError
 from app.models import AuditEvent, ComplianceCheck, ComplianceDocument, ComplianceStatus, ReviewTask, Vendor, new_id, utc_now
+from app.services.audit import append_audit_log
 from app.services.documents import as_date
 
 
@@ -137,6 +138,11 @@ def status_payload(status: ComplianceStatus) -> dict[str, Any]:
 
 def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, actor_type: str = "system") -> dict[str, Any]:
     settings = get_settings()
+    workspace_id = db.info.get("workspace_id")
+    if not isinstance(workspace_id, str) or workspace_id != vendor.workspace_id or workspace_id != document.workspace_id:
+        raise DomainError("REQUEST_CONTEXT_MISSING", "Verification requires a matching workspace context", 500)
+    request_context = db.info.get("request_context")
+    actor_id = getattr(request_context, "user_id", None)
     run_id = str(uuid4())
     now = utc_now()
     results = evaluate_rules(vendor, document.extracted_fields)
@@ -144,6 +150,7 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
     old_open_tasks = db.scalars(
         select(ReviewTask).where(
             ReviewTask.document_id == document.id,
+            ReviewTask.workspace_id == workspace_id,
             ReviewTask.status == "open",
         )
     ).all()
@@ -156,6 +163,7 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
     for result in results:
         check = ComplianceCheck(
             id=new_id(),
+            workspace_id=workspace_id,
             vendor_id=vendor.id,
             document_id=document.id,
             run_id=run_id,
@@ -171,6 +179,7 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
         checks.append(check)
         if result.result != "pass":
             review = ReviewTask(
+                workspace_id=workspace_id,
                 vendor_id=vendor.id,
                 document_id=document.id,
                 check_id=check.id,
@@ -192,6 +201,7 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
         "review_task_ids": [review.id for review in reviews],
     }
     snapshot = ComplianceStatus(
+        workspace_id=workspace_id,
         vendor_id=vendor.id,
         document_id=document.id,
         as_of=now,
@@ -204,6 +214,7 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
     db.flush()
     db.add(
         AuditEvent(
+            workspace_id=workspace_id,
             vendor_id=vendor.id,
             event_type="verification_completed",
             actor_type=actor_type,
@@ -211,6 +222,15 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
             entity_id=snapshot.id,
             payload={"status": status, "failing_requirements": failing, "document_id": document.id},
         )
+    )
+    append_audit_log(
+        db,
+        action="verification.completed",
+        target_type="compliance_status",
+        target_id=snapshot.id,
+        workspace_id=workspace_id,
+        actor_id=actor_id,
+        after={"status": status, "failing_requirements": failing, "document_id": document.id},
     )
     db.commit()
 
@@ -240,7 +260,10 @@ def review_payload(review: ReviewTask) -> dict[str, Any]:
 def history_payload(db: Session, vendor_id: str) -> list[dict[str, Any]]:
     rows = db.scalars(
         select(ComplianceStatus)
-        .where(ComplianceStatus.vendor_id == vendor_id)
+        .where(
+            ComplianceStatus.vendor_id == vendor_id,
+            ComplianceStatus.workspace_id == db.info.get("workspace_id"),
+        )
         .order_by(ComplianceStatus.as_of.desc(), ComplianceStatus.id.desc())
     ).all()
     return [status_payload(row) for row in rows]

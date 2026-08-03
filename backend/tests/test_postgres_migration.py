@@ -8,12 +8,20 @@ from sqlalchemy import create_engine, inspect, text
 
 
 REQUIRED_TABLES = {
+    "organizations",
+    "workspaces",
+    "users",
+    "memberships",
+    "auth_sessions",
+    "workspace_contexts",
     "vendors",
     "compliance_documents",
     "compliance_checks",
     "review_tasks",
     "compliance_status",
     "audit_events",
+    "audit_logs",
+    "data_access_logs",
 }
 
 
@@ -36,5 +44,11 @@ def test_alembic_creates_required_postgres_schema() -> None:
         with engine.connect() as connection:
             assert REQUIRED_TABLES <= set(inspect(connection).get_table_names())
             assert connection.execute(text("SELECT 1")).scalar_one() == 1
+            assert connection.execute(
+                text("SELECT relforcerowsecurity FROM pg_class WHERE relname = 'vendors'")
+            ).scalar_one() is True
+            assert connection.execute(
+                text("SELECT count(*) FROM pg_policies WHERE tablename IN ('vendors', 'audit_logs', 'data_access_logs')")
+            ).scalar_one() >= 5
     finally:
         engine.dispose()
