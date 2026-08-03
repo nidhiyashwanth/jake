@@ -2,6 +2,11 @@ import type {
   AuthMode,
   ApiErrorBody,
   AuditEvent,
+  DiscoveryDraft,
+  DiscoveryDraftResponse,
+  DiscoveryRecord,
+  DiscoveryResponse,
+  DiscoverySourceType,
   ReviewTask,
   SessionContext,
   StatusResponse,
@@ -79,6 +84,39 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   }
   if (response.status === 204) return undefined as T;
   return (await response.json()) as T;
+}
+
+async function requestBlob(path: string, options?: RequestInit): Promise<Blob> {
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE_URL}${path}`, {
+      ...options,
+      credentials: "include",
+      headers: {
+        ...(activeSessionToken ? { Authorization: `Bearer ${activeSessionToken}` } : {}),
+        ...(activeWorkspaceId ? { "X-Workspace-ID": activeWorkspaceId } : {}),
+        ...options?.headers,
+      },
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiRequestError("The API could not be reached. Start the local Compose stack and try again.", "API_UNREACHABLE", 0);
+  }
+
+  if (!response.ok) {
+    let body: ApiErrorBody = {};
+    try {
+      body = (await response.json()) as ApiErrorBody;
+    } catch {
+      // Preserve the stable local error when the API did not return JSON.
+    }
+    throw new ApiRequestError(
+      body.error?.message || `Request failed with status ${response.status}`,
+      body.error?.code || "API_REQUEST_FAILED",
+      response.status,
+    );
+  }
+  return response.blob();
 }
 
 function localDevelopmentSession(email: string): SessionContext {
@@ -286,6 +324,47 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ value, field }),
     }),
+  getDiscovery: () => request<DiscoveryResponse>("/api/discoveries"),
+  saveDiscovery: (payload: Record<string, unknown>, processId?: string | null) =>
+    request<DiscoveryResponse>(processId ? `/api/discoveries/${processId}` : "/api/discoveries", {
+      method: processId ? "PATCH" : "POST",
+      body: JSON.stringify(payload),
+    }),
+  ingestDiscoverySource: (processId: string, payload: { source_type: DiscoverySourceType; source_name?: string; content: string }) =>
+    request<{ ingestion_id?: string; draft?: DiscoveryDraft }>(`/api/discoveries/${processId}/ingestions`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getDiscoveryDraft: (processId: string) => request<DiscoveryDraftResponse>(`/api/discoveries/${processId}/draft`),
+  answerDiscoveryQuestion: (processId: string, questionId: string, answer: string) =>
+    request<DiscoveryResponse>(`/api/discoveries/${processId}/questions/${questionId}/answer`, {
+      method: "POST",
+      body: JSON.stringify({ answer }),
+    }),
+  addDiscoveryException: (processId: string, value: string) =>
+    request<DiscoveryResponse>(`/api/discoveries/${processId}/exceptions`, {
+      method: "POST",
+      body: JSON.stringify({ value }),
+    }),
+  listDiscoveryBaselines: (processId: string) => request<DiscoveryResponse>(`/api/discoveries/${processId}/baselines`),
+  createDiscoveryBaseline: (processId: string, payload: Record<string, unknown>) =>
+    request<DiscoveryResponse>(`/api/discoveries/${processId}/baselines`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  signDiscoveryBaseline: (processId: string, baselineId: string, payload: Record<string, unknown>) =>
+    request<DiscoveryResponse>(`/api/discoveries/${processId}/baselines/${baselineId}/sign`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  exportDiscoveryBaseline: (processId: string, baselineId: string) =>
+    requestBlob(`/api/discoveries/${processId}/baselines/${baselineId}/export`),
+  computeDiscoveryScore: (processId: string, baselineId: string, payload: Record<string, unknown>) =>
+    request<DiscoveryResponse>(`/api/discoveries/${processId}/baselines/${baselineId}/scores`, {
+      method: "POST",
+      body: JSON.stringify(payload),
+    }),
+  getOpportunityScore: (scoreId: string) => request<DiscoveryResponse>(`/api/opportunity-scores/${scoreId}`),
 };
 
 function setActiveWorkspaceContext(workspaceId: string | null) {

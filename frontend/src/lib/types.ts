@@ -158,3 +158,115 @@ export interface ApiErrorBody {
     message?: string;
   };
 }
+
+export type DiscoverySourceType = "sop" | "transcript" | "screen_recording";
+
+export interface DiscoveryStep {
+  id?: string;
+  title: string;
+  description: string;
+  system: string;
+  minutes_p50: number | null;
+  minutes_p90: number | null;
+  is_decision: boolean;
+}
+
+export interface DiscoveryMetrics {
+  volume_per_month: number | null;
+  minutes_p50: number | null;
+  minutes_p90: number | null;
+  fully_loaded_cost_per_hour: number | null;
+  error_rate_pct: number | null;
+  cost_per_error: number | null;
+  rework_rate_pct: number | null;
+  cycle_time_hours: number | null;
+  headcount_touching: number | null;
+  peak_backlog: number | null;
+  chase_volume_per_month: number | null;
+  lapse_incidents_per_month: number | null;
+  audit_prep_hours_per_month: number | null;
+}
+
+export interface DiscoveryDraft {
+  source_type?: DiscoverySourceType;
+  source_name?: string | null;
+  generated_at?: string | null;
+  steps: DiscoveryStep[];
+  exceptions: string[];
+  baseline_questions: string[];
+}
+
+export interface SignedBaseline {
+  id: string;
+  process_id: string;
+  version: number;
+  status: "draft" | "signed" | "superseded";
+  signed_by?: {
+    id?: string;
+    name?: string;
+    email?: string;
+  } | null;
+  signed_at?: string | null;
+  frozen_at?: string | null;
+  hash?: string | null;
+  supersedes_baseline_id?: string | null;
+  superseded_by_baseline_id?: string | null;
+  metrics: DiscoveryMetrics;
+}
+
+export interface OpportunityScore {
+  id?: string;
+  baseline_id?: string | null;
+  current_annual_cost: number;
+  automatable_pct: number;
+  projected_savings: number;
+  confidence: number;
+  effort_weeks: number;
+  risk_multiplier: number;
+  priority_score: number;
+  model_cost: number;
+  infra_cost: number;
+  review_rate_pct: number;
+  review_minutes: number;
+  inputs: Record<string, number | string | null>;
+  formula_version: string;
+  computed_at?: string | null;
+  provenance?: string | null;
+}
+
+export interface DiscoveryRecord {
+  process_id: string;
+  workspace_id: string;
+  name: string;
+  department?: string | null;
+  owner_user_id?: string | null;
+  system_of_record?: string | null;
+  trigger: string;
+  inputs: string;
+  decisions: string;
+  exceptions: string;
+  approvals: string;
+  outputs: string;
+  failure_modes: string;
+  steps: DiscoveryStep[];
+  metrics: DiscoveryMetrics;
+  draft?: DiscoveryDraft | null;
+  baselines: SignedBaseline[];
+  current_baseline?: SignedBaseline | null;
+  score?: OpportunityScore | null;
+  updated_at?: string | null;
+}
+
+export interface DiscoveryResponse {
+  items?: DiscoveryRecord[];
+  item?: DiscoveryRecord;
+  process?: DiscoveryRecord;
+  record?: DiscoveryRecord;
+  baseline?: SignedBaseline;
+  score?: OpportunityScore;
+}
+
+export interface DiscoveryDraftResponse {
+  process_id?: string | null;
+  draft: DiscoveryDraft;
+}
