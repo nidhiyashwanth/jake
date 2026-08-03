@@ -4,7 +4,7 @@ Research completed 2026-08-03. Source: full teardown of deployly.ai (all 6 publi
 
 ## Current operating phase
 
-This workspace has a **passing harness baseline and a passing F01 MVP vertical slice**. The research set is complete, the vendor/subcontractor compliance-document wedge and full-time/raise operating mode are selected, and further product work is bounded by [docs/MVP-CONTRACT.md](docs/MVP-CONTRACT.md). Read [AGENTS.md](AGENTS.md) before changing anything.
+This workspace has a **passing F01 foundation and an active full-product execution plan**. The research set is complete, the vendor/subcontractor compliance-document wedge and full-time/raise operating mode are selected, and the remaining application is decomposed in [task.md](task.md). Read [AGENTS.md](AGENTS.md) before changing anything.
 
 Run the current harness check with:
 
@@ -17,6 +17,8 @@ Run the real local MVP path with Docker Desktop and PostgreSQL 16:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
 ```
+
+The complete product backlog, reusable workstream prompt, dependencies, and package gates live in [task.md](task.md). F01 is the foundation checkpoint; it is not the whole product.
 
 The harness state lives in [PROGRESS.md](PROGRESS.md), durable reasoning lives in [DECISIONS.md](DECISIONS.md), and executable scope lives in [feature-list.json](feature-list.json).
 

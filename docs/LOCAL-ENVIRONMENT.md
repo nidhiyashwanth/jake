@@ -26,6 +26,8 @@ docker system df
 
 Do not run a broad volume prune while the database contains development data. Remove only named resources that have been identified and backed up.
 
+For local credential rotation, update `.env`, stop the Compose project, and use a deliberate database migration or a new named volume. Changing `POSTGRES_PASSWORD` does not rotate a password in an already-initialized PostgreSQL data directory. Production credentials must be rotated by the deployment secret manager.
+
 ## Readiness gate
 
 The environment is ready only when all of these pass:
@@ -34,7 +36,7 @@ The environment is ready only when all of these pass:
 wsl --version
 docker version
 docker compose version
-docker compose --env-file .env.example --file docker-compose.yml config --quiet
+docker compose --env-file .env --file docker-compose.yml config --quiet
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-docker-storage.ps1 -MaxGb 32
 ```
 

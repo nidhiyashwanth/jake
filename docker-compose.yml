@@ -4,13 +4,13 @@ services:
   postgres:
     image: postgres:16-alpine
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-mvp}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-mvp}
-      POSTGRES_DB: ${POSTGRES_DB:-mvp}
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
     ports:
       - "${POSTGRES_PORT:-5432}:5432"
     volumes:
-      - ai-ops-platform-postgres-data:/var/lib/postgresql/data
+      - ai-ops-platform-ledger-data:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
       interval: 3s
@@ -24,11 +24,14 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     environment:
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-mvp}:${POSTGRES_PASSWORD:-mvp}@postgres:5432/${POSTGRES_DB:-mvp}
-      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
-      REQUIRED_CERTIFICATE_HOLDER: ${REQUIRED_CERTIFICATE_HOLDER:-Northwind Construction LLC}
-      MINIMUM_GL_OCCURRENCE_LIMIT: ${MINIMUM_GL_OCCURRENCE_LIMIT:-2000000}
-      RULES_VERSION: ${RULES_VERSION:-rules.v1}
+      APP_NAME: ${APP_NAME:?Set APP_NAME in .env}
+      ENVIRONMENT: ${ENVIRONMENT:?Set ENVIRONMENT in .env}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?Set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS in .env}
+      REQUIRED_CERTIFICATE_HOLDER: ${REQUIRED_CERTIFICATE_HOLDER:?Set REQUIRED_CERTIFICATE_HOLDER in .env}
+      MINIMUM_GL_OCCURRENCE_LIMIT: ${MINIMUM_GL_OCCURRENCE_LIMIT:?Set MINIMUM_GL_OCCURRENCE_LIMIT in .env}
+      RULES_VERSION: ${RULES_VERSION:?Set RULES_VERSION in .env}
+      MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:?Set MAX_UPLOAD_BYTES in .env}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
@@ -55,5 +58,5 @@ services:
         condition: service_healthy
 
 volumes:
-  ai-ops-platform-postgres-data:
-    name: ai-ops-platform-postgres-data
+  ai-ops-platform-ledger-data:
+    name: ai-ops-platform-ledger-data

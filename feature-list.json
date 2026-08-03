@@ -29,6 +29,118 @@
       "verification": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1",
       "state": "passing",
       "evidence": "scripts/verify-mvp.ps1 passed on 2026-08-03: Dockerized PostgreSQL 16/FastAPI/Next.js flow created a vendor, uploaded a COI, produced needs_review, applied a human certificate-holder correction, produced compliant, retained 2 snapshots, and exposed 4 ledger events; frontend smoke returned HTTP 200. Backend pytest against Compose PostgreSQL: 6 passed."
+    },
+    {
+      "id": "SEC-01",
+      "behavior": "Local credentials are stored only in ignored .env files, required runtime configuration fails clearly when absent, and tracked files contain no usable credential defaults.",
+      "verification": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-secrets.ps1; docker compose --env-file .env --file docker-compose.yml config --quiet",
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/check-secrets.ps1 passed; Compose config with ignored .env passed; backend settings import passed; scripts/verify-mvp.ps1 passed against the new PostgreSQL volume; old volume preserved."
+    },
+    {
+      "id": "H-01",
+      "behavior": "A fresh agent can execute and verify the complete-product task plan with one active work package and durable evidence.",
+      "verification": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-harness.ps1 -Area All; powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-fresh-session.ps1",
+      "state": "passing",
+      "evidence": "2026-08-04: harness All passed; verify-fresh-session.ps1 passed; verify-product.ps1 correctly blocked with 15 open required work packages and a repair path."
+    },
+    {
+      "id": "T-01",
+      "behavior": "An authorized user can operate an isolated organization/workspace with role-based delivery or handoff access.",
+      "verification": "Tenant-isolation, RLS, role-matrix, authentication, and browser E2E suite",
+      "state": "active",
+      "evidence": ""
+    },
+    {
+      "id": "D-01",
+      "behavior": "A workflow owner can capture discovery, sign an immutable baseline, and inspect deterministic opportunity scoring inputs and outputs.",
+      "verification": "Discovery, signature, immutability, formula, and scoring E2E suite",
+      "state": "not_started",
+      "evidence": ""
+    },
+    {
+      "id": "W-01",
+      "behavior": "A builder can define a versioned DAG workflow and publish only an immutable version that passes its evaluation gate.",
+      "verification": "DAG validation, version immutability, read-only graph, and publish-gate E2E suite",
+      "state": "not_started",
+      "evidence": ""
+    },
+    {
+      "id": "R-01",
+      "behavior": "A durable worker can execute workflow nodes with retries, idempotency, human waits, outbox events, crash recovery, and replay without side effects.",
+      "verification": "Worker crash, retry, idempotency, outbox, and replay integration suite",
+      "state": "not_started",
+      "evidence": ""
+    },
+    {
+      "id": "V-01",
+      "behavior": "An operator can process a prioritized review queue using keyboard controls, field provenance, corrections, escalation, SLA, and guarded bulk actions.",
+      "verification": "Real-browser keyboard, provenance, queue, SLA, correction, escalation, and bulk-cap E2E suite",
+      "state": "not_started",
+      "evidence": ""
+    },
+    {
+      "id": "C-01",
+      "behavior": "A workspace administrator can configure scoped MCP and first-party connectors with encrypted, rotated credentials and complete call logging.",
+      "verification": "Connector sandbox, tool allow-list, vault encryption/rotation, redaction, and webhook security suite",
+      "state": "not_started",
+      "evidence": ""
+    },
+    {
+      "id": "P-01",
+      "behavior": "The compliance workflow supports the v1 document set, requirement sets, expanded policy rules, exception taxonomy, supersession, and safe chase threads.",
+      "verification": "Wedge golden set, 35-rule suite, document fixtures, and chase-agent sandbox E2E suite",
+      "state": "not_started",
+      "evidence": ""
+    },
+    {
+      "id": "Q-01",
+      "behavior": "A workflow owner can configure versioned confidence routing and simulate the auto/review/halt tradeoff with sampled-audit protection.",
+      "verification": "Confidence calibration, threshold simulator, sampled audit, and false-auto E2E suite",
+      "state": "not_started",
+      "evidence": ""
+    },
+    {
+      "id": "E-01",
+      "behavior": "A workflow version is publishable only when golden-set metrics and injection canaries pass, with drift monitoring after release.",
+      "verification": "Golden-set eval, regression-block, canary, and drift-alert integration suite",
+      "state": "not_started",
+      "evidence": ""
+    },
+    {
+      "id": "I-01",
+      "behavior": "An authorized user can inspect every run and safely replay it against an immutable version without external side effects.",
+      "verification": "Inspector drill-down, trace correlation, redaction, and side-effect-free replay E2E suite",
+      "state": "not_started",
+      "evidence": ""
+    },
+    {
+      "id": "L-01",
+      "behavior": "A sponsor can reconcile immutable value events, costs, ROI dashboards, drill-down records, and CSV/PDF exports to a signed baseline.",
+      "verification": "Ledger reconciliation, dashboard parity, drill-down, and CSV/PDF export suite",
+      "state": "not_started",
+      "evidence": ""
+    },
+    {
+      "id": "G-01",
+      "behavior": "An auditor can inspect access, PII, retention, incidents, model changes, and a redacted dated audit pack.",
+      "verification": "Governance, retention, legal-hold, PII, incident, and audit-pack security suite",
+      "state": "not_started",
+      "evidence": ""
+    },
+    {
+      "id": "X-01",
+      "behavior": "The product has reproducible CI, staging/production deployment, migrations, observability, dependency evidence, and tested backup recovery.",
+      "verification": "Clean-checkout CI, staging smoke, deploy/rollback, migration, SBOM, security, and restore-drill evidence",
+      "state": "not_started",
+      "evidence": ""
+    },
+    {
+      "id": "LAUNCH-01",
+      "behavior": "A customer-ready release can pass shadow mode, acceptance criteria, role training, handover, support, export, and rollback checks.",
+      "verification": "Release-candidate acceptance simulation and handover evidence bundle",
+      "state": "not_started",
+      "evidence": ""
     }
   ]
 }

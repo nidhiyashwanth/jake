@@ -5,11 +5,11 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
 
     app_name: str = "AI Operations Compliance API"
     environment: str = "development"
-    database_url: str = "postgresql+psycopg://mvp:mvp@localhost:5432/mvp"
+    database_url: str
     allowed_origins: str = "http://localhost:3000"
     required_certificate_holder: str = "Northwind Construction LLC"
     minimum_gl_occurrence_limit: int = 2_000_000

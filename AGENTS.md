@@ -1,17 +1,18 @@
 # AI Operations Deployment Platform
 
-This workspace contains the research, product plan, and the runnable first MVP for an AI operations deployment platform. The chosen first wedge is vendor and subcontractor compliance-document verification with proof. The F01 vertical slice is implemented under `backend/` and `frontend/` and is passing its real Docker/PostgreSQL end-to-end gate.
+This workspace contains the research, product plan, and the runnable foundation of the AI Operations Deployment Platform. The chosen first wedge is vendor and subcontractor compliance-document verification with proof. F01 is the passing foundation; the complete product is tracked and executed through `task.md`.
 
 ## Current phase
 
-The harness baseline and MVP feature F01 are complete. Do not expand the product surface until the owner reviews the verified checkpoint and supplies the next active feature. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, and `feature-list.json` are the operational source of truth for agent work.
+The harness baseline and F01 foundation are complete. The full documented product build is active: `SEC-01` is the current WIP item, and every subsequent package must be selected from `task.md` one at a time. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, `feature-list.json`, and `task.md` are the operational source of truth for agent work.
 
 ## Start here
 
 1. Read `PROGRESS.md` and identify the one active feature, if any.
 2. Read `DECISIONS.md` before revisiting an architectural or product choice.
-3. Read the relevant numbered research document only after the routing map below points to it.
-4. Run the harness check before making changes:
+3. Read `task.md` and work only on its single active package and its dependencies.
+4. Read the relevant numbered research document only after the routing map below points to it.
+5. Run the harness check before making changes:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-harness.ps1
@@ -28,7 +29,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
 To leave the services running for manual review, use `-KeepRunning`; stop that exact Compose project with:
 
 ```powershell
-docker compose --project-name ai-ops-platform-mvp --env-file .env.example --file docker-compose.yml down --remove-orphans
+docker compose --project-name ai-ops-platform-mvp --env-file .env --file docker-compose.yml down --remove-orphans
 ```
 
 ## Verify it
@@ -50,6 +51,14 @@ The current F01 product gate is:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
 ```
 
+The complete-product gate is the task board plus the relevant package checks. Do not mark a package passing until its row in `task.md`, its row in `feature-list.json`, and its executable evidence agree.
+
+The final release gate refuses to pass while any required package is open:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-product.ps1
+```
+
 ## Hard constraints
 
 1. Finish the harness gate before starting each new product feature.
@@ -64,11 +73,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
 10. Use bounded model calls inside deterministic workflow control; models do not own top-level orchestration.
 11. Require end-to-end verification for work crossing domain, worker, storage, connector, or UI boundaries.
 12. Do not claim an application command, test, deployment, or performance result until it has run in this workspace.
-13. Update `PROGRESS.md` and record new durable choices in `DECISIONS.md` at clock-out.
+13. Update `task.md`, `PROGRESS.md`, and record new durable choices in `DECISIONS.md` at clock-out.
 
 ## Working agreement
 
 - Scope and state live in `feature-list.json`; do not maintain a competing task list in chat or a long instruction file.
+- Detailed product scope, dependencies, workstream prompt, and package Definition of Done live in `task.md`.
 - Session continuity lives in `PROGRESS.md`; the next action must be concrete and executable.
 - The architecture baseline is `05-ARCHITECTURE.md`, refined by `docs/ARCHITECTURE-RULES.md`.
 - The current verification contract is `docs/VERIFICATION.md` and `scripts/verify-harness.ps1`.
@@ -87,8 +97,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
 - Risk, compliance, and contracts → `09-RISKS-COMPLIANCE.md`
 - Pricing, economics, and fundraising → `06-GTM-PRICING.md`, `10-UNIT-ECONOMICS.md`, `12-FUNDRAISING-PATH.md`
 - Verification and completion gates → `docs/VERIFICATION.md`
+- Complete product execution backlog → `task.md`
 - Clock-in, clock-out, and handoff → `docs/WORKFLOW.md`
 
 ## Clean exit
 
-Before ending a session, run the verifier, update state and evidence, remove temporary artifacts, and leave one clear next action. A session is not complete merely because files were edited.
+Before ending a session, run the verifier, update `task.md`/state/evidence, remove temporary artifacts without deleting `.env`, and leave one clear next action. A session is not complete merely because files were edited.

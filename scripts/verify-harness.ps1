@@ -44,6 +44,7 @@ function Test-Instructions {
         'AGENTS.md',
         'CLAUDE.md',
         'README.md',
+        'task.md',
         'PROGRESS.md',
         'DECISIONS.md',
         'feature-list.json',
@@ -60,6 +61,13 @@ function Test-Instructions {
     Require-Contains 'AGENTS.md' '## Verify it' 'Document the exact verification commands.'
     Require-Contains 'AGENTS.md' '## Hard constraints' 'Keep global red lines in the routed entry file.'
     Require-Contains 'AGENTS.md' '## Routing map' 'Route detailed guidance to focused topic files.'
+    Require-Contains 'AGENTS.md' 'task.md' 'Route the complete-product execution backlog from the entry instructions.'
+    Require-Contains 'task.md' '## Master execution prompt' 'Keep the reusable workstream prompt in the repository.'
+    Require-Contains 'task.md' '## Work package board' 'Track all product work packages and their evidence state.'
+    Require-Contains 'task.md' '## Detailed tasks and Definition of Done' 'Define executable completion checks for product work.'
+    [void](Require-File 'scripts/check-secrets.ps1')
+    [void](Require-File 'scripts/verify-product.ps1')
+    [void](Require-File 'scripts/verify-fresh-session.ps1')
     Require-Contains 'README.md' 'Current operating phase' 'Record the current phase in the project overview.'
     Require-Contains 'README.md' 'AGENTS.md' 'Link the repository entrypoint from the README.'
     Require-Contains 'docs/ARCHITECTURE-RULES.md' 'Source:' 'Add source metadata to topic instructions.'
@@ -73,6 +81,7 @@ function Test-State {
     $progressPath = Require-File 'PROGRESS.md'
     $decisionsPath = Require-File 'DECISIONS.md'
     $featurePath = Require-File 'feature-list.json'
+    $taskPath = Require-File 'task.md'
     if ($null -eq $featurePath) {
         return
     }
@@ -120,6 +129,15 @@ function Test-State {
     if ($activeCount -gt 1) {
         Add-Failure "feature-list.json has $activeCount active features. WIP=1 allows only one active feature."
     }
+    if ($null -ne $taskPath) {
+        $taskContent = Get-Content -Raw -LiteralPath $taskPath
+        foreach ($activeFeature in @($features | Where-Object { $_.state -eq 'active' })) {
+            $taskPattern = "(?m)^\|\s*$($activeFeature.id)\s*\|.*\|\s*active\s*\|"
+            if ($taskContent -notmatch $taskPattern) {
+                Add-Failure "Active feature $($activeFeature.id) is not marked active in task.md. Keep the feature list and detailed task board aligned."
+            }
+        }
+    }
     if ($null -ne $progressPath) {
         Require-Contains 'PROGRESS.md' 'feature-list.json' 'Point the handoff document to the executable feature list.'
         Require-Contains 'PROGRESS.md' 'WIP=1' 'Record the active-work limit in the handoff document.'
@@ -137,6 +155,22 @@ function Test-Verification {
     Require-Contains 'docs/VERIFICATION.md' 'Layer 2' 'Define the runtime verification layer.'
     Require-Contains 'docs/VERIFICATION.md' 'Layer 3' 'Define the end-to-end verification layer.'
     Require-Contains 'docs/VERIFICATION.md' 'missing runtime command' 'Record unavailable checks as gaps instead of fake passes.'
+
+    $envPath = Join-Path $repoRoot '.env'
+    if (Test-Path -LiteralPath $envPath -PathType Leaf) {
+        & git -C $repoRoot check-ignore -q -- .env
+        if ($LASTEXITCODE -ne 0) {
+            Add-Failure '.env exists but is not ignored by Git. Never commit local credentials.'
+        }
+    }
+
+    $secretScriptPath = Join-Path $repoRoot 'scripts/check-secrets.ps1'
+    if (Test-Path -LiteralPath $secretScriptPath -PathType Leaf) {
+        & powershell -NoProfile -ExecutionPolicy Bypass -File $secretScriptPath | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            Add-Failure 'scripts/check-secrets.ps1 found a tracked credential or private-key pattern. Inspect the reported paths without printing secret contents.'
+        }
+    }
 
     $tokens = $null
     $parseErrors = $null

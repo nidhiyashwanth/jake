@@ -1,7 +1,7 @@
 # Verification contract
 
 - **Source:** harness-engineering completion-gate guidance plus the product requirements in `04-PRODUCT-SPEC.md`, `05-ARCHITECTURE.md`, and `11-WEDGE-COMPLIANCE-DOCS.md`.
-- **Applicability:** harness maintenance and all product features, including the passing F01 vertical slice.
+- **Applicability:** harness maintenance and all product work packages in `task.md`, including the passing F01 foundation.
 - **Expiry:** update when the test runner, deployment target, or critical user flow changes.
 
 ## Current gates
@@ -17,6 +17,8 @@ The passing F01 product gate is the real Docker/PostgreSQL path:
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
 ```
+
+The complete-product gate is package-specific: `task.md`, `feature-list.json`, and the package's static/runtime/E2E/security evidence must agree before the package can move to `passing`.
 
 A missing runtime command is a recorded gap, not a passing check. Do not create placeholder commands that only print success. F01's runtime and end-to-end command now exists and has passed; future features must add equivalent evidence.
 

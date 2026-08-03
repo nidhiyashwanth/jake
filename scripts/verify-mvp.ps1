@@ -6,7 +6,8 @@ param(
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $composeFile = Join-Path $repoRoot "docker-compose.yml"
-$envExample = Join-Path $repoRoot ".env.example"
+$envFile = Join-Path $repoRoot ".env"
+$envTemplate = Join-Path $repoRoot ".env.example"
 $fixture = Join-Path $repoRoot "tests\fixtures\coi-failing.txt"
 $projectName = "ai-ops-platform-mvp"
 $apiBaseUrl = "http://localhost:8000"
@@ -39,7 +40,7 @@ $dockerExe = Resolve-DockerExecutable
 $composePrefix = @(
     "compose",
     "--project-name", $projectName,
-    "--env-file", $envExample,
+    "--env-file", $envFile,
     "--file", $composeFile
 )
 
@@ -167,9 +168,10 @@ function Assert-Condition {
 }
 
 try {
-    foreach ($requiredPath in @($composeFile, $envExample, $fixture)) {
+    foreach ($requiredPath in @($composeFile, $envFile, $fixture)) {
         Assert-Condition -Condition (Test-Path -LiteralPath $requiredPath) -Message "Required verification file is missing: $requiredPath"
     }
+    Assert-Condition -Condition (Test-Path -LiteralPath $envTemplate) -Message "The committed .env.example template is missing: $envTemplate"
     if (-not (Test-Path -LiteralPath (Join-Path $repoRoot "frontend"))) {
         throw "E2E prerequisite missing: frontend\ is not present at $repoRoot\frontend. Integrate the Next.js review-desk slice before running the full Compose verifier."
     }

@@ -49,3 +49,27 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** The first useful learning loop is intake → verification → review → evidence. Keeping that loop runnable and auditable gives the owner something testable to put in front of an operator quickly.
 - **Rejected alternative:** Expand into the full platform architecture before the first workflow is exercised by a real operator.
 - **Remaining constraints:** Preserve the PostgreSQL-only path, the 32 GB storage guard, WIP=1, and the three-layer completion gate. Select the next feature only after F01 feedback is captured.
+
+## D-007 — Treat F01 as the foundation, not the product finish line
+
+- **Date:** 2026-08-04
+- **Decision:** Execute the remaining documented product modules through `task.md`: tenancy/RLS, discovery and signed baselines, workflow versioning, durable runtime, full review, connectors/vault, wedge rules/chasing, confidence, evals, inspection, ledger, governance, deployment, and launch acceptance. Keep one package active at a time and require real evidence before advancing.
+- **Why:** F01 proves the narrow compliance loop, but it does not satisfy the product specification's multi-tenant, workflow, connector, runtime, measurement, governance, and deployment promises.
+- **Rejected alternative:** Declare the F01 vertical slice to be the complete platform or create a broad unverified rewrite without dependency-ordered gates.
+- **Remaining constraints:** Preserve the documented stack and explicit out-of-scope items, use isolated worktrees for parallel non-conflicting work, and keep all package state synchronized across `task.md`, `feature-list.json`, and `PROGRESS.md`.
+
+## D-008 — Keep local credentials out of tracked configuration
+
+- **Date:** 2026-08-04
+- **Decision:** Local Compose and application configuration loads credentials from the ignored repository-root `.env`; `.env.example` contains placeholders only. Tracked Compose, settings, Alembic, README, and test files may not contain usable credential defaults.
+- **Why:** A repository can be public or copied into a new environment at any time. Secret-like values in defaults create accidental disclosure and teach future contributors unsafe configuration habits.
+- **Rejected alternative:** Keep convenient weak credential fallbacks in tracked files and rely on developers to remember not to reuse them.
+- **Remaining constraints:** Production secrets must come from the deployment secret manager; local `.env` values must never appear in logs, screenshots, prompts, or commits.
+
+## D-009 — Rotate the local database volume with the credential move
+
+- **Date:** 2026-08-04
+- **Decision:** The new ignored `.env` uses a local-only database identity and the Compose stack uses a new named volume. The previous development volume remains untouched until its contents are deliberately migrated or retired.
+- **Why:** PostgreSQL initializes credentials only on first creation of a data directory. Reusing the old volume would silently keep the old weak identity even after the tracked configuration was cleaned.
+- **Rejected alternative:** Delete the old volume or pretend changing Compose environment variables rotates an already-initialized PostgreSQL password.
+- **Remaining constraints:** Keep the new volume inside the 32 GB Docker budget and document any future migration/retirement as a separate, recoverable operation.
