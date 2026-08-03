@@ -34,10 +34,10 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Rejected alternative:** Begin with microservices, Kubernetes, a visual workflow editor, or a custom trace platform.
 - **Remaining constraints:** Any boundary or infrastructure exception needs a new decision and verification evidence.
 
-## D-005 — Use SQLite for the zero-ops MVP development path
+## D-005 — Keep the documented architecture stack for the MVP
 
 - **Date:** 2026-08-03
-- **Decision:** The first local MVP uses SQLite behind a repository boundary; PostgreSQL 16 remains the production target in the architecture baseline.
-- **Why:** Docker and Postgres are not installed in the workspace, and a zero-ops local path lets the real vertical slice ship without hiding integration work behind infrastructure setup.
-- **Rejected alternative:** Block the first product slice on installing and operating a database service before the behavior exists.
-- **Remaining constraints:** Keep persistence interfaces and migrations portable; do not treat SQLite-specific behavior as production proof.
+- **Decision:** The first MVP uses the documented stack: Next.js/TypeScript for the review desk, FastAPI/Pydantic for the API, and PostgreSQL 16 running through Docker Desktop’s WSL 2 backend. No SQLite fallback is part of the product path.
+- **Why:** The architecture is a product constraint, not a timeline estimate. Keeping the real database and service boundaries now prevents a fast demo from encoding the wrong persistence behavior.
+- **Rejected alternative:** Replace PostgreSQL with SQLite to avoid installing the intended local runtime.
+- **Remaining constraints:** Docker/WSL storage is explicitly capped; the MVP must run through the same Compose/Postgres path used for integration verification.

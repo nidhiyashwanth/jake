@@ -4,7 +4,7 @@ This is the living handoff for the AI Operations Deployment Platform. The harnes
 
 ## Current state
 
-- **Phase:** MVP vertical slice active; harness remains the control system
+- **Phase:** MVP vertical slice active; intended stack provisioning in progress
 - **Latest commit:** harness baseline and published handoff (current `HEAD`)
 - **Last verification:** `scripts/verify-harness.ps1 -Area All` passed on 2026-08-03
 - **Branch:** `main`
@@ -18,16 +18,19 @@ This is the living handoff for the AI Operations Deployment Platform. The harnes
 
 ## Known issues / blockers
 
-- The application runtime and test framework do not exist yet; F01 must create the smallest honest local run path and its real checks.
+- Docker Desktop is installed, but WSL and Virtual Machine Platform require a Windows restart before Docker can start; the user-level WSL storage cap is configured.
+- The application runtime and test framework do not exist yet; F01 must create the smallest honest local run path and its real checks on PostgreSQL, not SQLite.
 - GitHub remote `git@github.com:nidhiyashwanth/jake.git` contains the published harness baseline on `origin/main`.
 - Founder-specific choices in `00-EXEC-SUMMARY.md` §7 remain open: capital/time mode, reachable vertical access, services appetite, and geography.
 
 ## Next actions (ordered; the next session starts at #1)
 
-1. Build the backend contract and persistence slice defined in `docs/MVP-CONTRACT.md`.
-2. Build the review-desk UI and black-box verification against that contract.
-3. Integrate, run the real intake → verify → review → status → ledger path, and publish the first MVP checkpoint.
-4. Resolve founder-specific execution choices before expanding beyond F01.
+1. Restart Windows to activate WSL and Virtual Machine Platform.
+2. Start Docker Desktop, set its disk usage limit to 32 GB, and verify Docker Compose/PostgreSQL readiness.
+3. Build the backend contract and persistence slice defined in `docs/MVP-CONTRACT.md`.
+4. Build the review-desk UI and black-box verification against that contract.
+5. Integrate, run the real intake → verify → review → status → ledger path, and publish the first MVP checkpoint.
+6. Resolve founder-specific execution choices before expanding beyond F01.
 
 ---
 

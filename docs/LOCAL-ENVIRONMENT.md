@@ -1,0 +1,40 @@
+# Local environment contract
+
+- **Source:** `05-ARCHITECTURE.md`, Docker Desktop and Microsoft WSL documentation.
+- **Applicability:** local development and F01 integration verification on Windows.
+- **Expiry:** update when the runtime stack or storage policy changes.
+
+## Required stack
+
+- Docker Desktop for Windows using the WSL 2 backend.
+- PostgreSQL 16 through the repository's Docker Compose configuration.
+- Python 3.12 for FastAPI tooling.
+- Node/npm for the Next.js review desk.
+
+Docker and WSL are infrastructure prerequisites, not optional substitutes. Do not replace PostgreSQL with SQLite to avoid setup work.
+
+## Storage policy
+
+This machine has limited storage. The user-level `%UserProfile%\\.wslconfig` is configured with a 32 GB `defaultVhdSize`, 2 GB swap, and sparse VHD creation. Docker Desktop must be configured in Resources → Advanced with a 32 GB disk usage limit before pulling images or starting the stack.
+
+Do not enable Kubernetes or pull unrelated images. Keep only the Postgres and project images needed for the current MVP. Check usage with:
+
+```powershell
+docker system df
+docker image prune
+```
+
+Do not run a broad volume prune while the database contains development data. Remove only named resources that have been identified and backed up.
+
+## Readiness gate
+
+The environment is ready only when all of these pass:
+
+```powershell
+wsl --version
+docker version
+docker compose version
+docker compose up -d postgres
+```
+
+Then the application health check and the F01 verifier must pass. If WSL reports a pending restart, stop and restart Windows before launching Docker Desktop.

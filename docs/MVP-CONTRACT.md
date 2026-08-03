@@ -9,7 +9,7 @@
 
 Given a vendor and a COI-shaped document, the system produces a transparent verification result: normalized observed fields, deterministic requirement checks, explicit exception reason codes, a human correction path, a point-in-time compliance status, and an auditable event trail.
 
-The MVP must be usable locally without external model credentials, inbox access, OCR services, or a hosted database. The extraction boundary must be replaceable later; the first implementation may use deterministic text/PDF parsing over representative fixtures.
+The MVP must be usable locally without external model credentials, inbox access, or OCR services, but it must use the intended local runtime: FastAPI/Pydantic, Next.js/TypeScript, and PostgreSQL 16 through Docker Compose. The extraction boundary must be replaceable later; the first implementation may use deterministic text/PDF parsing over representative fixtures.
 
 ## In scope
 
@@ -50,8 +50,8 @@ The API is versioned under `/api` and returns JSON. Error responses must include
 
 ## Minimum persistence model
 
-Use a modular repository boundary even with SQLite: `vendors`, `compliance_documents`, `compliance_checks`, `review_tasks`, `compliance_status`, and `audit_events`. `compliance_status` is append-only and includes `vendor_id`, `document_id`, `as_of`, `status`, `failing_requirements`, `computed_by_version`, and a JSON evidence payload. Rule evaluation is versioned and deterministic.
+Use PostgreSQL 16 with migrations and explicit repository boundaries: `vendors`, `compliance_documents`, `compliance_checks`, `review_tasks`, `compliance_status`, and `audit_events`. `compliance_status` is append-only and includes `vendor_id`, `document_id`, `as_of`, `status`, `failing_requirements`, `computed_by_version`, and a JSON evidence payload. Rule evaluation is versioned and deterministic.
 
 ## Definition of Done
 
-F01 is complete only when `scripts/verify-mvp.ps1` starts the real local service, exercises the full API path, proves a failing check becomes compliant after a review correction, proves at least two historical status snapshots remain, and confirms the UI or API exposes the audit evidence. A unit test alone cannot pass F01.
+F01 is complete only when `scripts/verify-mvp.ps1` starts the real Dockerized PostgreSQL and application services, exercises the full API path, proves a failing check becomes compliant after a review correction, proves at least two historical status snapshots remain, and confirms the UI or API exposes the audit evidence. A unit test or SQLite substitute cannot pass F01.

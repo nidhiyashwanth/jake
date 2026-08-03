@@ -63,6 +63,7 @@ Future product work must add and pass static, runtime, and end-to-end checks bef
 - Project map and current phase → `README.md`, `PROGRESS.md`
 - Product scope and MVP cut line → `04-PRODUCT-SPEC.md`, `11-WEDGE-COMPLIANCE-DOCS.md`
 - Active MVP contract and API boundary → `docs/MVP-CONTRACT.md`
+- Local Docker/WSL/PostgreSQL setup → `docs/LOCAL-ENVIRONMENT.md`
 - ICP, positioning, and wedge choice → `03-STRATEGY-AND-WEDGE.md`, `11-WEDGE-COMPLIANCE-DOCS.md`
 - Runtime, data model, security, and ADRs → `05-ARCHITECTURE.md`, `docs/ARCHITECTURE-RULES.md`
 - Delivery and customer workflow → `07-DELIVERY-PLAYBOOK.md`
