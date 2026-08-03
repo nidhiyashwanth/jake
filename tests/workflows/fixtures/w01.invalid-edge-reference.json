@@ -1,0 +1,10 @@
+{
+  "case": "missing_edge_reference",
+  "base_fixture": "w01.valid-workflow.json",
+  "mutation": {
+    "kind": "replace_edge_target",
+    "edge_id": "edge-05",
+    "value": "node.does-not-exist"
+  },
+  "expected_error_code_contains": "validation"
+}

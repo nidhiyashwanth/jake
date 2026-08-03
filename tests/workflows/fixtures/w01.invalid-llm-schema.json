@@ -1,0 +1,10 @@
+{
+  "case": "llm_without_output_schema",
+  "base_fixture": "w01.valid-workflow.json",
+  "mutation": {
+    "kind": "remove_node_config",
+    "node_key": "llm.explain",
+    "property": "output_schema"
+  },
+  "expected_error_code_contains": "schema"
+}

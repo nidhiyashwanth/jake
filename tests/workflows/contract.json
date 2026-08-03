@@ -1,0 +1,370 @@
+{
+  "contract_version": "w01.http.v1",
+  "purpose": "Black-box workflow definition, deterministic DAG validation, immutable versioning, evaluation-gated publish, read-only graph, workspace isolation, authorization, and audit contract for W-01.",
+  "scope": "Workflow definitions are edited through forms and persisted as draft versions. Published versions are content-addressed and immutable. Models may run inside bounded nodes but never own DAG control flow or publish decisions.",
+  "canonical_roles": [
+    "owner",
+    "admin",
+    "builder",
+    "operator",
+    "viewer",
+    "auditor"
+  ],
+  "workflow_read_roles": [
+    "owner",
+    "admin",
+    "builder",
+    "operator",
+    "viewer"
+  ],
+  "workflow_write_roles": [
+    "owner",
+    "admin",
+    "builder"
+  ],
+  "workflow_publish_roles": [
+    "owner",
+    "admin",
+    "builder"
+  ],
+  "workspace_count": 2,
+  "denial_status_codes": [
+    401,
+    403,
+    404
+  ],
+  "validation_status_codes": [
+    400,
+    409,
+    422
+  ],
+  "immutable_status_codes": [
+    405,
+    409,
+    422
+  ],
+  "publish_gate_denial_status_codes": [
+    409,
+    422
+  ],
+  "audit_delete_status_codes": [
+    401,
+    403,
+    404,
+    405
+  ],
+  "routes": {
+    "health": {
+      "method": "GET",
+      "path": "/api/health"
+    },
+    "dev_login": {
+      "method": "POST",
+      "path": "/api/auth/dev-login"
+    },
+    "context_set": {
+      "method": "POST",
+      "path": "/api/auth/context"
+    },
+    "membership_create": {
+      "method": "POST",
+      "path": "/api/workspaces/{workspace_id}/members"
+    },
+    "audit_list": {
+      "method": "GET",
+      "path": "/api/audit?limit=500"
+    },
+    "audit_delete_probe": {
+      "method": "DELETE",
+      "path": "/api/audit/events/{event_id}"
+    },
+    "workflow_list": {
+      "method": "GET",
+      "path": "/api/workflows"
+    },
+    "workflow_create": {
+      "method": "POST",
+      "path": "/api/workflows"
+    },
+    "workflow_detail": {
+      "method": "GET",
+      "path": "/api/workflows/{workflow_id}"
+    },
+    "workflow_version_create": {
+      "method": "POST",
+      "path": "/api/workflows/{workflow_id}/versions"
+    },
+    "workflow_version_detail": {
+      "method": "GET",
+      "path": "/api/workflow-versions/{version_id}"
+    },
+    "workflow_version_patch": {
+      "method": "PATCH",
+      "path": "/api/workflow-versions/{version_id}"
+    },
+    "workflow_validate": {
+      "method": "POST",
+      "path": "/api/workflow-versions/{version_id}/validate"
+    },
+    "workflow_evaluation_run": {
+      "method": "POST",
+      "path": "/api/workflow-versions/{version_id}/evaluation-runs"
+    },
+    "workflow_publish": {
+      "method": "POST",
+      "path": "/api/workflow-versions/{version_id}/publish"
+    },
+    "workflow_graph": {
+      "method": "GET",
+      "path": "/api/workflow-versions/{version_id}/graph"
+    }
+  },
+  "response_contract": {
+    "workflow_id_paths": [
+      "workflow.id",
+      "id",
+      "workflow_id"
+    ],
+    "draft_version_id_paths": [
+      "draft_version.id",
+      "version.id",
+      "draft_version_id",
+      "version_id"
+    ],
+    "workspace_id_paths": [
+      "workspace_id",
+      "workflow.workspace_id",
+      "version.workspace_id"
+    ],
+    "status_paths": [
+      "status",
+      "workflow.status",
+      "version.status"
+    ],
+    "version_number_paths": [
+      "version_number",
+      "version.version_number",
+      "version.number"
+    ],
+    "version_hash_paths": [
+      "version_hash",
+      "definition_hash",
+      "hash",
+      "version.version_hash",
+      "version.definition_hash"
+    ],
+    "definition_paths": [
+      "definition",
+      "graph",
+      "version.definition",
+      "workflow_version.definition"
+    ],
+    "nodes_paths": [
+      "nodes",
+      "definition.nodes",
+      "graph.nodes",
+      "version.definition.nodes"
+    ],
+    "edges_paths": [
+      "edges",
+      "definition.edges",
+      "graph.edges",
+      "version.definition.edges"
+    ],
+    "thresholds_paths": [
+      "thresholds",
+      "definition.thresholds",
+      "graph.thresholds",
+      "version.definition.thresholds"
+    ],
+    "prompts_paths": [
+      "prompts",
+      "definition.prompts",
+      "graph.prompts",
+      "version.definition.prompts"
+    ],
+    "model_configs_paths": [
+      "model_configs",
+      "definition.model_configs",
+      "graph.model_configs",
+      "version.definition.model_configs"
+    ],
+    "evaluation_pass_paths": [
+      "passed",
+      "evaluation.passed",
+      "result.passed"
+    ],
+    "evaluation_failure_reason_paths": [
+      "failure_reasons",
+      "evaluation.failure_reasons",
+      "result.failure_reasons",
+      "errors",
+      "reasons"
+    ],
+    "evaluation_version_hash_paths": [
+      "version_hash",
+      "evaluation.version_hash",
+      "result.version_hash",
+      "workflow_version_hash"
+    ],
+    "graph_read_only_paths": [
+      "read_only",
+      "graph.read_only",
+      "editable",
+      "graph.editable"
+    ]
+  },
+  "node_types": {
+    "trigger": {
+      "required_config": [
+        "trigger_kind"
+      ]
+    },
+    "fetch": {
+      "required_config": [
+        "connector_key",
+        "resource"
+      ]
+    },
+    "parse": {
+      "required_config": [
+        "parser"
+      ]
+    },
+    "classify": {
+      "required_config": [
+        "labels",
+        "field"
+      ]
+    },
+    "extract": {
+      "required_config": [
+        "fields"
+      ]
+    },
+    "rule": {
+      "required_config": [
+        "expression"
+      ]
+    },
+    "score": {
+      "required_config": [
+        "formula",
+        "threshold_key"
+      ]
+    },
+    "llm": {
+      "required_config": [
+        "prompt_key",
+        "model_config_key",
+        "output_schema"
+      ]
+    },
+    "tool": {
+      "required_config": [
+        "tool_key"
+      ]
+    },
+    "approve": {
+      "required_config": [
+        "reason_code",
+        "required_role"
+      ]
+    },
+    "notify": {
+      "required_config": [
+        "template_key",
+        "channel"
+      ]
+    },
+    "halt": {
+      "required_config": [
+        "reason"
+      ]
+    }
+  },
+  "graph_invariants": [
+    "node keys are unique and non-empty",
+    "node type is one of the twelve declared types",
+    "each node has a config object satisfying its type schema",
+    "exactly one trigger node is required",
+    "edge source and target must reference existing node keys",
+    "duplicate directed edges are rejected",
+    "the directed graph must be acyclic",
+    "the graph must have a reachable halt or notify terminal",
+    "llm nodes require a JSON output schema and a versioned prompt/model reference",
+    "threshold, prompt, and model-config references must resolve within the version",
+    "schema_version is explicit and older version payloads remain readable through version detail",
+    "published versions cannot be edited or republished",
+    "publish requires a passing evaluation run for this exact version hash"
+  ],
+  "evaluation": {
+    "request_fields": [
+      "suite_key"
+    ],
+    "client_may_not_supply": [
+      "passed",
+      "failure_reasons",
+      "metrics",
+      "version_hash"
+    ],
+    "failure_suite_key": "w01.synthetic.regression",
+    "passing_suite_key": "w01.synthetic.baseline",
+    "pass_field": "passed",
+    "failure_reasons_field": "failure_reasons",
+    "hash_algorithm": "sha256",
+    "publish_binding": "the latest passing evaluation must reference the exact immutable version hash"
+  },
+  "required_audit_events": [
+    "workflow.created",
+    "workflow.version_created",
+    "workflow.draft_updated",
+    "workflow.validation_failed",
+    "workflow.evaluation_completed",
+    "workflow.publish_denied",
+    "workflow.published",
+    "authorization.denied"
+  ],
+  "ui": {
+    "path": "/",
+    "navigation_name": "Workflows",
+    "heading": "Workflow builder",
+    "required_form_labels": [
+      "Workflow name",
+      "Workflow key",
+      "Description",
+      "Node type",
+      "Node key"
+    ],
+    "create_button_name": "Create workflow",
+    "save_button_name": "Save draft",
+    "validate_button_name": "Validate workflow",
+    "publish_button_name": "Publish workflow",
+    "graph_selector": "[data-testid='workflow-graph']",
+    "graph_read_only_attribute": "data-read-only",
+    "graph_read_only_value": "true",
+    "evaluation_failure_role": "alert",
+    "evaluation_failure_text": "evaluation"
+  },
+  "fixtures": {
+    "valid_definition": "w01.valid-workflow.json",
+    "invalid_cases": [
+      "w01.invalid-node-type.json",
+      "w01.invalid-edge-reference.json",
+      "w01.invalid-cycle.json",
+      "w01.invalid-llm-schema.json"
+    ],
+    "evaluation_suites": "w01.evaluation-suites.json"
+  },
+  "assumptions": [
+    "The existing T-01 bearer session and X-Workspace-ID context boundary are used; the verifier never writes workspace_id directly and never seeds database rows.",
+    "The first owner development login creates workspace A, a second login with the same organization and a distinct workspace name creates workspace B, and both workspaces are reached through documented HTTP context operations.",
+    "POST /api/workflows creates a workflow plus its first mutable draft version and returns stable ids. POST /api/workflows/{workflow_id}/versions creates a later draft version.",
+    "PATCH /api/workflow-versions/{version_id} accepts the form/editor definition shape with nodes, edges, thresholds, prompts, and model_configs. The server validates before writing and returns a repairable error envelope on failure.",
+    "The evaluation endpoint runs a server-owned synthetic suite identified by suite_key. The caller cannot submit passed, metrics, failure reasons, or a version hash, so a client cannot forge the publish gate.",
+    "Publish denial includes non-empty failure reasons when there is no passing evaluation for the exact version hash. A successful publish returns the immutable version hash and published status.",
+    "GET /api/workflow-versions/{version_id}/graph is a read-only graph representation for React Flow or an equivalent renderer. The browser must not expose drag/drop mutation controls in this package.",
+    "The existing audit endpoint returns stable event ids and action/event_type values. Audit deletion has no successful response; the verifier re-reads prior ids after a denied deletion probe.",
+    "The verifier uses only HTTP, Docker Compose lifecycle, a real PostgreSQL-backed stack, and tracked synthetic fixtures. It does not call a database client, use SQLite, use mocks, use docker exec, or print response bodies, tokens, or local environment values."
+  ]
+}

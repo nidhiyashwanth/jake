@@ -1,0 +1,13 @@
+{
+  "case": "directed_cycle",
+  "base_fixture": "w01.valid-workflow.json",
+  "mutation": {
+    "kind": "append_edge",
+    "edge": {
+      "id": "edge-cycle",
+      "source": "halt.complete",
+      "target": "trigger.inbox"
+    }
+  },
+  "expected_error_code_contains": "cycle"
+}
