@@ -1,11 +1,11 @@
 # PROGRESS
 
-This is the living handoff for the AI Operations Deployment Platform. Product implementation is intentionally paused until the harness baseline is verified and published.
+This is the living handoff for the AI Operations Deployment Platform. The harness baseline is verified and published; product implementation is intentionally paused until planning gates pass.
 
 ## Current state
 
-- **Phase:** harness setup before product implementation
-- **Latest commit:** harness baseline (current `HEAD`)
+- **Phase:** harness baseline complete; product implementation not started
+- **Latest commit:** harness baseline and published handoff (current `HEAD`)
 - **Last verification:** `scripts/verify-harness.ps1 -Area All` passed on 2026-08-03
 - **Branch:** `main`
 
@@ -19,13 +19,14 @@ This is the living handoff for the AI Operations Deployment Platform. Product im
 ## Known issues / blockers
 
 - The application runtime and test framework do not exist yet; this is expected for the harness phase and must not be disguised with placeholder commands.
-- GitHub remote `git@github.com:nidhiyashwanth/jake.git` is configured for the first clean harness checkpoint; push is the remaining publication step.
+- GitHub remote `git@github.com:nidhiyashwanth/jake.git` contains the published harness baseline on `origin/main`.
 - Founder-specific choices in `00-EXEC-SUMMARY.md` §7 remain open: capital/time mode, reachable vertical access, services appetite, and geography.
 
 ## Next actions (ordered; the next session starts at #1)
 
-1. Push the verified harness baseline to the owner-provided remote.
-2. Resolve the founder-specific execution choices, then create the first product build plan; do not implement before that plan is passing.
+1. Resolve the founder-specific execution choices, then record the result in `DECISIONS.md`.
+2. Create the first product build plan as a WIP=1 feature list; do not implement before that plan is passing.
+3. Start product implementation only after the plan has explicit behavior, verification, and scope boundaries.
 
 ---
 

@@ -4,7 +4,7 @@ This workspace contains the research, product plan, and future implementation co
 
 ## Current phase
 
-We are setting up the harness before building the application. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, and `feature-list.json` are the operational source of truth for agent work.
+The harness baseline is complete; product implementation remains paused until the founder-specific execution choices and a written build plan are recorded. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, and `feature-list.json` are the operational source of truth for agent work.
 
 ## Start here
 
