@@ -1,0 +1,165 @@
+{
+  "contract_version": "t01.http.v1",
+  "purpose": "Black-box tenancy, authentication, authorization, active-context, and audit contract for the AI Operations Deployment Platform.",
+  "canonical_roles": [
+    "owner",
+    "admin",
+    "builder",
+    "operator",
+    "viewer",
+    "auditor"
+  ],
+  "tenant_count": 2,
+  "workspaces_per_tenant": 2,
+  "denial_status_codes": [
+    401,
+    403,
+    404
+  ],
+  "audit_delete_status_codes": [
+    401,
+    403,
+    404,
+    405
+  ],
+  "routes": {
+    "register": {
+      "method": "POST",
+      "path": "/api/auth/register"
+    },
+    "login": {
+      "method": "POST",
+      "path": "/api/auth/login"
+    },
+    "me": {
+      "method": "GET",
+      "path": "/api/auth/me"
+    },
+    "session_revoke": {
+      "method": "POST",
+      "path": "/api/auth/sessions/{session_id}/revoke"
+    },
+    "organization_create": {
+      "method": "POST",
+      "path": "/api/organizations"
+    },
+    "workspace_create": {
+      "method": "POST",
+      "path": "/api/workspaces"
+    },
+    "workspace_list": {
+      "method": "GET",
+      "path": "/api/workspaces"
+    },
+    "membership_create": {
+      "method": "POST",
+      "path": "/api/workspaces/{workspace_id}/memberships"
+    },
+    "membership_disable": {
+      "method": "POST",
+      "path": "/api/memberships/{membership_id}/disable"
+    },
+    "context_set": {
+      "method": "POST",
+      "path": "/api/auth/context"
+    },
+    "audit_list": {
+      "method": "GET",
+      "path": "/api/audit/events"
+    },
+    "audit_delete_probe": {
+      "method": "DELETE",
+      "path": "/api/audit/events/{event_id}"
+    },
+    "vendors": {
+      "method": "GET",
+      "path": "/api/vendors"
+    },
+    "vendor_create": {
+      "method": "POST",
+      "path": "/api/vendors"
+    },
+    "vendor_detail": {
+      "method": "GET",
+      "path": "/api/vendors/{vendor_id}"
+    },
+    "documents_upload": {
+      "method": "POST",
+      "path": "/api/vendors/{vendor_id}/documents"
+    },
+    "document_verify": {
+      "method": "POST",
+      "path": "/api/documents/{document_id}/verify"
+    },
+    "reviews": {
+      "method": "GET",
+      "path": "/api/reviews"
+    },
+    "review_update": {
+      "method": "PATCH",
+      "path": "/api/reviews/{review_id}"
+    },
+    "vendor_status": {
+      "method": "GET",
+      "path": "/api/vendors/{vendor_id}/status"
+    },
+    "vendor_ledger": {
+      "method": "GET",
+      "path": "/api/vendors/{vendor_id}/ledger"
+    }
+  },
+  "capability_matrix": {
+    "organization_and_workspace_manage": [
+      "owner",
+      "admin"
+    ],
+    "membership_manage": [
+      "owner",
+      "admin"
+    ],
+    "vendor_read": [
+      "owner",
+      "admin",
+      "builder",
+      "operator",
+      "viewer",
+      "auditor"
+    ],
+    "vendor_write": [
+      "owner",
+      "admin",
+      "operator"
+    ],
+    "review_write": [
+      "owner",
+      "admin",
+      "operator"
+    ],
+    "audit_read": [
+      "owner",
+      "admin",
+      "auditor"
+    ]
+  },
+  "required_audit_events": [
+    "login",
+    "workspace_context_changed",
+    "access_denied",
+    "vendor_created",
+    "document_uploaded",
+    "document_verified",
+    "membership_disabled",
+    "session_revoked",
+    "sensitive_read"
+  ],
+  "assumptions": [
+    "Registration creates a user and does not create a tenant; the first authenticated owner creates an organization.",
+    "Creating an organization establishes the authenticated user as its owner, and creating a workspace establishes that owner membership for the workspace.",
+    "The owner/admin membership endpoint accepts an existing user email and role, and returns a membership id.",
+    "The active workspace is selected through POST /api/auth/context and is applied to subsequent bearer-authenticated requests; the verifier does not use a database shortcut or a test-only seed endpoint.",
+    "F01 vendor/document/review/status/ledger routes remain available behind the same bearer session and active workspace context.",
+    "The canonical role set is owner, admin, builder, operator, viewer, auditor. A reviewer name is not substituted for builder or auditor; a documented reviewer alias may be added by the implementation and must be mapped explicitly before it is tested.",
+    "Denied reads may return 401, 403, or 404 to avoid cross-scope existence leaks; denied writes may return 401 or 403.",
+    "Audit events are returned as items or events with a stable id and event_type or action field. There is no successful audit-event delete operation."
+  ]
+}
