@@ -48,14 +48,14 @@
       "id": "T-01",
       "behavior": "An authorized user can operate an isolated organization/workspace with role-based delivery or handoff access.",
       "verification": "Tenant-isolation, RLS, role-matrix, authentication, and browser E2E suite",
-      "state": "active",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-tenancy.ps1 passed against real Docker Compose/PostgreSQL with two tenants, two workspaces each, six canonical roles, scope denials, disabled membership/session rejection, F01 compatibility, and append-only audit evidence; tests/tenancy/browser_smoke.py passed against the live stack; backend pytest 11 passed; frontend typecheck/build passed; scripts/verify-mvp.ps1 passed."
     },
     {
       "id": "D-01",
       "behavior": "A workflow owner can capture discovery, sign an immutable baseline, and inspect deterministic opportunity scoring inputs and outputs.",
       "verification": "Discovery, signature, immutability, formula, and scoring E2E suite",
-      "state": "not_started",
+      "state": "active",
       "evidence": ""
     },
     {

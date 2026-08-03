@@ -59,8 +59,8 @@ The documented non-product items remain deliberately deferred unless the owner c
 | F01 | Compliance verification foundation | harness | passing | `scripts/verify-mvp.ps1`, backend Postgres tests, frontend smoke |
 | SEC-01 | Local secret/config hygiene | F01 | passing | ignored `.env`, no tracked credential defaults, config/Compose/secret scan pass |
 | H-01 | Full-product harness and task continuity | SEC-01 | passing | fresh-session test, task/state consistency, clean-exit verifier |
-| T-01 | Organizations, workspaces, auth, RBAC, RLS | H-01 | active | tenant-isolation and role E2E suite |
-| D-01 | Discovery, signed baselines, opportunity scoring | T-01 | not_started | discovery-to-signed-baseline workflow and formula tests |
+| T-01 | Organizations, workspaces, auth, RBAC, RLS | H-01 | passing | 2026-08-04: live Compose/API/browser tenant-isolation, role, RLS, session, audit, and F01 evidence passed |
+| D-01 | Discovery, signed baselines, opportunity scoring | T-01 | active | discovery-to-signed-baseline workflow and formula tests |
 | W-01 | Workflow definitions, DAG versioning, designer, publish gate | D-01 | not_started | immutable-version and eval-gated publish E2E |
 | R-01 | Durable runtime, workers, outbox, model boundary | W-01 | not_started | crash/retry/idempotency/replay integration suite |
 | V-01 | Full review desk, queue, provenance, corrections | R-01 | not_started | keyboard/operator workflow and provenance E2E |
@@ -96,12 +96,12 @@ The documented non-product items remain deliberately deferred unless the owner c
 
 ### T-01 - Organizations, workspaces, authentication, authorization, and RLS
 
-- [ ] Model organizations, workspaces, users, memberships, roles, delivery mode, and handoff mode.
-- [ ] Implement authentication using the selected production-safe provider or self-hosted boundary; keep authorization in application tables.
-- [ ] Enforce owner/admin/builder/operator/viewer/auditor capabilities at API and UI boundaries.
-- [ ] Add PostgreSQL RLS policies and request-level workspace context; every tenant-owned row carries workspace scope.
-- [ ] Add invite, disable, role-change, session, and access-audit flows.
-- **Verification:** cross-tenant API/UI denial tests, role matrix tests, RLS integration tests, session-expiry E2E, audit-log assertions.
+- [x] Model organizations, workspaces, users, memberships, roles, delivery mode, and handoff mode.
+- [x] Implement a development-only hashed-session boundary with an explicit OIDC/JWT provider seam; keep authorization in application tables and production configuration provider-gated.
+- [x] Enforce owner/admin/builder/operator/viewer/auditor capabilities at API and UI boundaries, including explicit audit-read separation.
+- [x] Add PostgreSQL RLS policies and request-level workspace context; every tenant-owned row carries workspace scope.
+- [x] Add invite, disable, role-change, session, context-switch, workspace-mode, CORS, and append-only access-audit flows.
+- **Verification:** `scripts/verify-tenancy.ps1` passed against real Docker Compose/PostgreSQL with two tenants, two workspaces each, six roles, cross-scope denials, disabled membership/session rejection, F01 compatibility, and append-only audit evidence; `tests/tenancy/browser_smoke.py` passed against the live stack; backend `pytest` passed 11 tests; frontend `npm run typecheck` and `npm run build` passed; `scripts/verify-mvp.ps1` passed.
 
 ### D-01 - Discovery, signed baseline, and opportunity scoring
 

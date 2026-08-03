@@ -23,13 +23,13 @@
     405
   ],
   "routes": {
-    "register": {
+    "dev_login": {
       "method": "POST",
-      "path": "/api/auth/register"
+      "path": "/api/auth/dev-login"
     },
-    "login": {
-      "method": "POST",
-      "path": "/api/auth/login"
+    "session": {
+      "method": "GET",
+      "path": "/api/auth/session"
     },
     "me": {
       "method": "GET",
@@ -37,27 +37,27 @@
     },
     "session_revoke": {
       "method": "POST",
-      "path": "/api/auth/sessions/{session_id}/revoke"
-    },
-    "organization_create": {
-      "method": "POST",
-      "path": "/api/organizations"
-    },
-    "workspace_create": {
-      "method": "POST",
-      "path": "/api/workspaces"
+      "path": "/api/auth/logout"
     },
     "workspace_list": {
       "method": "GET",
       "path": "/api/workspaces"
     },
+    "workspace_activate": {
+      "method": "POST",
+      "path": "/api/workspaces/{workspace_id}/activate"
+    },
+    "workspace_mode": {
+      "method": "PATCH",
+      "path": "/api/workspaces/{workspace_id}/mode"
+    },
     "membership_create": {
       "method": "POST",
-      "path": "/api/workspaces/{workspace_id}/memberships"
+      "path": "/api/workspaces/{workspace_id}/members"
     },
     "membership_disable": {
-      "method": "POST",
-      "path": "/api/memberships/{membership_id}/disable"
+      "method": "PATCH",
+      "path": "/api/workspaces/{workspace_id}/members/{user_id}"
     },
     "context_set": {
       "method": "POST",
@@ -65,7 +65,7 @@
     },
     "audit_list": {
       "method": "GET",
-      "path": "/api/audit/events"
+      "path": "/api/audit"
     },
     "audit_delete_probe": {
       "method": "DELETE",
@@ -128,6 +128,7 @@
     "vendor_write": [
       "owner",
       "admin",
+      "builder",
       "operator"
     ],
     "review_write": [
@@ -142,24 +143,26 @@
     ]
   },
   "required_audit_events": [
-    "login",
-    "workspace_context_changed",
-    "access_denied",
-    "vendor_created",
-    "document_uploaded",
-    "document_verified",
-    "membership_disabled",
-    "session_revoked",
-    "sensitive_read"
+    "auth.dev_login",
+    "auth.context_changed",
+    "authorization.denied",
+    "vendor.created",
+    "document.uploaded",
+    "verification.completed",
+    "membership.invited",
+    "membership.updated",
+    "auth.membership_rejected",
+    "auth.logout"
   ],
   "assumptions": [
-    "Registration creates a user and does not create a tenant; the first authenticated owner creates an organization.",
-    "Creating an organization establishes the authenticated user as its owner, and creating a workspace establishes that owner membership for the workspace.",
-    "The owner/admin membership endpoint accepts an existing user email and role, and returns a membership id.",
+    "The development-only auth boundary accepts email, display name, organization name, and workspace name. The first login creates the organization/workspace and owner membership; later logins require an explicit membership.",
+    "The owner/admin membership endpoint accepts an existing user email, name, and role, and returns a membership id and user id.",
+    "Two workspaces are created through two owner development logins with the same organization name and distinct workspace names; no test-only database seed endpoint is used.",
     "The active workspace is selected through POST /api/auth/context and is applied to subsequent bearer-authenticated requests; the verifier does not use a database shortcut or a test-only seed endpoint.",
+    "The session endpoint returns the active user's active workspace memberships; workspace activation and mode changes are performed through the documented workspace routes.",
     "F01 vendor/document/review/status/ledger routes remain available behind the same bearer session and active workspace context.",
     "The canonical role set is owner, admin, builder, operator, viewer, auditor. A reviewer name is not substituted for builder or auditor; a documented reviewer alias may be added by the implementation and must be mapped explicitly before it is tested.",
     "Denied reads may return 401, 403, or 404 to avoid cross-scope existence leaks; denied writes may return 401 or 403.",
-    "Audit events are returned as items or events with a stable id and event_type or action field. There is no successful audit-event delete operation."
+    "Governance audit events are returned by GET /api/audit as items with stable ids and action fields. The separate F01 ledger remains the source for document_uploaded, verification_completed, and review_correction_applied evidence. There is no successful audit-event delete operation."
   ]
 }

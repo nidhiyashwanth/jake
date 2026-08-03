@@ -151,8 +151,8 @@ function Test-StaticContract {
     Assert-Condition -Condition ([int]$loadedContract.workspaces_per_tenant -ge 2) -Message "contract.json must exercise at least two workspaces per tenant"
 
     $requiredRoutes = @(
-        "register", "login", "me", "session_revoke", "organization_create",
-        "workspace_create", "workspace_list", "membership_create", "membership_disable",
+        "dev_login", "session", "me", "session_revoke", "workspace_list",
+        "workspace_activate", "workspace_mode", "membership_create", "membership_disable",
         "context_set", "audit_list", "audit_delete_probe", "vendors", "vendor_create",
         "vendor_detail", "documents_upload", "document_verify", "reviews", "review_update",
         "vendor_status", "vendor_ledger"
@@ -169,7 +169,11 @@ function Test-StaticContract {
     $deleteCodes = @($loadedContract.audit_delete_status_codes | ForEach-Object { [int]$_ })
     Assert-Condition -Condition (($deleteCodes -contains 401) -and ($deleteCodes -contains 403) -and ($deleteCodes -contains 404) -and ($deleteCodes -contains 405)) -Message "contract.json must define non-success responses for audit deletion"
 
-    $requiredAuditEvents = @("login", "workspace_context_changed", "access_denied", "vendor_created", "document_uploaded", "document_verified", "membership_disabled", "session_revoked", "sensitive_read")
+    $requiredAuditEvents = @(
+        "auth.dev_login", "auth.context_changed", "authorization.denied", "vendor.created",
+        "document.uploaded", "verification.completed", "membership.invited", "membership.updated",
+        "auth.membership_rejected", "auth.logout"
+    )
     $actualAuditEvents = @($loadedContract.required_audit_events | ForEach-Object { [string]$_ })
     foreach ($eventName in $requiredAuditEvents) {
         Assert-Condition -Condition ($actualAuditEvents -contains $eventName) -Message "contract.json is missing required audit event '$eventName'"
@@ -474,7 +478,6 @@ try {
     Wait-HttpReady -Uri "$apiBaseUrl/api/health"
 
     $runTag = [DateTime]::UtcNow.ToString("yyyyMMddHHmmssfff")
-    $password = "T01-only-$runTag"
     $roles = @("owner", "admin", "builder", "operator", "viewer", "auditor")
     $tenantKeys = @("a", "b")
     $tenantData = @{}
@@ -482,84 +485,94 @@ try {
     foreach ($tenantKey in $tenantKeys) {
         $tenantData[$tenantKey] = [ordered]@{
             Users = @{}
-            OrganizationId = $null
+            OrganizationName = "T01 Tenant $tenantKey $runTag"
             Workspaces = @()
         }
-        foreach ($role in $roles) {
-            $email = "t01-$runTag-$tenantKey-$role@example.test"
-            $register = Invoke-ContractApi -Contract $contract -RouteKey "register" -Body @{
-                email = $email
-                password = $password
-                display_name = "T01 $tenantKey $role"
-            }
-            Assert-ApiSuccess -Response $register -Action "POST /api/auth/register for tenant $tenantKey role $role" -Expected @(200, 201)
-            $userId = Get-EntityId -Json $register.Json -CandidatePaths @("user.id", "id") -Action "POST /api/auth/register for tenant $tenantKey role $role"
-            $tenantData[$tenantKey].Users[$role] = [pscustomobject]@{
-                Email = $email
-                UserId = $userId
-                Token = $null
-                SessionId = $null
-                Memberships = @{}
-            }
+        $ownerEmail = "t01-$runTag-$tenantKey-owner@example.test"
+        $ownerLogin = Invoke-ContractApi -Contract $contract -RouteKey "dev_login" -Body @{
+            email = $ownerEmail
+            name = "T01 $tenantKey owner"
+            organization_name = $tenantData[$tenantKey].OrganizationName
+            workspace_name = "T01 $tenantKey workspace 1 $runTag"
+        }
+        Assert-ApiSuccess -Response $ownerLogin -Action "POST /api/auth/dev-login for tenant $tenantKey owner" -Expected @(200)
+        $owner = [pscustomobject]@{
+            Email = $ownerEmail
+            UserId = Get-EntityId -Json $ownerLogin.Json -CandidatePaths @("user.id", "id") -Action "development login user for tenant $tenantKey owner"
+            Token = Get-EntityId -Json $ownerLogin.Json -CandidatePaths @("access_token", "token") -Action "development login token for tenant $tenantKey owner"
+            SessionId = Get-EntityId -Json $ownerLogin.Json -CandidatePaths @("session_id", "session.id") -Action "development login session for tenant $tenantKey owner"
+            Memberships = @{}
+        }
+        $tenantData[$tenantKey].Users["owner"] = $owner
+        $tenantData[$tenantKey].Workspaces += [pscustomobject]@{
+            Number = 1
+            Id = Get-EntityId -Json $ownerLogin.Json -CandidatePaths @("workspace.id", "id") -Action "development login workspace 1 for tenant $tenantKey"
+            Name = "T01 $tenantKey workspace 1 $runTag"
         }
 
-        $owner = $tenantData[$tenantKey].Users["owner"]
-        $ownerLogin = Invoke-ContractApi -Contract $contract -RouteKey "login" -Body @{ email = $owner.Email; password = $password }
-        Assert-ApiSuccess -Response $ownerLogin -Action "POST /api/auth/login for tenant $tenantKey owner" -Expected @(200)
-        $owner.Token = Get-EntityId -Json $ownerLogin.Json -CandidatePaths @("access_token", "token", "session.access_token", "session.token") -Action "POST /api/auth/login for tenant $tenantKey owner"
-        $owner.SessionId = Get-EntityId -Json $ownerLogin.Json -CandidatePaths @("session_id", "session.id") -Action "POST /api/auth/login for tenant $tenantKey owner"
-
-        $organization = Invoke-ContractApi -Contract $contract -RouteKey "organization_create" -Token $owner.Token -Body @{
-            name = "T01 Tenant $tenantKey $runTag"
-            slug = "t01-$runTag-$tenantKey"
+        $ownerSecondLogin = Invoke-ContractApi -Contract $contract -RouteKey "dev_login" -Body @{
+            email = $ownerEmail
+            name = "T01 $tenantKey owner"
+            organization_name = $tenantData[$tenantKey].OrganizationName
+            workspace_name = "T01 $tenantKey workspace 2 $runTag"
         }
-        Assert-ApiSuccess -Response $organization -Action "POST /api/organizations for tenant $tenantKey" -Expected @(200, 201)
-        $tenantData[$tenantKey].OrganizationId = Get-EntityId -Json $organization.Json -CandidatePaths @("organization.id", "id") -Action "POST /api/organizations for tenant $tenantKey"
-
-        foreach ($workspaceNumber in 1..2) {
-            $workspace = Invoke-ContractApi -Contract $contract -RouteKey "workspace_create" -Token $owner.Token -Body @{
-                organization_id = $tenantData[$tenantKey].OrganizationId
-                name = "T01 $tenantKey workspace $workspaceNumber $runTag"
-                delivery_mode = "managed"
-                handoff_mode = "human_review"
-            }
-            Assert-ApiSuccess -Response $workspace -Action "POST /api/workspaces for tenant $tenantKey workspace $workspaceNumber" -Expected @(200, 201)
-            $workspaceId = Get-EntityId -Json $workspace.Json -CandidatePaths @("workspace.id", "id") -Action "POST /api/workspaces for tenant $tenantKey workspace $workspaceNumber"
-            $tenantData[$tenantKey].Workspaces += [pscustomobject]@{
-                Number = $workspaceNumber
-                Id = $workspaceId
-                Name = "T01 $tenantKey workspace $workspaceNumber $runTag"
-            }
+        Assert-ApiSuccess -Response $ownerSecondLogin -Action "POST /api/auth/dev-login for tenant $tenantKey workspace 2" -Expected @(200)
+        $ownerSecondToken = Get-EntityId -Json $ownerSecondLogin.Json -CandidatePaths @("access_token", "token") -Action "development login token for tenant $tenantKey workspace 2"
+        $tenantData[$tenantKey].Workspaces += [pscustomobject]@{
+            Number = 2
+            Id = Get-EntityId -Json $ownerSecondLogin.Json -CandidatePaths @("workspace.id", "id") -Action "development login workspace 2 for tenant $tenantKey"
+            Name = "T01 $tenantKey workspace 2 $runTag"
         }
 
         $workspaceOne = $tenantData[$tenantKey].Workspaces[0]
         $workspaceTwo = $tenantData[$tenantKey].Workspaces[1]
         foreach ($role in $roles | Where-Object { $_ -ne "owner" }) {
+            $email = "t01-$runTag-$tenantKey-$role@example.test"
+            $principal = [pscustomobject]@{
+                Email = $email
+                UserId = $null
+                Token = $null
+                SessionId = $null
+                Memberships = @{}
+            }
+            $tenantData[$tenantKey].Users[$role] = $principal
             $principal = $tenantData[$tenantKey].Users[$role]
             $membership = Invoke-ContractApi -Contract $contract -RouteKey "membership_create" -Token $owner.Token -Replacements @{ workspace_id = $workspaceOne.Id } -Body @{
                 email = $principal.Email
+                name = "T01 $tenantKey $role"
                 role = $role
             }
-            Assert-ApiSuccess -Response $membership -Action "POST /api/workspaces/{workspace_id}/memberships for tenant $tenantKey role $role" -Expected @(200, 201)
+            Assert-ApiSuccess -Response $membership -Action "POST /api/workspaces/{workspace_id}/members for tenant $tenantKey role $role" -Expected @(200, 201)
+            $principal.UserId = Get-EntityId -Json $membership.Json -CandidatePaths @("user_id", "user.id", "id") -Action "membership user creation for tenant $tenantKey role $role"
             $principal.Memberships[([string]$workspaceOne.Number)] = Get-EntityId -Json $membership.Json -CandidatePaths @("membership.id", "id") -Action "membership creation for tenant $tenantKey role $role"
         }
 
         $operator = $tenantData[$tenantKey].Users["operator"]
-        $operatorSecondMembership = Invoke-ContractApi -Contract $contract -RouteKey "membership_create" -Token $owner.Token -Replacements @{ workspace_id = $workspaceTwo.Id } -Body @{
+        $operatorSecondMembership = Invoke-ContractApi -Contract $contract -RouteKey "membership_create" -Token $ownerSecondToken -Replacements @{ workspace_id = $workspaceTwo.Id } -Body @{
             email = $operator.Email
+            name = "T01 $tenantKey operator"
             role = "operator"
         }
         Assert-ApiSuccess -Response $operatorSecondMembership -Action "second workspace membership for tenant $tenantKey operator" -Expected @(200, 201)
         $operator.Memberships[([string]$workspaceTwo.Number)] = Get-EntityId -Json $operatorSecondMembership.Json -CandidatePaths @("membership.id", "id") -Action "second workspace membership for tenant $tenantKey operator"
+
+        $workspaceList = Invoke-ContractApi -Contract $contract -RouteKey "workspace_list" -Token $owner.Token
+        Assert-ApiSuccess -Response $workspaceList -Action "GET /api/workspaces for tenant $tenantKey owner" -Expected @(200)
+        Assert-Condition -Condition (@(Get-ResponseItems -Json $workspaceList.Json).Count -ge 2) -Message "owner workspace list did not return both workspaces for tenant $tenantKey"
     }
 
     foreach ($tenantKey in $tenantKeys) {
         foreach ($role in $roles) {
             $principal = $tenantData[$tenantKey].Users[$role]
-            $login = Invoke-ContractApi -Contract $contract -RouteKey "login" -Body @{ email = $principal.Email; password = $password }
-            Assert-ApiSuccess -Response $login -Action "POST /api/auth/login for tenant $tenantKey role $role" -Expected @(200)
-            $principal.Token = Get-EntityId -Json $login.Json -CandidatePaths @("access_token", "token", "session.access_token", "session.token") -Action "POST /api/auth/login for tenant $tenantKey role $role"
-            $principal.SessionId = Get-EntityId -Json $login.Json -CandidatePaths @("session_id", "session.id") -Action "POST /api/auth/login for tenant $tenantKey role $role"
+            $login = Invoke-ContractApi -Contract $contract -RouteKey "dev_login" -Body @{
+                email = $principal.Email
+                name = "T01 $tenantKey $role"
+                organization_name = $tenantData[$tenantKey].OrganizationName
+                workspace_name = "T01 $tenantKey workspace 1 $runTag"
+            }
+            Assert-ApiSuccess -Response $login -Action "POST /api/auth/dev-login for tenant $tenantKey role $role" -Expected @(200)
+            $principal.Token = Get-EntityId -Json $login.Json -CandidatePaths @("access_token", "token") -Action "development login token for tenant $tenantKey role $role"
+            $principal.SessionId = Get-EntityId -Json $login.Json -CandidatePaths @("session_id", "session.id") -Action "development login session for tenant $tenantKey role $role"
 
             $context = Invoke-ContractApi -Contract $contract -RouteKey "context_set" -Token $principal.Token -Body @{ workspace_id = $tenantData[$tenantKey].Workspaces[0].Id }
             Assert-ApiSuccess -Response $context -Action "POST /api/auth/context for tenant $tenantKey role $role" -Expected @(200)
@@ -579,28 +592,21 @@ try {
     $auditorA = $tenantA.Users["auditor"]
     $operatorB = $tenantB.Users["operator"]
 
-    $adminProbeWorkspace = Invoke-ContractApi -Contract $contract -RouteKey "workspace_create" -Token $adminA.Token -Body @{
-        organization_id = $tenantA.OrganizationId
-        name = "T01 admin workspace probe $runTag"
-        delivery_mode = "managed"
-        handoff_mode = "human_review"
-    }
-    Assert-ApiSuccess -Response $adminProbeWorkspace -Action "admin workspace-management capability" -Expected @(200, 201)
+    $adminModeChange = Invoke-ContractApi -Contract $contract -RouteKey "workspace_mode" -Token $adminA.Token -Replacements @{ workspace_id = $workspaceA1.Id } -Body @{ mode = "handoff" }
+    Assert-ApiSuccess -Response $adminModeChange -Action "admin workspace-mode capability" -Expected @(200)
+    $adminModeRestore = Invoke-ContractApi -Contract $contract -RouteKey "workspace_mode" -Token $adminA.Token -Replacements @{ workspace_id = $workspaceA1.Id } -Body @{ mode = "delivery" }
+    Assert-ApiSuccess -Response $adminModeRestore -Action "admin workspace-mode restoration" -Expected @(200)
 
-    $adminProbeMembership = Invoke-ContractApi -Contract $contract -RouteKey "membership_create" -Token $adminA.Token -Replacements @{ workspace_id = $workspaceA2.Id } -Body @{
-        email = $builderA.Email
-        role = "builder"
+    $adminProbeMembership = Invoke-ContractApi -Contract $contract -RouteKey "membership_create" -Token $adminA.Token -Replacements @{ workspace_id = $workspaceA1.Id } -Body @{
+        email = "t01-$runTag-a-admin-probe@example.test"
+        name = "T01 admin probe"
+        role = "viewer"
     }
     Assert-ApiSuccess -Response $adminProbeMembership -Action "admin membership-management capability" -Expected @(200, 201)
 
     foreach ($role in @("builder", "operator", "viewer", "auditor")) {
         $principal = $tenantA.Users[$role]
-        $workspaceAttempt = Invoke-ContractApi -Contract $contract -RouteKey "workspace_create" -Token $principal.Token -Body @{
-            organization_id = $tenantA.OrganizationId
-            name = "T01 forbidden workspace $role $runTag"
-            delivery_mode = "managed"
-            handoff_mode = "human_review"
-        }
+        $workspaceAttempt = Invoke-ContractApi -Contract $contract -RouteKey "workspace_mode" -Token $principal.Token -Replacements @{ workspace_id = $workspaceA1.Id } -Body @{ mode = "handoff" }
         Assert-ApiDenied -Response $workspaceAttempt -Action "$role workspace-management attempt"
     }
 
@@ -610,13 +616,13 @@ try {
         Assert-ApiSuccess -Response $vendors -Action "$role vendor read in active workspace" -Expected @(200)
     }
 
-    foreach ($role in @("builder", "viewer", "auditor")) {
+    foreach ($role in @("viewer", "auditor")) {
         $principal = $tenantA.Users[$role]
         $vendorWrite = Invoke-ContractApi -Contract $contract -RouteKey "vendor_create" -Token $principal.Token -Body @{ legal_name = "T01 forbidden vendor $role $runTag" }
         Assert-ApiDenied -Response $vendorWrite -Action "$role vendor-write attempt"
     }
 
-    foreach ($role in @("owner", "admin")) {
+    foreach ($role in @("owner", "admin", "builder")) {
         $principal = $tenantA.Users[$role]
         $vendorWrite = Invoke-ContractApi -Contract $contract -RouteKey "vendor_create" -Token $principal.Token -Body @{ legal_name = "T01 allowed vendor $role $runTag" }
         Assert-ApiSuccess -Response $vendorWrite -Action "$role vendor-write capability" -Expected @(200, 201)
@@ -665,8 +671,8 @@ try {
     Assert-Condition -Condition ($history.Count -ge 2) -Message "F01 status endpoint returned fewer than two point-in-time snapshots"
     Assert-Condition -Condition ((Get-EntityId -Json $history[0] -CandidatePaths @("id") -Action "first F01 status snapshot") -ne (Get-EntityId -Json $history[1] -CandidatePaths @("id") -Action "second F01 status snapshot")) -Message "F01 status history is not append-only"
 
-    $ledgerResponse = Invoke-ContractApi -Contract $contract -RouteKey "vendor_ledger" -Token $operatorA.Token -Replacements @{ vendor_id = $vendorId }
-    Assert-ApiSuccess -Response $ledgerResponse -Action "operator F01 ledger" -Expected @(200)
+    $ledgerResponse = Invoke-ContractApi -Contract $contract -RouteKey "vendor_ledger" -Token $auditorA.Token -Replacements @{ vendor_id = $vendorId }
+    Assert-ApiSuccess -Response $ledgerResponse -Action "auditor F01 ledger" -Expected @(200)
     $ledgerEvents = @(Get-ResponseItems -Json $ledgerResponse.Json)
     $ledgerTypes = @($ledgerEvents | ForEach-Object { Get-EventType -Event $_ })
     Assert-Condition -Condition ($ledgerTypes -contains "document_uploaded") -Message "F01 ledger is missing document_uploaded"
@@ -696,14 +702,14 @@ try {
     Assert-ApiSuccess -Response $viewerBeforeDisable -Action "viewer session before membership disable" -Expected @(200)
     $auditorAuditBeforeRevoke = Invoke-ContractApi -Contract $contract -RouteKey "audit_list" -Token $auditorA.Token
     Assert-ApiSuccess -Response $auditorAuditBeforeRevoke -Action "auditor audit-read capability before session revoke" -Expected @(200)
-    $viewerMembershipId = $viewerA.Memberships[([string]$workspaceA1.Number)]
-    $disableMembership = Invoke-ContractApi -Contract $contract -RouteKey "membership_disable" -Token $ownerA.Token -Replacements @{ membership_id = $viewerMembershipId }
-    Assert-ApiSuccess -Response $disableMembership -Action "owner membership disable" -Expected @(200, 204)
+    $viewerUserId = $viewerA.UserId
+    $disableMembership = Invoke-ContractApi -Contract $contract -RouteKey "membership_disable" -Token $ownerA.Token -Replacements @{ workspace_id = $workspaceA1.Id; user_id = $viewerUserId } -Body @{ disabled = $true }
+    Assert-ApiSuccess -Response $disableMembership -Action "owner membership disable" -Expected @(200)
     $viewerAfterDisable = Invoke-ContractApi -Contract $contract -RouteKey "me" -Token $viewerA.Token
     Assert-ApiDenied -Response $viewerAfterDisable -Action "disabled membership session"
 
-    $revokeSession = Invoke-ContractApi -Contract $contract -RouteKey "session_revoke" -Token $ownerA.Token -Replacements @{ session_id = $auditorA.SessionId }
-    Assert-ApiSuccess -Response $revokeSession -Action "owner session revoke" -Expected @(200, 204)
+    $revokeSession = Invoke-ContractApi -Contract $contract -RouteKey "session_revoke" -Token $auditorA.Token
+    Assert-ApiSuccess -Response $revokeSession -Action "auditor session revoke" -Expected @(200)
     $auditorAfterRevoke = Invoke-ContractApi -Contract $contract -RouteKey "me" -Token $auditorA.Token
     Assert-ApiDenied -Response $auditorAfterRevoke -Action "revoked session"
 

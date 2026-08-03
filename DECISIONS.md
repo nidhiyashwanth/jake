@@ -73,3 +73,11 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** PostgreSQL initializes credentials only on first creation of a data directory. Reusing the old volume would silently keep the old weak identity even after the tracked configuration was cleaned.
 - **Rejected alternative:** Delete the old volume or pretend changing Compose environment variables rotates an already-initialized PostgreSQL password.
 - **Remaining constraints:** Keep the new volume inside the 32 GB Docker budget and document any future migration/retirement as a separate, recoverable operation.
+
+## D-010 - Make tenancy and browser auth boundaries explicit
+
+- **Date:** 2026-08-04
+- **Decision:** T-01 uses a development-only hashed bearer-session boundary with explicit OIDC/JWT replacement seams, application-table RBAC, request-level workspace context, forced PostgreSQL RLS for workspace-owned rows, and explicit-origin credentialed CORS. The frontend must propagate the bearer token and active workspace on protected requests; production-like environments must disable the development provider.
+- **Why:** The first real browser run exposed that compile-time UI behavior, CORS, and API authorization must be verified together. A UI-only session shell is not a tenant boundary, and a database RLS policy is not exercised by a superuser connection.
+- **Rejected alternative:** Keep unauthenticated browser fallback as the only path, rely on frontend workspace headers without bearer authentication, or treat mocked browser responses as sufficient proof.
+- **Remaining constraints:** Keep the local fallback clearly labeled, use a non-superuser application database role for production RLS enforcement, preserve the six-role capability matrix, and rerun the live Compose/API/browser gate whenever the auth or tenancy boundary changes.

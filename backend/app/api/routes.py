@@ -6,17 +6,21 @@ from sqlalchemy import desc, select, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from app.config import get_settings
 from app.db import get_db
 from app.errors import DomainError
 from app.models import (
     AuditEvent,
     AuditLog,
+    AuthSession,
     ComplianceDocument,
     ComplianceStatus,
     Membership,
+    Organization,
     ReviewTask,
     User,
     Vendor,
+    Workspace,
 )
 from app.schemas import (
     DevelopmentLogin,
@@ -24,6 +28,7 @@ from app.schemas import (
     MemberPatch,
     ReviewUpdate,
     VendorCreate,
+    WorkspaceModeUpdate,
     WorkspaceContextSwitch,
 )
 from app.services.audit import append_audit_log, append_data_access_log
@@ -95,6 +100,67 @@ def _context_payload(context: RequestContext) -> dict[str, Any]:
     }
 
 
+def _workspace_context_payload(db: Session, context: RequestContext) -> dict[str, Any]:
+    organization = db.get(Organization, context.organization_id)
+    return {
+        "id": context.workspace_id,
+        "name": context.workspace_name,
+        "environment": context.workspace_environment,
+        "organization": {
+            "id": context.organization_id,
+            "name": organization.name if organization else "Workspace organization",
+            "kind": organization.kind if organization else "customer",
+        },
+        "role": normalize_role(context.role),
+        "membership_status": "active",
+        "mode": context.delivery_mode,
+    }
+
+
+def _session_payload(db: Session, context: RequestContext) -> dict[str, Any]:
+    user = db.get(User, context.user_id)
+    active_session = db.get(AuthSession, context.session_id) if context.session_id else None
+    memberships = db.execute(
+        select(Membership, Workspace, Organization)
+        .join(Workspace, Workspace.id == Membership.workspace_id)
+        .join(Organization, Organization.id == Workspace.organization_id)
+        .where(Membership.user_id == context.user_id, Membership.status == "active")
+        .order_by(Organization.name.asc(), Workspace.name.asc())
+    ).all()
+    workspaces = [
+        {
+            "id": workspace.id,
+            "name": workspace.name,
+            "environment": workspace.environment,
+            "organization": {"id": organization.id, "name": organization.name, "kind": organization.kind},
+            "role": normalize_role(membership.role),
+            "membership_status": membership.status,
+            "mode": workspace.delivery_mode,
+        }
+        for membership, workspace, organization in memberships
+    ]
+    organization = db.get(Organization, context.organization_id)
+    return {
+        "user": {
+            "id": context.user_id,
+            "email": context.user_email,
+            "display_name": context.user_name,
+            "name": context.user_name,
+            "initials": "".join(part[:1] for part in context.user_name.split()[:2]).upper() or "OP",
+            "status": "active",
+        },
+        "organization": {
+            "id": context.organization_id,
+            "name": organization.name if organization else "Workspace organization",
+            "kind": organization.kind if organization else "customer",
+        },
+        "workspaces": workspaces,
+        "active_workspace_id": context.workspace_id,
+        "auth_mode": "development" if get_settings().auth_provider == "development" else "provider",
+        "expires_at": active_session.expires_at.isoformat() if active_session else None,
+    }
+
+
 def _membership_payload(membership: Membership, user: User) -> dict[str, Any]:
     return {
         "id": membership.id,
@@ -152,12 +218,75 @@ def get_me(db: ScopedDb) -> dict[str, Any]:
     return _context_payload(context)
 
 
+@router.get("/auth/session")
+def get_session(db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "workspace.read")
+    return _session_payload(db, context)
+
+
 @router.post("/auth/context")
 def change_context(payload: WorkspaceContextSwitch, request: Request, db: ScopedDb) -> dict[str, Any]:
     context = current_context(db)
     next_context = switch_session_workspace(db, request, context, payload.workspace_id)
     db.info["request_context"] = next_context
     return _context_payload(next_context)
+
+
+@router.get("/workspaces")
+def list_workspaces(db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "workspace.read")
+    session_payload = _session_payload(db, context)
+    return {"items": session_payload["workspaces"]}
+
+
+@router.post("/workspaces/{workspace_id}/activate")
+def activate_workspace(workspace_id: str, request: Request, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    next_context = switch_session_workspace(db, request, context, workspace_id)
+    db.info["request_context"] = next_context
+    return {"workspace": _workspace_context_payload(db, next_context), "active_workspace_id": workspace_id}
+
+
+@router.patch("/workspaces/{workspace_id}/mode")
+def update_workspace_mode(workspace_id: str, payload: WorkspaceModeUpdate, db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    require_workspace(context, workspace_id, db)
+    authorize(db, context, "workspace.manage", target_type="workspace", target_id=workspace_id)
+    workspace = db.get(Workspace, workspace_id)
+    if workspace is None:
+        raise DomainError("WORKSPACE_NOT_FOUND", "The workspace was not found", 404)
+    before = workspace.delivery_mode
+    workspace.delivery_mode = payload.mode
+    append_audit_log(
+        db,
+        action="workspace.mode_changed",
+        target_type="workspace",
+        target_id=workspace.id,
+        workspace_id=workspace.id,
+        actor_id=context.user_id,
+        before={"mode": before},
+        after={"mode": workspace.delivery_mode},
+    )
+    db.commit()
+    refreshed_context = RequestContext(
+        user_id=context.user_id,
+        user_email=context.user_email,
+        user_name=context.user_name,
+        organization_id=context.organization_id,
+        workspace_id=workspace.id,
+        workspace_name=workspace.name,
+        workspace_environment=workspace.environment,
+        delivery_mode=workspace.delivery_mode,
+        handoff_mode=workspace.handoff_mode,
+        membership_id=context.membership_id,
+        role=context.role,
+        session_id=context.session_id,
+        development_fallback=context.development_fallback,
+    )
+    db.info["request_context"] = refreshed_context
+    return {"workspace": _workspace_context_payload(db, refreshed_context), "active_workspace_id": workspace.id}
 
 
 @router.post("/auth/logout")

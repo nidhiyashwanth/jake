@@ -10,7 +10,8 @@ CANONICAL_ROLES = frozenset({"owner", "admin", "builder", "operator", "viewer", 
 ROLE_ALIASES = {"reviewer": "operator"}
 VALID_ROLES = CANONICAL_ROLES | ROLE_ALIASES.keys()
 
-READ_ACTIONS = frozenset({"workspace.read", "vendor.read", "review.read", "audit.read"})
+GENERAL_READ_ACTIONS = frozenset({"workspace.read", "vendor.read", "review.read"})
+AUDIT_READ_ACTION = "audit.read"
 WRITE_ACTIONS = frozenset(
     {
         "vendor.create",
@@ -22,10 +23,10 @@ WRITE_ACTIONS = frozenset(
 MEMBERSHIP_ACTIONS = frozenset({"member.read", "member.invite", "member.role_change", "member.disable"})
 
 ROLE_ACTIONS: dict[str, frozenset[str]] = {
-    "owner": READ_ACTIONS | WRITE_ACTIONS | MEMBERSHIP_ACTIONS | {"workspace.manage"},
-    "admin": READ_ACTIONS | WRITE_ACTIONS | MEMBERSHIP_ACTIONS | {"workspace.manage"},
-    "builder": READ_ACTIONS | {"vendor.create", "document.upload", "document.verify"},
-    "operator": READ_ACTIONS | {"vendor.create", "document.upload", "document.verify", "review.update"},
+    "owner": GENERAL_READ_ACTIONS | {AUDIT_READ_ACTION} | WRITE_ACTIONS | MEMBERSHIP_ACTIONS | {"workspace.manage"},
+    "admin": GENERAL_READ_ACTIONS | {AUDIT_READ_ACTION} | WRITE_ACTIONS | MEMBERSHIP_ACTIONS | {"workspace.manage"},
+    "builder": GENERAL_READ_ACTIONS | {"vendor.create", "document.upload", "document.verify"},
+    "operator": GENERAL_READ_ACTIONS | {"vendor.create", "document.upload", "document.verify", "review.update"},
     "viewer": frozenset({"workspace.read", "vendor.read", "review.read"}),
     "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"}),
 }

@@ -48,6 +48,12 @@ class WorkspaceContextSwitch(BaseModel):
     workspace_id: str = Field(min_length=1, max_length=36)
 
 
+class WorkspaceModeUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    mode: Literal["delivery", "handoff"]
+
+
 class MemberInvite(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

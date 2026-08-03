@@ -15,9 +15,24 @@ import type {
 
 const API_BASE_URL = (process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:8000").replace(/\/$/, "");
 const AUTH_MODE: AuthMode = process.env.NEXT_PUBLIC_AUTH_MODE === "provider" ? "provider" : "development";
-const DEV_AUTH_ENABLED = process.env.NODE_ENV !== "production" && AUTH_MODE === "development";
+const DEV_AUTH_ENABLED = AUTH_MODE === "development" && process.env.NEXT_PUBLIC_ALLOW_DEVELOPMENT_AUTH === "true";
 const DEVELOPMENT_SESSION_KEY = "fieldnote.development-session.v1";
 let activeWorkspaceId: string | null = null;
+let activeSessionToken: string | null = null;
+
+interface DevelopmentLoginResponse {
+  access_token?: string;
+  token?: string;
+  session?: { id?: string; expires_at?: string };
+  user?: { id?: string; email?: string; name?: string };
+  workspace?: { id?: string; name?: string };
+  role?: WorkspaceContext["role"];
+}
+
+interface StoredSessionEnvelope {
+  session: SessionContext;
+  access_token: string;
+}
 
 export class ApiRequestError extends Error {
   code: string;
@@ -39,6 +54,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
       credentials: "include",
       headers: {
         ...(options?.body instanceof FormData ? {} : { "Content-Type": "application/json" }),
+        ...(activeSessionToken ? { Authorization: `Bearer ${activeSessionToken}` } : {}),
         ...(activeWorkspaceId ? { "X-Workspace-ID": activeWorkspaceId } : {}),
         ...options?.headers,
       },
@@ -111,17 +127,60 @@ function readStoredDevelopmentSession(): SessionContext | null {
   const stored = window.sessionStorage.getItem(DEVELOPMENT_SESSION_KEY);
   if (!stored) return null;
   try {
-    const value = JSON.parse(stored) as SessionContext;
-    if (!value?.user?.id || !Array.isArray(value.workspaces) || value.auth_mode !== "development") return null;
-    return value;
+    const value = JSON.parse(stored) as StoredSessionEnvelope | SessionContext;
+    if ("session" in value && value.session && value.access_token) {
+      activeSessionToken = value.access_token;
+      return value.session;
+    }
+    if ("user" in value && value.user?.id && Array.isArray(value.workspaces) && value.auth_mode === "development") {
+      return value;
+    }
+    return null;
   } catch {
     window.sessionStorage.removeItem(DEVELOPMENT_SESSION_KEY);
     return null;
   }
 }
 
-function storeDevelopmentSession(session: SessionContext) {
-  if (typeof window !== "undefined") window.sessionStorage.setItem(DEVELOPMENT_SESSION_KEY, JSON.stringify(session));
+function storeDevelopmentSession(session: SessionContext, token: string) {
+  activeSessionToken = token;
+  if (typeof window !== "undefined") {
+    const envelope: StoredSessionEnvelope = { session, access_token: token };
+    window.sessionStorage.setItem(DEVELOPMENT_SESSION_KEY, JSON.stringify(envelope));
+  }
+}
+
+function fallbackSessionFromLogin(email: string, response: DevelopmentLoginResponse): SessionContext {
+  const normalizedEmail = email.trim().toLowerCase();
+  const organization = {
+    id: "development-organization",
+    name: "Local Fieldnote Lab",
+    kind: "internal" as const,
+  };
+  const workspace: WorkspaceContext = {
+    id: response.workspace?.id || "development-workspace",
+    name: response.workspace?.name || "Local operations",
+    environment: "development",
+    organization,
+    role: response.role || "owner",
+    membership_status: "active",
+    mode: "delivery",
+  };
+  const displayName = response.user?.name || normalizedEmail.split("@")[0] || "Local operator";
+  return {
+    user: {
+      id: response.user?.id || `local-user:${normalizedEmail}`,
+      email: response.user?.email || normalizedEmail,
+      display_name: displayName,
+      initials: displayName.split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase(),
+      status: "active",
+    },
+    organization,
+    workspaces: [workspace],
+    active_workspace_id: workspace.id,
+    auth_mode: "development",
+    expires_at: response.session?.expires_at || null,
+  };
 }
 
 async function startDevelopmentSession(email: string): Promise<SessionContext> {
@@ -134,12 +193,27 @@ async function startDevelopmentSession(email: string): Promise<SessionContext> {
   }
 
   try {
-    const session = await request<SessionContext>("/api/auth/dev-login", {
+    const localName = normalizedEmail.split("@")[0]?.replace(/[._-]+/g, " ").trim() || "Local operator";
+    const loginResponse = await request<DevelopmentLoginResponse>("/api/auth/dev-login", {
       method: "POST",
-      body: JSON.stringify({ email: normalizedEmail }),
+      body: JSON.stringify({
+        email: normalizedEmail,
+        name: localName,
+        organization_name: "Local Fieldnote Lab",
+        workspace_name: `Local operations - ${localName}`,
+      }),
     });
-    const normalizedSession = { ...session, auth_mode: "development" as const };
-    storeDevelopmentSession(normalizedSession);
+    const token = loginResponse.access_token || loginResponse.token;
+    if (!token) throw new ApiRequestError("The development auth boundary did not return a bearer session.", "AUTH_SESSION_MISSING", 502);
+    activeSessionToken = token;
+    let normalizedSession: SessionContext;
+    try {
+      normalizedSession = { ...(await request<SessionContext>("/api/auth/session")), auth_mode: "development" as const };
+    } catch (sessionError) {
+      if (!(sessionError instanceof ApiRequestError) || ![404, 405].includes(sessionError.status)) throw sessionError;
+      normalizedSession = fallbackSessionFromLogin(normalizedEmail, loginResponse);
+    }
+    storeDevelopmentSession(normalizedSession, token);
     return normalizedSession;
   } catch (error) {
     if (!(error instanceof ApiRequestError) || ![404, 405].includes(error.status)) throw error;
@@ -147,9 +221,20 @@ async function startDevelopmentSession(email: string): Promise<SessionContext> {
     // health check and only in a non-production development build.
     await request<{ status: string; database: string }>("/api/health");
     const session = localDevelopmentSession(normalizedEmail);
-    storeDevelopmentSession(session);
+    storeDevelopmentSession(session, "local-development-fallback");
     return session;
   }
+}
+
+async function getSession() {
+  const stored = readStoredDevelopmentSession();
+  if (stored && activeSessionToken) {
+    const liveSession = await request<SessionContext>("/api/auth/session");
+    const normalizedSession = { ...liveSession, auth_mode: "development" as const };
+    storeDevelopmentSession(normalizedSession, activeSessionToken);
+    return normalizedSession;
+  }
+  return request<SessionContext>("/api/auth/session");
 }
 
 async function signOut() {
@@ -160,12 +245,13 @@ async function signOut() {
   } finally {
     if (typeof window !== "undefined") window.sessionStorage.removeItem(DEVELOPMENT_SESSION_KEY);
     activeWorkspaceId = null;
+    activeSessionToken = null;
   }
 }
 
 export const api = {
   health: () => request<{ status: string; database: string }>("/api/health"),
-  getSession: () => request<SessionContext>("/api/auth/session"),
+  getSession,
   getStoredDevelopmentSession: () => readStoredDevelopmentSession(),
   startDevelopmentSession,
   signOut,

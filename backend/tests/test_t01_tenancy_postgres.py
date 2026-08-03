@@ -85,6 +85,8 @@ def test_role_matrix_is_explicit_and_canonical() -> None:
     assert role_allows("operator", "review.update")
     assert role_allows("viewer", "vendor.read")
     assert role_allows("auditor", "audit.read")
+    assert not role_allows("builder", "audit.read")
+    assert not role_allows("operator", "audit.read")
     assert not role_allows("viewer", "vendor.create")
     assert not role_allows("auditor", "document.upload")
     assert role_allows("reviewer", "review.update")
