@@ -4,7 +4,7 @@ This workspace contains the research, product plan, and future implementation co
 
 ## Current phase
 
-The harness baseline is complete; product implementation remains paused until the founder-specific execution choices and a written build plan are recorded. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, and `feature-list.json` are the operational source of truth for agent work.
+The harness baseline is complete and MVP feature F01 is active. Product implementation is now underway inside `docs/MVP-CONTRACT.md`; keep the first slice narrow until its real end-to-end path passes. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, and `feature-list.json` are the operational source of truth for agent work.
 
 ## Start here
 
@@ -62,6 +62,7 @@ Future product work must add and pass static, runtime, and end-to-end checks bef
 
 - Project map and current phase → `README.md`, `PROGRESS.md`
 - Product scope and MVP cut line → `04-PRODUCT-SPEC.md`, `11-WEDGE-COMPLIANCE-DOCS.md`
+- Active MVP contract and API boundary → `docs/MVP-CONTRACT.md`
 - ICP, positioning, and wedge choice → `03-STRATEGY-AND-WEDGE.md`, `11-WEDGE-COMPLIANCE-DOCS.md`
 - Runtime, data model, security, and ADRs → `05-ARCHITECTURE.md`, `docs/ARCHITECTURE-RULES.md`
 - Delivery and customer workflow → `07-DELIVERY-PLAYBOOK.md`

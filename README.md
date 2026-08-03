@@ -4,7 +4,7 @@ Research completed 2026-08-03. Source: full teardown of deployly.ai (all 6 publi
 
 ## Current operating phase
 
-This workspace has a **passing harness baseline; product implementation has not started**. The research set is complete, the vendor/subcontractor compliance-document wedge and full-time/raise operating mode are selected, and product code remains gated behind a written build plan. Read [AGENTS.md](AGENTS.md) before changing anything.
+This workspace has a **passing harness baseline and an active MVP vertical slice**. The research set is complete, the vendor/subcontractor compliance-document wedge and full-time/raise operating mode are selected, and product work is bounded by [docs/MVP-CONTRACT.md](docs/MVP-CONTRACT.md). Read [AGENTS.md](AGENTS.md) before changing anything.
 
 Run the current harness check with:
 

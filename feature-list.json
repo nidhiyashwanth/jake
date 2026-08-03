@@ -22,6 +22,13 @@
       "verification": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-harness.ps1 -Area Verification",
       "state": "passing",
       "evidence": "scripts/verify-harness.ps1 -Area Verification passed on 2026-08-03"
+    },
+    {
+      "id": "F01",
+      "behavior": "An operator can create a vendor, upload a COI-shaped document, verify normalized fields against deterministic requirements, review and correct exceptions, and retrieve an append-only point-in-time compliance status with audit evidence.",
+      "verification": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1",
+      "state": "active",
+      "evidence": ""
     }
   ]
 }
