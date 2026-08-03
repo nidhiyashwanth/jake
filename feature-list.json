@@ -27,8 +27,8 @@
       "id": "F01",
       "behavior": "An operator can use the Dockerized FastAPI/PostgreSQL/Next.js stack to create a vendor, upload a COI-shaped document, verify normalized fields against deterministic requirements, review and correct exceptions, and retrieve an append-only point-in-time compliance status with audit evidence.",
       "verification": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1",
-      "state": "active",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "scripts/verify-mvp.ps1 passed on 2026-08-03: Dockerized PostgreSQL 16/FastAPI/Next.js flow created a vendor, uploaded a COI, produced needs_review, applied a human certificate-holder correction, produced compliant, retained 2 snapshots, and exposed 4 ledger events; frontend smoke returned HTTP 200. Backend pytest against Compose PostgreSQL: 6 passed."
     }
   ]
 }

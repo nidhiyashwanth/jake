@@ -30,7 +30,7 @@ The first clean harness baseline is published as one atomic checkpoint after ver
 ## Clock out
 
 1. Finish the active unit or record a concrete blocker.
-2. Run the relevant static/runtime/E2E gate, or the current harness gate while no runtime exists.
+2. Run the relevant static/runtime/E2E gate. For harness-only changes, run the harness gate; for product changes, run all three layers defined in `docs/VERIFICATION.md`.
 3. Update `PROGRESS.md`, feature evidence, and new decisions.
 4. Remove temporary files and leave one executable next action.
 5. Confirm the working tree is clean once Git is initialized.

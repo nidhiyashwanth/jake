@@ -1,18 +1,24 @@
 # Verification contract
 
 - **Source:** harness-engineering completion-gate guidance plus the product requirements in `04-PRODUCT-SPEC.md`, `05-ARCHITECTURE.md`, and `11-WEDGE-COMPLIANCE-DOCS.md`.
-- **Applicability:** harness setup now; all product features once an application runtime exists.
+- **Applicability:** harness maintenance and all product features, including the passing F01 vertical slice.
 - **Expiry:** update when the test runner, deployment target, or critical user flow changes.
 
-## Current gate: harness only
+## Current gates
 
-The application is not implemented, so there is no honest app start, unit-test, integration-test, or E2E command yet. The current executable gate is:
+The harness gate remains required for every session:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-harness.ps1 -Area All
 ```
 
-A missing runtime command is a recorded gap, not a passing check. Do not create placeholder commands that only print success.
+The passing F01 product gate is the real Docker/PostgreSQL path:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
+```
+
+A missing runtime command is a recorded gap, not a passing check. Do not create placeholder commands that only print success. F01's runtime and end-to-end command now exists and has passed; future features must add equivalent evidence.
 
 ## Three-layer Definition of Done
 
@@ -36,4 +42,4 @@ Failures must identify what failed, where to look, why it matters, and the next 
 
 ## Harness acceptance
 
-The harness baseline is complete only when the Instructions, State, Verification, and All areas of `scripts/verify-harness.ps1` pass; `PROGRESS.md` records those results; and the repository has a clean, recoverable checkpoint.
+The harness baseline is complete only when the Instructions, State, Verification, and All areas of `scripts/verify-harness.ps1` pass; `PROGRESS.md` records those results; and the repository has a clean, recoverable checkpoint. F01 additionally requires `scripts/verify-mvp.ps1` to pass against the real Compose services.

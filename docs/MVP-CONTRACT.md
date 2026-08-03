@@ -1,9 +1,9 @@
 # MVP contract: vendor compliance verification
 
-- **Status:** active feature F01; this is the only product scope currently in flight.
+- **Status:** F01 passing; this is the completed first product slice and the boundary for the next operator-feedback cycle.
 - **Source:** `11-WEDGE-COMPLIANCE-DOCS.md`, `05-ARCHITECTURE.md`, and the harness Definition of Done.
 - **Applicability:** first local vertical slice; replace or extend only after F01 passes end to end.
-- **Expiry:** revisit after the first real operator feedback cycle, not while the path is still unverified.
+- **Expiry:** revisit after the first real operator feedback cycle, not before the verified checkpoint is reviewed.
 
 ## The promise
 

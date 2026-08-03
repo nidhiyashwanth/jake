@@ -1,10 +1,10 @@
 # AI Operations Deployment Platform
 
-This workspace contains the research, product plan, and future implementation contract for an AI operations deployment platform. The chosen first wedge is vendor and subcontractor compliance-document verification with proof; product code is intentionally not started until the harness baseline passes.
+This workspace contains the research, product plan, and the runnable first MVP for an AI operations deployment platform. The chosen first wedge is vendor and subcontractor compliance-document verification with proof. The F01 vertical slice is implemented under `backend/` and `frontend/` and is passing its real Docker/PostgreSQL end-to-end gate.
 
 ## Current phase
 
-The harness baseline is complete and MVP feature F01 is active. Product implementation is now underway inside `docs/MVP-CONTRACT.md`; keep the first slice narrow until its real end-to-end path passes. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, and `feature-list.json` are the operational source of truth for agent work.
+The harness baseline and MVP feature F01 are complete. Do not expand the product surface until the owner reviews the verified checkpoint and supplies the next active feature. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, and `feature-list.json` are the operational source of truth for agent work.
 
 ## Start here
 
@@ -19,7 +19,17 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-harness.ps1
 
 ## Run it
 
-The application runtime does not exist yet. Do not invent a start command or claim runtime readiness. The current runnable surface is the harness verifier above.
+Run the full local path, including Compose startup, PostgreSQL migrations, API flow, review correction, historical status, ledger evidence, and cleanup:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
+```
+
+To leave the services running for manual review, use `-KeepRunning`; stop that exact Compose project with:
+
+```powershell
+docker compose --project-name ai-ops-platform-mvp --env-file .env.example --file docker-compose.yml down --remove-orphans
+```
 
 ## Verify it
 
@@ -34,9 +44,15 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-harness.ps1 -
 
 Future product work must add and pass static, runtime, and end-to-end checks before a feature can be marked `passing`. See `docs/VERIFICATION.md`.
 
+The current F01 product gate is:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
+```
+
 ## Hard constraints
 
-1. Finish the harness gate before implementing product code.
+1. Finish the harness gate before starting each new product feature.
 2. Work on exactly one feature at a time; WIP is 1.
 3. Only the verifier may justify a transition to `passing`; attach command evidence.
 4. Do not refactor, optimize, or restyle before the current behavior passes its functional checks.

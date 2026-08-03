@@ -15,13 +15,13 @@ Docker and WSL are infrastructure prerequisites, not optional substitutes. Do no
 
 ## Storage policy
 
-This machine has limited storage. The user-level `%UserProfile%\\.wslconfig` is configured with a 32 GB `defaultVhdSize`, 2 GB swap, and sparse VHD creation. Docker Desktop must be configured in Resources → Advanced with a 32 GB disk usage limit before pulling images or starting the stack.
+This machine has limited storage. The user-level `%UserProfile%\\.wslconfig` is configured with a 32 GB `defaultVhdSize`, 2 GB swap, and sparse VHD creation. With Docker Desktop's WSL 2 backend, the repository-enforced guard is the operational budget: run it before building or pulling images.
 
 Do not enable Kubernetes or pull unrelated images. Keep only the Postgres and project images needed for the current MVP. Check usage with:
 
 ```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-docker-storage.ps1 -MaxGb 32
 docker system df
-docker image prune
 ```
 
 Do not run a broad volume prune while the database contains development data. Remove only named resources that have been identified and backed up.
@@ -34,7 +34,8 @@ The environment is ready only when all of these pass:
 wsl --version
 docker version
 docker compose version
-docker compose up -d postgres
+docker compose --env-file .env.example --file docker-compose.yml config --quiet
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-docker-storage.ps1 -MaxGb 32
 ```
 
-Then the application health check and the F01 verifier must pass. If WSL reports a pending restart, stop and restart Windows before launching Docker Desktop.
+Then the application health check and the F01 verifier must pass. If WSL reports a pending restart, restart Windows before launching Docker Desktop. If host port 5432 is occupied by a native PostgreSQL service, set `$env:POSTGRES_PORT = "15432"` for a host-side test run; the application services still use the Compose network internally.

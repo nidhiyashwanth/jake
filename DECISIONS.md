@@ -41,3 +41,11 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** The architecture is a product constraint, not a timeline estimate. Keeping the real database and service boundaries now prevents a fast demo from encoding the wrong persistence behavior.
 - **Rejected alternative:** Replace PostgreSQL with SQLite to avoid installing the intended local runtime.
 - **Remaining constraints:** Docker/WSL storage is explicitly capped; the MVP must run through the same Compose/Postgres path used for integration verification.
+
+## D-006 — Ship the narrow Compose-backed F01 vertical slice
+
+- **Date:** 2026-08-03
+- **Decision:** Implement F01 as a small modular-monolith slice with a FastAPI API, Next.js review desk, PostgreSQL 16 migrations, deterministic document normalization/rules, human correction, append-only status snapshots, and an audit ledger. Use the repository Compose verifier as the release gate; do not add OCR, LLM credentials, connectors, authentication, or distributed infrastructure yet.
+- **Why:** The first useful learning loop is intake → verification → review → evidence. Keeping that loop runnable and auditable gives the owner something testable to put in front of an operator quickly.
+- **Rejected alternative:** Expand into the full platform architecture before the first workflow is exercised by a real operator.
+- **Remaining constraints:** Preserve the PostgreSQL-only path, the 32 GB storage guard, WIP=1, and the three-layer completion gate. Select the next feature only after F01 feedback is captured.
