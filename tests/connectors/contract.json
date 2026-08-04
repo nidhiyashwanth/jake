@@ -1,0 +1,23 @@
+{
+  "contract_version": "c01.connectors.v1",
+  "supported_connector_kinds": [
+    "email",
+    "object_storage",
+    "notify",
+    "rest",
+    "webhook",
+    "sftp",
+    "database",
+    "csv_excel",
+    "rpa"
+  ],
+  "security_properties": [
+    "workspace-scoped connectors and credentials",
+    "AES-GCM envelope ciphertext with per-workspace DEK",
+    "redacted connector call arguments and results",
+    "MCP allow-list and workflow-version scope",
+    "egress allow-list and value-at-risk approval gate",
+    "auditor-readable credential access log"
+  ],
+  "bulk_provider_mode": "sandbox-only for local verification"
+}

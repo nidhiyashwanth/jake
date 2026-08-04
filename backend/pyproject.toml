@@ -9,6 +9,7 @@ description = "FastAPI/PostgreSQL vendor compliance verification MVP"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.13,<2",
+  "cryptography>=43,<50",
   "fastapi>=0.115,<1",
   "pydantic-settings>=2.6,<3",
   "psycopg[binary]>=3.2,<4",

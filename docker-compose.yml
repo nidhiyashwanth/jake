@@ -35,6 +35,9 @@ services:
       MINIMUM_GL_OCCURRENCE_LIMIT: ${MINIMUM_GL_OCCURRENCE_LIMIT:?Set MINIMUM_GL_OCCURRENCE_LIMIT in .env}
       RULES_VERSION: ${RULES_VERSION:?Set RULES_VERSION in .env}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:?Set MAX_UPLOAD_BYTES in .env}
+      VAULT_KEK_BASE64: ${VAULT_KEK_BASE64:-}
+      VAULT_KEY_VERSION: ${VAULT_KEY_VERSION:-local-kms-v1}
+      CONNECTOR_EGRESS_ALLOWLIST: ${CONNECTOR_EGRESS_ALLOWLIST:-localhost,sandbox.local,mcp.local,rest.local}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
@@ -62,6 +65,9 @@ services:
       MINIMUM_GL_OCCURRENCE_LIMIT: ${MINIMUM_GL_OCCURRENCE_LIMIT:?Set MINIMUM_GL_OCCURRENCE_LIMIT in .env}
       RULES_VERSION: ${RULES_VERSION:?Set RULES_VERSION in .env}
       MAX_UPLOAD_BYTES: ${MAX_UPLOAD_BYTES:?Set MAX_UPLOAD_BYTES in .env}
+      VAULT_KEK_BASE64: ${VAULT_KEK_BASE64:-}
+      VAULT_KEY_VERSION: ${VAULT_KEY_VERSION:-local-kms-v1}
+      CONNECTOR_EGRESS_ALLOWLIST: ${CONNECTOR_EGRESS_ALLOWLIST:-localhost,sandbox.local,mcp.local,rest.local}
       RUNTIME_WORKER_ID: ${RUNTIME_WORKER_ID:-compose-runtime-worker}
     command: ["python", "-m", "app.worker"]
     depends_on:

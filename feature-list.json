@@ -83,14 +83,14 @@
       "id": "C-01",
       "behavior": "A workspace administrator can configure scoped MCP and first-party connectors with encrypted, rotated credentials and complete call logging.",
       "verification": "Connector sandbox, tool allow-list, vault encryption/rotation, redaction, and webhook security suite",
-      "state": "active",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-connectors.ps1 passed static, real Compose/PostgreSQL sandbox, and browser checks for workspace-scoped adapters, ciphertext-only AES-GCM envelope vault, rotation/access logs, positive/negative HMAC webhook signatures, redacted MCP arguments/results, metadata pinning, allow-list/workflow scope, idempotency, approval/egress/RPA guards, auditor access, Connections UI, and isolation; backend pytest 12 passed/9 skipped; frontend typecheck, six contract tests, and production build passed."
     },
     {
       "id": "P-01",
       "behavior": "The compliance workflow supports the v1 document set, requirement sets, expanded policy rules, exception taxonomy, supersession, and safe chase threads.",
       "verification": "Wedge golden set, 35-rule suite, document fixtures, and chase-agent sandbox E2E suite",
-      "state": "not_started",
+      "state": "active",
       "evidence": ""
     },
     {

@@ -186,6 +186,90 @@ export interface ReviewQueueResponse {
   bulk_cap: number;
 }
 
+export type ConnectorKind = "email" | "object_storage" | "notify" | "rest" | "webhook" | "sftp" | "database" | "csv_excel" | "rpa";
+
+export interface ConnectorRecord {
+  id: string;
+  name: string;
+  kind: ConnectorKind;
+  status: string;
+  config: Record<string, unknown>;
+  egress_hosts: string[];
+  credential_count: number;
+  failure_code?: string | null;
+  failure_message?: string | null;
+  last_checked_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CredentialRecord {
+  id: string;
+  connector_id: string;
+  label: string;
+  secret_type: string;
+  ciphertext_present: boolean;
+  plaintext_exposed: boolean;
+  dek_id: string;
+  key_version: string;
+  expires_at?: string | null;
+  rotated_at: string;
+  active: boolean;
+  created_at: string;
+}
+
+export interface ConnectorTestResponse {
+  healthy: boolean;
+  connector: ConnectorRecord;
+  result?: Record<string, unknown>;
+  failure?: { code: string; message: string };
+}
+
+export interface McpServerRecord {
+  id: string;
+  name: string;
+  url: string;
+  auth_mode: string;
+  server_version: string;
+  metadata_hash: string;
+  allowed_tools: string[];
+  workflow_version_ids: string[];
+  egress_hosts: string[];
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConnectorCallRecord {
+  id: string;
+  connector_id?: string | null;
+  mcp_server_id?: string | null;
+  workflow_version_id?: string | null;
+  call_type: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+  result?: Record<string, unknown> | null;
+  result_untrusted: boolean;
+  status: string;
+  failure_code?: string | null;
+  approval_required: boolean;
+  egress_host?: string | null;
+  idempotency_key?: string | null;
+  correlation_id: string;
+  latency_ms?: number | null;
+  created_at: string;
+}
+
+export interface CredentialAccessLogRecord {
+  id: string;
+  credential_id: string;
+  actor_id?: string | null;
+  action: string;
+  purpose: string;
+  outcome: string;
+  created_at: string;
+}
+
 export interface AuditEvent {
   id: string;
   event_type: string;

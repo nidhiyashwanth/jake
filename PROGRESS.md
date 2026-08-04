@@ -4,17 +4,17 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Current state
 
-- **Phase:** Full product execution active; `C-01` connectors, MCP gateway, vault, and notifications is the current WIP item.
-- **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, D-01 discovery/baseline/scoring, W-01 workflow definitions/versioning/designer/evaluation gate, R-01 durable runtime/workers/outbox/replay, and V-01 review desk/queue/provenance/corrections are passing.
-- **Last verification:** V-01 static contract, real Compose/PostgreSQL HTTP E2E, populated browser keyboard flow, provenance highlight, queue/SLA, assignment/escalation, bulk cap, reason-coded correction, event history, workspace isolation, backend pytest, frontend typecheck/tests/build, harness, and secret checks passed on 2026-08-04. Isolated stacks preserved named PostgreSQL volumes under the 32 GB guard.
+- **Phase:** Full product execution active; `P-01` rules, requirements, document taxonomy, and chase is the current WIP item.
+- **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, D-01 discovery/baseline/scoring, W-01 workflow definitions/versioning/designer/evaluation gate, R-01 durable runtime/workers/outbox/replay, V-01 review desk/queue/provenance/corrections, and C-01 connectors/MCP/vault are passing.
+- **Last verification:** C-01 static contract, real Compose/PostgreSQL sandbox E2E, ciphertext-only vault/rotation/access log, adapter failure taxonomy, positive/negative HMAC webhook signatures, MCP pinning/scope/allow-list/idempotency/redaction/approval, auditor access, browser Connections flow, workspace isolation, backend pytest, frontend typecheck/tests/build, harness, and secret checks passed on 2026-08-04. Isolated stacks preserved named PostgreSQL volumes under the 32 GB guard.
 - **Branch:** `feat/mvp-compliance-mvp`
 
 ## Feature status (source of truth: `feature-list.json`)
 
-- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01, R-01, V-01
-- **Active (WIP=1):** C-01 - connectors, MCP gateway, vault, and notifications
+- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01, R-01, V-01, C-01
+- **Active (WIP=1):** P-01 - rules, requirements, document taxonomy, and chase
 - **Blocked:** none
-- **Not started:** P-01 through LAUNCH-01 in dependency order; do not activate more than one package.
+- **Not started:** Q-01 through LAUNCH-01 in dependency order; do not activate more than one package.
 
 ## Known issues / blockers
 
@@ -26,8 +26,8 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Next actions (ordered; the next session starts at #1)
 
-1. Read the C-01 section of `task.md`, `05-ARCHITECTURE.md`, and `docs/ARCHITECTURE-RULES.md`, then implement the connector/MCP/vault contract behind explicit workspace-scoped interfaces.
-2. Add C-01 static, sandbox/integration, secret-redaction, rotation, and browser/API evidence before activating P-01.
+1. Read the P-01 section of `task.md` and `11-WEDGE-COMPLIANCE-DOCS.md`, then implement versioned requirements, document taxonomy, and the deterministic rule/chase contract behind workspace-scoped interfaces.
+2. Add P-01 static, golden-set, deterministic rule, chase sandbox, approval-boundary, and browser/API evidence before activating Q-01.
 3. Keep the Compose/PostgreSQL path, browser gate, and three-layer verification contract intact while extending the product.
 
 ---

@@ -1,6 +1,7 @@
+from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
 
 
 class VendorCreate(BaseModel):
@@ -44,6 +45,73 @@ class ReviewBulkActionRequest(BaseModel):
     action: Literal["assign", "unassign", "escalate"]
     assignee_user_id: str | None = Field(default=None, max_length=36)
     reason: str | None = Field(default=None, max_length=500)
+
+
+ConnectorKind = Literal["email", "object_storage", "notify", "rest", "webhook", "sftp", "database", "csv_excel", "rpa"]
+
+
+class ConnectorCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=160)
+    kind: ConnectorKind
+    config: dict[str, Any] = Field(default_factory=dict)
+    egress_hosts: list[str] = Field(default_factory=list, max_length=20)
+
+
+class ConnectorTestRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target: str | None = Field(default=None, max_length=500)
+
+
+class WebhookVerifyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    body: str = Field(min_length=1, max_length=100_000)
+    timestamp: int = Field(ge=0)
+    signature: str = Field(min_length=1, max_length=200)
+
+
+class CredentialCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(min_length=1, max_length=160)
+    secret: SecretStr
+    secret_type: str = Field(default="token", min_length=1, max_length=40)
+    expires_at: datetime | None = None
+
+
+class CredentialRotateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    secret: SecretStr
+    expires_at: datetime | None = None
+
+
+class McpServerCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=160)
+    url: str = Field(min_length=1, max_length=500)
+    auth_mode: str = Field(default="none", min_length=1, max_length=40)
+    server_version: str = Field(min_length=1, max_length=120)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+    allowed_tools: list[str] = Field(default_factory=list, max_length=100)
+    workflow_version_ids: list[str] = Field(default_factory=list, max_length=100)
+    egress_hosts: list[str] = Field(default_factory=list, max_length=20)
+
+
+class McpToolCallRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    tool_name: str = Field(min_length=1, max_length=160)
+    arguments: dict[str, Any] = Field(default_factory=dict)
+    workflow_version_id: str | None = Field(default=None, max_length=36)
+    value_at_risk: float = Field(default=0, ge=0)
+    approved: bool = False
+    approval_note: str | None = Field(default=None, max_length=500)
+    idempotency_key: str | None = Field(default=None, max_length=240)
 
 
 class ProcessStepInput(BaseModel):

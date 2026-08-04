@@ -336,6 +336,127 @@ class ReviewTaskEvent(WorkspaceScopedMixin, Base):
     review_task: Mapped[ReviewTask] = relationship(back_populates="events")
 
 
+class Connector(WorkspaceScopedMixin, Base):
+    """A workspace-scoped integration configuration without raw credentials."""
+
+    __tablename__ = "connectors"
+    __table_args__ = (UniqueConstraint("workspace_id", "name", name="uq_connectors_workspace_name"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    kind: Mapped[str] = mapped_column(String(40), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="unconfigured")
+    config_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    egress_hosts_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    failure_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    failure_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    credentials: Mapped[list["Credential"]] = relationship(back_populates="connector", cascade="all, delete-orphan")
+
+
+class WorkspaceKeyEnvelope(WorkspaceScopedMixin, Base):
+    """Encrypted per-workspace DEK; the KEK is owned by the deployment boundary."""
+
+    __tablename__ = "workspace_key_envelopes"
+    __table_args__ = (UniqueConstraint("workspace_id", name="uq_workspace_key_envelopes_workspace"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    dek_id: Mapped[str] = mapped_column(String(80), nullable=False, unique=True)
+    encrypted_dek: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    nonce: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    key_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    rotated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class Credential(WorkspaceScopedMixin, Base):
+    """Ciphertext-only credential record; plaintext exists only inside the vault call."""
+
+    __tablename__ = "credentials"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    connector_id: Mapped[str] = mapped_column(ForeignKey("connectors.id"), nullable=False, index=True)
+    label: Mapped[str] = mapped_column(String(160), nullable=False)
+    secret_type: Mapped[str] = mapped_column(String(40), nullable=False, default="token")
+    ciphertext: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    nonce: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    dek_id: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    key_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rotated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    connector: Mapped[Connector] = relationship(back_populates="credentials")
+
+
+class McpServer(WorkspaceScopedMixin, Base):
+    """Pinned MCP metadata and allow-lists; descriptions are retained as untrusted data."""
+
+    __tablename__ = "mcp_servers"
+    __table_args__ = (UniqueConstraint("workspace_id", "name", name="uq_mcp_servers_workspace_name"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(160), nullable=False)
+    url: Mapped[str] = mapped_column(String(500), nullable=False)
+    auth_mode: Mapped[str] = mapped_column(String(40), nullable=False, default="none")
+    server_version: Mapped[str] = mapped_column(String(120), nullable=False)
+    metadata_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    allowed_tools_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    workflow_version_ids_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    egress_hosts_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="active")
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class ConnectorCall(WorkspaceScopedMixin, Base):
+    """Redacted connector/MCP call evidence; raw arguments and results never persist."""
+
+    __tablename__ = "connector_calls"
+    __table_args__ = (UniqueConstraint("workspace_id", "idempotency_key", name="uq_connector_calls_workspace_idempotency"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    connector_id: Mapped[str | None] = mapped_column(ForeignKey("connectors.id"), nullable=True, index=True)
+    mcp_server_id: Mapped[str | None] = mapped_column(ForeignKey("mcp_servers.id"), nullable=True, index=True)
+    workflow_version_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    call_type: Mapped[str] = mapped_column(String(40), nullable=False)
+    tool_name: Mapped[str] = mapped_column(String(160), nullable=False)
+    arguments_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    result_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    result_untrusted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    failure_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    approval_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    egress_host: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    correlation_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    latency_ms: Mapped[int | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+
+class CredentialAccessLog(WorkspaceScopedMixin, Base):
+    """Auditor-readable credential access metadata without any secret material."""
+
+    __tablename__ = "credential_access_logs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    credential_id: Mapped[str] = mapped_column(ForeignKey("credentials.id"), nullable=False, index=True)
+    actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    action: Mapped[str] = mapped_column(String(60), nullable=False)
+    purpose: Mapped[str] = mapped_column(String(180), nullable=False)
+    outcome: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+
 class ComplianceStatus(WorkspaceScopedMixin, Base):
     __tablename__ = "compliance_status"
 

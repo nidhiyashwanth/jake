@@ -13,6 +13,8 @@ VALID_ROLES = CANONICAL_ROLES | ROLE_ALIASES.keys()
 GENERAL_READ_ACTIONS = frozenset({"workspace.read", "vendor.read", "review.read"})
 REVIEW_READ_ACTIONS = frozenset({"review.queue.read"})
 REVIEW_WRITE_ACTIONS = frozenset({"review.assign", "review.escalate", "review.bulk"})
+CONNECTOR_READ_ACTIONS = frozenset({"connector.read", "mcp.read", "credential.access.read"})
+CONNECTOR_WRITE_ACTIONS = frozenset({"connector.manage", "connector.test", "credential.manage", "mcp.call"})
 DISCOVERY_READ_ACTIONS = frozenset({"discovery.read", "baseline.read", "score.read"})
 DISCOVERY_BUILD_ACTIONS = frozenset(
     {
@@ -73,6 +75,8 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | RUNTIME_RUN_ACTIONS
         | REVIEW_READ_ACTIONS
         | REVIEW_WRITE_ACTIONS
+        | CONNECTOR_READ_ACTIONS
+        | CONNECTOR_WRITE_ACTIONS
         | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION}
         | WRITE_ACTIONS
         | MEMBERSHIP_ACTIONS
@@ -89,6 +93,8 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | RUNTIME_RUN_ACTIONS
         | REVIEW_READ_ACTIONS
         | REVIEW_WRITE_ACTIONS
+        | CONNECTOR_READ_ACTIONS
+        | CONNECTOR_WRITE_ACTIONS
         | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION}
         | WRITE_ACTIONS
         | MEMBERSHIP_ACTIONS
@@ -104,11 +110,12 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | RUNTIME_READ_ACTIONS
         | RUNTIME_RUN_ACTIONS
         | REVIEW_READ_ACTIONS
+        | {"connector.read", "mcp.read"}
         | {"vendor.create", "document.upload", "document.verify"}
     ),
-    "operator": GENERAL_READ_ACTIONS | REVIEW_READ_ACTIONS | REVIEW_WRITE_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {"execution.run", "execution.retry", "execution.replay", "vendor.create", "document.upload", "document.verify", "review.update"},
-    "viewer": GENERAL_READ_ACTIONS | REVIEW_READ_ACTIONS | DISCOVERY_READ_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS,
-    "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"}) | REVIEW_READ_ACTIONS
+    "operator": GENERAL_READ_ACTIONS | REVIEW_READ_ACTIONS | REVIEW_WRITE_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {"execution.run", "execution.retry", "execution.replay", "vendor.create", "document.upload", "document.verify", "review.update", "connector.read", "mcp.read", "connector.test", "mcp.call"},
+    "viewer": GENERAL_READ_ACTIONS | REVIEW_READ_ACTIONS | DISCOVERY_READ_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {"connector.read", "mcp.read"},
+    "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"}) | REVIEW_READ_ACTIONS | {"connector.read", "mcp.read", "credential.access.read"}
     | DISCOVERY_READ_ACTIONS
     | WORKFLOW_READ_ACTIONS
     | RUNTIME_READ_ACTIONS,

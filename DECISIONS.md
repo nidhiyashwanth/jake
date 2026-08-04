@@ -113,3 +113,11 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** Operators need a predictable order of work and an honest source locator before model-assisted extraction or OCR is introduced. A false visual locator would weaken the proof contract.
 - **Rejected alternative:** Sort by insertion order, expose model confidence as queue priority, or fabricate page/bounding-box precision for text fixtures.
 - **Remaining constraints:** Connector and document-type packages may add richer locators later, but they must preserve the current provenance schema, reason-coded corrections, append-only task events, workspace scope, and browser/API evidence.
+
+## D-015 — Keep connectors provider-agnostic and make the local vault boundary explicit
+
+- **Date:** 2026-08-04
+- **Decision:** C-01 uses explicit connector and MCP gateway interfaces with deterministic sandbox adapters for local verification. Connector configuration cannot contain secret-like fields. Credentials use AES-GCM ciphertext under a per-workspace DEK wrapped by a deployment KEK/KMS seam; local development derives a non-production key only when the environment is explicitly development-like.
+- **Why:** The product needs real workspace, authorization, logging, redaction, approval, and failure behavior before customer provider credentials are available. The boundary must be testable without inventing external integrations or leaking secrets.
+- **Rejected alternative:** Store provider secrets in connector JSON, call arbitrary URLs from the verifier, treat MCP output as trusted control input, or build one bespoke integration per provider before the gateway contract exists.
+- **Remaining constraints:** Production-like environments must provide `VAULT_KEK_BASE64` from their secret manager; first-party adapters remain behind the same interface, and external egress requires an explicit deployment allow-list and provider configuration.

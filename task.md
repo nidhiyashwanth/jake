@@ -64,8 +64,8 @@ The documented non-product items remain deliberately deferred unless the owner c
 | W-01 | Workflow definitions, DAG versioning, designer, publish gate | D-01 | passing | 2026-08-04: real Compose/PostgreSQL HTTP and browser E2E passed |
 | R-01 | Durable runtime, workers, outbox, model boundary | W-01 | passing | 2026-08-04: static contract, PostgreSQL integration test, real Compose/PostgreSQL HTTP E2E, and authenticated browser smoke passed |
 | V-01 | Full review desk, queue, provenance, corrections | R-01 | passing | 2026-08-04: static contract, real Compose/PostgreSQL HTTP E2E, populated browser keyboard flow, provenance highlight, queue/SLA, assignment/escalation, guarded bulk cap, reason-coded correction, event history, and workspace isolation passed |
-| C-01 | MCP gateway, connectors, vault, notifications | R-01 | active | scoped connector sandbox and credential/audit tests |
-| P-01 | Rules, requirements, document taxonomy, chase agent | V-01 | not_started | wedge golden set and safe chase E2E |
+| C-01 | MCP gateway, connectors, vault, notifications | R-01 | passing | 2026-08-04: static contract, real Compose/PostgreSQL HTTP/sandbox E2E, ciphertext-only vault and rotation, redacted MCP call logs, allow-list/workflow scope, approval/egress/RPA guards, auditor access, browser Connections UI, and workspace isolation passed |
+| P-01 | Rules, requirements, document taxonomy, chase agent | V-01 | active | wedge golden set and safe chase E2E |
 | Q-01 | Confidence, routing, thresholds, sampled audit | P-01 | not_started | threshold simulator and false-auto gate |
 | E-01 | Golden sets, evals, regression gate, drift | P-01 | not_started | publish-blocking eval and drift alert suite |
 | I-01 | Execution inspector, replay, Langfuse/OTel signals | R-01 | not_started | run drill-down and side-effect-free replay E2E |
@@ -141,12 +141,12 @@ The documented non-product items remain deliberately deferred unless the owner c
 
 ### C-01 - Connectors, MCP gateway, and credential vault
 
-- [ ] Implement connector interface, workspace scope, health state, test connection, and failure taxonomy.
-- [ ] Implement MCP gateway with tool allow-list, per-workflow-version scope, pinned server metadata, argument/result logging, and untrusted-output handling.
-- [ ] Implement first-party adapters in priority order: email ingestion, object storage, outbound notify, REST/webhook, SFTP, Postgres/MSSQL read, CSV/Excel.
-- [ ] Implement envelope encryption, per-workspace DEK, KMS boundary, OAuth refresh/rotation, redaction, and auditor-readable credential access logs.
-- [ ] Add egress allow-list, value-at-risk approval gates, and RPA isolation contract without making RPA a default path.
-- **Verification:** connector contract suite with sandbox providers, tool allow-list denial, encrypted-at-rest assertion, rotation test, no-secret-log test, webhook signature test.
+- [x] Implement connector interface, workspace scope, health state, test connection, and failure taxonomy.
+- [x] Implement MCP gateway with tool allow-list, per-workflow-version scope, pinned server metadata, argument/result logging, and untrusted-output handling.
+- [x] Implement first-party adapters in priority order: email ingestion, object storage, outbound notify, REST/webhook, SFTP, Postgres/MSSQL read, CSV/Excel.
+- [x] Implement envelope encryption, per-workspace DEK, KMS boundary, OAuth refresh/rotation, redaction, and auditor-readable credential access logs.
+- [x] Add egress allow-list, value-at-risk approval gates, and RPA isolation contract without making RPA a default path.
+- **Verification:** `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-connectors.ps1` passed on 2026-08-04: static contract, real Compose/PostgreSQL sandbox E2E, ciphertext-only AES-GCM envelope vault, credential rotation/access log, adapter health/failure taxonomy, positive/negative HMAC webhook signatures, MCP metadata pinning, allow-list/workflow scope, idempotency, redacted arguments/results, approval/egress/RPA guards, auditor access, browser Connections flow, and workspace isolation; backend pytest 12 passed/9 skipped; frontend typecheck, six contract tests, and production build passed.
 
 ### P-01 - Compliance rules, requirements, taxonomy, and chase
 

@@ -2,6 +2,12 @@ import type {
   AuthMode,
   ApiErrorBody,
   AuditEvent,
+  ConnectorCallRecord,
+  ConnectorKind,
+  ConnectorRecord,
+  ConnectorTestResponse,
+  CredentialAccessLogRecord,
+  CredentialRecord,
   DiscoveryDraft,
   DiscoveryDraftResponse,
   DiscoveryRecord,
@@ -27,6 +33,7 @@ import type {
   RuntimeExecution,
   RuntimeExecutionListResponse,
   RuntimeExecutionResponse,
+  McpServerRecord,
 } from "./types";
 import { normalizeWorkflowDetail, normalizeWorkflowList, normalizeWorkflowVersion, serializeWorkflowSpec } from "./workflow-contract";
 
@@ -339,6 +346,24 @@ export const api = {
     request<{ review: ReviewTask }>(`/api/reviews/${reviewId}/escalate`, { method: "POST", body: JSON.stringify({ reason, level }) }),
   bulkReviewAction: (payload: { review_ids: string[]; action: "assign" | "unassign" | "escalate"; assignee_user_id?: string | null; reason?: string }) =>
     request<{ action: string; updated: number; review_ids: string[] }>("/api/reviews/bulk", { method: "POST", body: JSON.stringify(payload) }),
+  listConnectors: () => request<{ items: ConnectorRecord[]; count: number }>("/api/connectors"),
+  createConnector: (payload: { name: string; kind: ConnectorKind; config?: Record<string, unknown>; egress_hosts?: string[] }) =>
+    request<{ connector: ConnectorRecord }>("/api/connectors", { method: "POST", body: JSON.stringify(payload) }),
+  testConnector: (connectorId: string, target?: string) =>
+    request<ConnectorTestResponse>(`/api/connectors/${connectorId}/test`, { method: "POST", body: JSON.stringify({ target }) }),
+  verifyWebhook: (connectorId: string, payload: { body: string; timestamp: number; signature: string }) =>
+    request<{ verified: boolean; failure_code?: string | null; body_sha256: string }>(`/api/connectors/${connectorId}/webhook/verify`, { method: "POST", body: JSON.stringify(payload) }),
+  createCredential: (connectorId: string, payload: { label: string; secret: string; secret_type?: string }) =>
+    request<{ credential: CredentialRecord }>(`/api/connectors/${connectorId}/credentials`, { method: "POST", body: JSON.stringify(payload) }),
+  rotateCredential: (connectorId: string, credentialId: string, secret: string) =>
+    request<{ credential: CredentialRecord }>(`/api/connectors/${connectorId}/credentials/${credentialId}/rotate`, { method: "POST", body: JSON.stringify({ secret }) }),
+  listCredentialAccessLog: () => request<{ items: CredentialAccessLogRecord[]; count: number }>("/api/credentials/access-log"),
+  listMcpServers: () => request<{ items: McpServerRecord[]; count: number }>("/api/mcp/servers"),
+  createMcpServer: (payload: { name: string; url: string; auth_mode?: string; server_version: string; metadata: Record<string, unknown>; allowed_tools?: string[]; workflow_version_ids?: string[]; egress_hosts?: string[] }) =>
+    request<{ server: McpServerRecord }>("/api/mcp/servers", { method: "POST", body: JSON.stringify(payload) }),
+  callMcpTool: (serverId: string, payload: { tool_name: string; arguments?: Record<string, unknown>; workflow_version_id?: string; value_at_risk?: number; approved?: boolean; approval_note?: string; idempotency_key?: string }) =>
+    request<{ call: ConnectorCallRecord; idempotent: boolean; approved?: boolean; approval_required?: boolean }>(`/api/mcp/servers/${serverId}/tools/call`, { method: "POST", body: JSON.stringify(payload) }),
+  listMcpCalls: () => request<{ items: ConnectorCallRecord[]; count: number }>("/api/mcp/calls"),
   updateReview: (reviewId: string, value: unknown, field: string, reasonCode: string, note?: string) =>
     request<VerificationResponse>(`/api/reviews/${reviewId}`, {
       method: "PATCH",
