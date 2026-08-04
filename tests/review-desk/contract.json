@@ -1,0 +1,19 @@
+{
+  "contract_version": "v01.review-desk.v1",
+  "priority_formula": "review.priority.v1",
+  "bulk_cap": 25,
+  "required_surfaces": [
+    "GET /api/reviews/queue",
+    "GET /api/reviews/{review_id}",
+    "POST /api/reviews/{review_id}/assign",
+    "POST /api/reviews/{review_id}/escalate",
+    "POST /api/reviews/bulk"
+  ],
+  "evidence_requirements": [
+    "priority band and SLA",
+    "deterministic text provenance",
+    "append-only review task events",
+    "reason-coded correction",
+    "workspace isolation"
+  ]
+}

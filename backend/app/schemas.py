@@ -20,6 +20,30 @@ class ReviewUpdate(BaseModel):
 
     value: str | int | bool | None
     field: str | None = None
+    reason_code: str | None = Field(default=None, min_length=1, max_length=80)
+    note: str | None = Field(default=None, max_length=1000)
+
+
+class ReviewAssignRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    assignee_user_id: str | None = Field(default=None, max_length=36)
+
+
+class ReviewEscalateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=1, max_length=500)
+    level: int | None = Field(default=None, ge=1, le=5)
+
+
+class ReviewBulkActionRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    review_ids: list[str] = Field(min_length=1, max_length=25)
+    action: Literal["assign", "unassign", "escalate"]
+    assignee_user_id: str | None = Field(default=None, max_length=36)
+    reason: str | None = Field(default=None, max_length=500)
 
 
 class ProcessStepInput(BaseModel):

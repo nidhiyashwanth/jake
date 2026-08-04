@@ -656,11 +656,11 @@ try {
 
     foreach ($role in @("builder", "viewer", "auditor")) {
         $principal = $tenantA.Users[$role]
-        $reviewAttempt = Invoke-ContractApi -Contract $contract -RouteKey "review_update" -Token $principal.Token -Replacements @{ review_id = $reviewId } -Body @{ field = "certificate_holder"; value = "T01 unauthorized correction" }
+        $reviewAttempt = Invoke-ContractApi -Contract $contract -RouteKey "review_update" -Token $principal.Token -Replacements @{ review_id = $reviewId } -Body @{ field = "certificate_holder"; value = "T01 unauthorized correction"; reason_code = "SOURCE_TEXT_CORRECTION"; note = "Unauthorized probe." }
         Assert-ApiDenied -Response $reviewAttempt -Action "$role review-write attempt"
     }
 
-    $correction = Invoke-ContractApi -Contract $contract -RouteKey "review_update" -Token $operatorA.Token -Replacements @{ review_id = $reviewId } -Body @{ field = "certificate_holder"; value = "Northwind Construction LLC" }
+    $correction = Invoke-ContractApi -Contract $contract -RouteKey "review_update" -Token $operatorA.Token -Replacements @{ review_id = $reviewId } -Body @{ field = "certificate_holder"; value = "Northwind Construction LLC"; reason_code = "SOURCE_TEXT_CORRECTION"; note = "Confirmed against the source certificate." }
     Assert-ApiSuccess -Response $correction -Action "operator F01 review correction" -Expected @(200)
     $correctedStatus = [string](Get-JsonValue -Object $correction.Json -Path "status.status")
     Assert-Condition -Condition ($correctedStatus -eq "compliant") -Message "F01 review correction should produce compliant status"

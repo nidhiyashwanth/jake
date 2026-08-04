@@ -76,14 +76,14 @@
       "id": "V-01",
       "behavior": "An operator can process a prioritized review queue using keyboard controls, field provenance, corrections, escalation, SLA, and guarded bulk actions.",
       "verification": "Real-browser keyboard, provenance, queue, SLA, correction, escalation, and bulk-cap E2E suite",
-      "state": "active",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-review-desk.ps1 passed static, real Compose/PostgreSQL HTTP, and populated browser keyboard checks for under-20-second correction, source provenance/highlight, priority/SLA queue, assignment, escalation, guarded bulk cap, reason-coded correction, append-only event history, and workspace isolation; backend pytest 12 passed/9 skipped; frontend typecheck, six contract tests, and production build passed."
     },
     {
       "id": "C-01",
       "behavior": "A workspace administrator can configure scoped MCP and first-party connectors with encrypted, rotated credentials and complete call logging.",
       "verification": "Connector sandbox, tool allow-list, vault encryption/rotation, redaction, and webhook security suite",
-      "state": "not_started",
+      "state": "active",
       "evidence": ""
     },
     {

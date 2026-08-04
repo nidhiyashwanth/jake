@@ -24,9 +24,15 @@ Run the durable runtime gate with real Compose/PostgreSQL and browser evidence:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-runtime.ps1
 ```
 
+Run the passing V-01 review-desk gate with real Compose/PostgreSQL and browser evidence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-review-desk.ps1
+```
+
 The complete product backlog, reusable workstream prompt, dependencies, and package gates live in [task.md](task.md). F01 is the foundation checkpoint; it is not the whole product.
 
-The current WIP package is `V-01` human review desk, queue, provenance, corrections, and operator controls. WIP remains one package at a time.
+The current WIP package is `C-01` connectors, MCP gateway, vault, and notifications. WIP remains one package at a time.
 
 The harness state lives in [PROGRESS.md](PROGRESS.md), durable reasoning lives in [DECISIONS.md](DECISIONS.md), and executable scope lives in [feature-list.json](feature-list.json).
 

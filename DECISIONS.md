@@ -105,3 +105,11 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** The live runtime gate exposed that lexicographic storage order could execute an approval node before the tool it was intended to gate. Edge-owned sequencing is required for durable retries, human waits, and side-effect fences to mean what the workflow author configured.
 - **Rejected alternative:** Use the sorted node rows as the queue order or let a model infer the next node at runtime.
 - **Remaining constraints:** Published workflow validation must continue to reject cycles; independent branches use stable node-key tie-breaking until explicit parallel-join semantics are introduced.
+
+## D-014 — Make review priority and provenance deterministic before adding model-assisted extraction
+
+- **Date:** 2026-08-04
+- **Decision:** V-01 derives queue priority, SLA, aging, and escalation state from versioned reason-code weights. Text-readable documents receive page/line/character provenance and matched-text highlighting; the API explicitly reports when a visual bounding box is unavailable.
+- **Why:** Operators need a predictable order of work and an honest source locator before model-assisted extraction or OCR is introduced. A false visual locator would weaken the proof contract.
+- **Rejected alternative:** Sort by insertion order, expose model confidence as queue priority, or fabricate page/bounding-box precision for text fixtures.
+- **Remaining constraints:** Connector and document-type packages may add richer locators later, but they must preserve the current provenance schema, reason-coded corrections, append-only task events, workspace scope, and browser/API evidence.

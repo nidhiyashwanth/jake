@@ -11,6 +11,8 @@ ROLE_ALIASES = {"reviewer": "operator"}
 VALID_ROLES = CANONICAL_ROLES | ROLE_ALIASES.keys()
 
 GENERAL_READ_ACTIONS = frozenset({"workspace.read", "vendor.read", "review.read"})
+REVIEW_READ_ACTIONS = frozenset({"review.queue.read"})
+REVIEW_WRITE_ACTIONS = frozenset({"review.assign", "review.escalate", "review.bulk"})
 DISCOVERY_READ_ACTIONS = frozenset({"discovery.read", "baseline.read", "score.read"})
 DISCOVERY_BUILD_ACTIONS = frozenset(
     {
@@ -69,6 +71,8 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | {WORKFLOW_PUBLISH_ACTION, WORKFLOW_EVALUATION_WRITE_ACTION}
         | RUNTIME_READ_ACTIONS
         | RUNTIME_RUN_ACTIONS
+        | REVIEW_READ_ACTIONS
+        | REVIEW_WRITE_ACTIONS
         | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION}
         | WRITE_ACTIONS
         | MEMBERSHIP_ACTIONS
@@ -83,6 +87,8 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | {WORKFLOW_PUBLISH_ACTION, WORKFLOW_EVALUATION_WRITE_ACTION}
         | RUNTIME_READ_ACTIONS
         | RUNTIME_RUN_ACTIONS
+        | REVIEW_READ_ACTIONS
+        | REVIEW_WRITE_ACTIONS
         | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION}
         | WRITE_ACTIONS
         | MEMBERSHIP_ACTIONS
@@ -97,11 +103,12 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | {WORKFLOW_PUBLISH_ACTION}
         | RUNTIME_READ_ACTIONS
         | RUNTIME_RUN_ACTIONS
+        | REVIEW_READ_ACTIONS
         | {"vendor.create", "document.upload", "document.verify"}
     ),
-    "operator": GENERAL_READ_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {"execution.run", "execution.retry", "execution.replay", "vendor.create", "document.upload", "document.verify", "review.update"},
-    "viewer": GENERAL_READ_ACTIONS | DISCOVERY_READ_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS,
-    "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"})
+    "operator": GENERAL_READ_ACTIONS | REVIEW_READ_ACTIONS | REVIEW_WRITE_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {"execution.run", "execution.retry", "execution.replay", "vendor.create", "document.upload", "document.verify", "review.update"},
+    "viewer": GENERAL_READ_ACTIONS | REVIEW_READ_ACTIONS | DISCOVERY_READ_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS,
+    "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"}) | REVIEW_READ_ACTIONS
     | DISCOVERY_READ_ACTIONS
     | WORKFLOW_READ_ACTIONS
     | RUNTIME_READ_ACTIONS,

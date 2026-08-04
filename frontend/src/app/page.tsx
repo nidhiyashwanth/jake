@@ -7,6 +7,7 @@ import AppHandoffView from "@/components/HandoffView";
 import DiscoveryView from "@/components/DiscoveryView";
 import WorkflowStudio from "@/components/WorkflowStudio";
 import ExecutionRuntime from "@/components/ExecutionRuntime";
+import ReviewQueuePanel from "@/components/ReviewQueuePanel";
 import { AppSidebar, AuthorizationDenied, MemberDisabled, SURFACE_ITEMS, WorkspaceHeader } from "@/components/WorkspaceChrome";
 import type { SurfaceKey } from "@/components/WorkspaceChrome";
 import { can, isDisabledMember, persistActiveWorkspaceId, readActiveWorkspaceId, roleLabel } from "@/lib/tenancy";
@@ -416,6 +417,10 @@ function ReviewDesk({ session, workspace, activeSurface, contextError, contextBu
   const [statusData, setStatusData] = useState<StatusResponse | null>(null);
   const [ledger, setLedger] = useState<AuditEvent[]>([]);
   const [reviews, setReviews] = useState<ReviewTask[]>([]);
+  const [reviewQueue, setReviewQueue] = useState<ReviewTask[]>([]);
+  const [reviewQueueLoading, setReviewQueueLoading] = useState(true);
+  const [reviewQueueError, setReviewQueueError] = useState<string | null>(null);
+  const [selectedReviewId, setSelectedReviewId] = useState<string | null>(null);
   const [initialLoading, setInitialLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [creating, setCreating] = useState(false);
@@ -425,6 +430,8 @@ function ReviewDesk({ session, workspace, activeSurface, contextError, contextBu
   const [newVendorName, setNewVendorName] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [reviewValues, setReviewValues] = useState<Record<string, string>>({});
+  const [reviewReasonCodes, setReviewReasonCodes] = useState<Record<string, string>>({});
+  const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -466,8 +473,25 @@ function ReviewDesk({ session, workspace, activeSurface, contextError, contextBu
       setLedger(ledgerResponse.items);
       setReviews(reviewResponse.items);
       setReviewValues({});
+      setReviewReasonCodes({});
+      setReviewNotes({});
     } finally {
       if (workspaceIdRef.current === requestedWorkspaceId) setDetailLoading(false);
+    }
+  }
+
+  async function refreshReviewQueue() {
+    const requestedWorkspaceId = workspace.id;
+    setReviewQueueLoading(true);
+    setReviewQueueError(null);
+    try {
+      const response = await api.getReviewQueue("open", 50);
+      if (workspaceIdRef.current !== requestedWorkspaceId) return;
+      setReviewQueue(response.items);
+    } catch (queueLoadError) {
+      if (workspaceIdRef.current === requestedWorkspaceId) setReviewQueueError(errorMessage(queueLoadError));
+    } finally {
+      if (workspaceIdRef.current === requestedWorkspaceId) setReviewQueueLoading(false);
     }
   }
 
@@ -475,6 +499,7 @@ function ReviewDesk({ session, workspace, activeSurface, contextError, contextBu
     setError(null);
     try {
       await refreshVendors();
+      await refreshReviewQueue();
       if (vendorId) await refreshDetails(vendorId);
     } catch (refreshError) {
       reportError(refreshError);
@@ -489,6 +514,9 @@ function ReviewDesk({ session, workspace, activeSurface, contextError, contextBu
     setStatusData(null);
     setLedger([]);
     setReviews([]);
+    setReviewQueue([]);
+    setSelectedReviewId(null);
+    setReviewQueueError(null);
     setReviewValues({});
     setSelectedFile(null);
     setError(null);
@@ -497,13 +525,31 @@ function ReviewDesk({ session, workspace, activeSurface, contextError, contextBu
     setInitialLoading(true);
     void (async () => {
       try {
-        await refreshVendors();
+        await Promise.all([refreshVendors(), refreshReviewQueue()]);
       } catch (loadError) {
         reportError(loadError);
       } finally {
         if (workspaceIdRef.current === workspace.id) setInitialLoading(false);
       }
     })();
+  }, [workspace.id]);
+
+  useEffect(() => {
+    function handleDeskShortcut(event: KeyboardEvent) {
+      const target = event.target as HTMLElement | null;
+      const editing = target?.tagName === "INPUT" || target?.tagName === "TEXTAREA" || target?.tagName === "SELECT" || target?.isContentEditable;
+      if (editing) return;
+      if (event.key.toLowerCase() === "r") {
+        event.preventDefault();
+        void refreshReviewQueue();
+      }
+      if (event.key.toLowerCase() === "e") {
+        event.preventDefault();
+        document.querySelector<HTMLInputElement>("input[aria-label^='Correction for']")?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleDeskShortcut);
+    return () => window.removeEventListener("keydown", handleDeskShortcut);
   }, [workspace.id]);
 
   useEffect(() => {
@@ -602,13 +648,43 @@ function ReviewDesk({ session, workspace, activeSurface, contextError, contextBu
     setSavingReviewId(review.id);
     setError(null);
     try {
-      const result = await api.updateReview(review.id, fieldValue, review.correction_field);
+      const reasonCode = reviewReasonCodes[review.id] || "SOURCE_TEXT_CORRECTION";
+      const note = reviewNotes[review.id] || "Confirmed against the source evidence.";
+      const result = await api.updateReview(review.id, fieldValue, review.correction_field, reasonCode, note);
       await refreshAll(selectedVendorId);
       setNotice(result.status.status === "compliant" ? "Correction accepted. Vendor is now compliant." : "Correction saved. Another requirement still needs review.");
     } catch (reviewError) {
       reportError(reviewError);
     } finally {
       setSavingReviewId(null);
+    }
+  }
+
+  function handleQueueSelect(task: ReviewTask) {
+    setSelectedReviewId(task.id);
+    setSelectedVendorId(task.vendor_id);
+    setNotice(null);
+  }
+
+  async function handleBulkAssign(taskIds: string[]) {
+    try {
+      await api.bulkReviewAction({ review_ids: taskIds, action: "assign", assignee_user_id: session.user.id });
+      await refreshReviewQueue();
+      setNotice(`${taskIds.length} review task${taskIds.length === 1 ? "" : "s"} assigned to you.`);
+    } catch (bulkError) {
+      reportError(bulkError);
+      throw bulkError;
+    }
+  }
+
+  async function handleBulkEscalate(taskIds: string[]) {
+    try {
+      await api.bulkReviewAction({ review_ids: taskIds, action: "escalate", reason: "Operator requested supervisor review." });
+      await refreshReviewQueue();
+      setNotice(`${taskIds.length} review task${taskIds.length === 1 ? "" : "s"} escalated.`);
+    } catch (bulkError) {
+      reportError(bulkError);
+      throw bulkError;
     }
   }
 
@@ -681,6 +757,8 @@ function ReviewDesk({ session, workspace, activeSurface, contextError, contextBu
         {error && <div className="alert alert--error" role="alert"><strong>Action paused.</strong> {error}<button onClick={() => setError(null)} type="button">Dismiss</button></div>}
         {notice && <div className="alert alert--success" role="status"><span>✓</span> {notice}<button onClick={() => setNotice(null)} type="button">Dismiss</button></div>}
 
+        <ReviewQueuePanel canOperate={canOperate} currentUserId={session.user.id} error={reviewQueueError} items={reviewQueue} loading={reviewQueueLoading} onBulkAssign={handleBulkAssign} onBulkEscalate={handleBulkEscalate} onRefresh={() => void refreshReviewQueue()} onSelect={handleQueueSelect} selectedId={selectedReviewId} />
+
         {!initialLoading && vendors.length === 0 ? (
           <section className="empty-state">
             <div className="empty-illustration" aria-hidden="true"><span>+</span><i /><i /><i /></div>
@@ -743,7 +821,7 @@ function ReviewDesk({ session, workspace, activeSurface, contextError, contextBu
 
               <section className={`panel review-panel ${!canOperate ? "review-panel--readonly" : ""}`}>
                 <div className="panel-heading panel-heading--compact"><div><p className="eyebrow">03 / Human review</p><h3>Exceptions to resolve</h3></div><span className="count-badge count-badge--dark">{vendorReviews.length.toString().padStart(2, "0")}</span></div>
-                {vendorReviews.length === 0 ? <div className="review-empty"><span className="review-empty-mark">{currentStatus?.status === "compliant" ? "✓" : "·"}</span><p>{currentStatus?.status === "compliant" ? "No exceptions. This vendor has a clean decision." : "Verification creates focused correction tasks here."}</p></div> : <div className="review-list">{vendorReviews.map((review) => <ReviewCard fieldValue={reviewValues[review.id] ?? editableValue(normalizedFields?.[review.correction_field])} isSaving={savingReviewId === review.id} onChange={(value) => setReviewValues((previous) => ({ ...previous, [review.id]: value }))} onSave={() => void handleReviewSave(review)} review={review} key={review.id} />)}</div>}
+                {vendorReviews.length === 0 ? <div className="review-empty"><span className="review-empty-mark">{currentStatus?.status === "compliant" ? "✓" : "·"}</span><p>{currentStatus?.status === "compliant" ? "No exceptions. This vendor has a clean decision." : "Verification creates focused correction tasks here."}</p></div> : <div className="review-list">{vendorReviews.map((review) => <ReviewCard fieldValue={reviewValues[review.id] ?? editableValue(normalizedFields?.[review.correction_field])} isSaving={savingReviewId === review.id} note={reviewNotes[review.id] ?? ""} onChange={(value) => setReviewValues((previous) => ({ ...previous, [review.id]: value }))} onNoteChange={(value) => setReviewNotes((previous) => ({ ...previous, [review.id]: value }))} onReasonChange={(value) => setReviewReasonCodes((previous) => ({ ...previous, [review.id]: value }))} onSave={() => void handleReviewSave(review)} reasonCode={reviewReasonCodes[review.id] ?? "SOURCE_TEXT_CORRECTION"} review={review} key={review.id} />)}</div>}
               </section>
             </div>
 
@@ -787,8 +865,17 @@ function DocumentRow({ document, isVerifying, onVerify, canOperate }: { document
   return <div className="document-row"><div className="document-icon">COI</div><div className="document-copy"><strong>{document.filename}</strong><small>Uploaded {formatDate(document.created_at)} · {document.media_type || "text document"}</small></div><button className="button button--quiet" disabled={isVerifying} onClick={() => onVerify(document.id)} type="button">{isVerifying ? "Checking…" : "Verify"}<span aria-hidden="true">→</span></button></div>;
 }
 
-function ReviewCard({ review, fieldValue, isSaving, onChange, onSave }: { review: ReviewTask; fieldValue: string; isSaving: boolean; onChange: (value: string) => void; onSave: () => void }) {
-  return <div className="review-card"><div className="review-card-top"><span className="review-flag">{review.reason_code}</span><span className="review-field">{review.correction_field.replaceAll("_", " ")}</span></div><strong>Confirm the observed value</strong><p>This correction is written to the document record and triggers a new verification snapshot.</p><div className="review-input-row"><input aria-label={`Correction for ${review.correction_field}`} onChange={(event) => onChange(event.target.value)} value={fieldValue} /><button className="button button--dark" disabled={isSaving || !fieldValue.trim()} onClick={onSave} type="button">{isSaving ? "Saving…" : "Re-check"}</button></div></div>;
+function highlightedSource(excerpt: string, matchedText: string | undefined): ReactNode {
+  if (!matchedText) return excerpt;
+  const start = excerpt.toLocaleLowerCase().indexOf(matchedText.toLocaleLowerCase());
+  if (start < 0) return excerpt;
+  const end = start + matchedText.length;
+  return <>{excerpt.slice(0, start)}<mark>{excerpt.slice(start, end)}</mark>{excerpt.slice(end)}</>;
+}
+
+function ReviewCard({ review, fieldValue, isSaving, note, onChange, onNoteChange, onReasonChange, onSave, reasonCode }: { review: ReviewTask; fieldValue: string; isSaving: boolean; note: string; onChange: (value: string) => void; onNoteChange: (value: string) => void; onReasonChange: (value: string) => void; onSave: () => void; reasonCode: string }) {
+  const provenance = review.provenance;
+  return <div className="review-card"><div className="review-card-top"><span className="review-flag">{review.reason_code}</span><span className="review-field">{review.correction_field.replaceAll("_", " ")}</span></div><strong>Confirm the observed value</strong><p>This correction is written to the document record and triggers a new verification snapshot.</p>{provenance && <details className="review-provenance" open><summary>Source locator</summary><div><strong>{provenance.filename}</strong><span>Page {provenance.page}{provenance.line ? ` · line ${provenance.line}` : ""}{provenance.char_start !== undefined ? ` · characters ${provenance.char_start}–${provenance.char_end ?? provenance.char_start}` : ""}</span><blockquote>{highlightedSource(provenance.excerpt || provenance.matched_text || "Source excerpt unavailable.", provenance.matched_text)}</blockquote><small>{provenance.bbox ? "Bounding box recorded." : "Text locator recorded; visual bounding box unavailable for this source."}</small></div></details>}<div className="review-input-row"><input aria-label={`Correction for ${review.correction_field}`} onChange={(event) => onChange(event.target.value)} value={fieldValue} /><button className="button button--dark" disabled={isSaving || !fieldValue.trim()} onClick={onSave} type="button">{isSaving ? "Saving…" : "Re-check"}</button></div><div className="review-correction-meta"><label>Reason code<select aria-label={`Reason code for ${review.correction_field}`} onChange={(event) => onReasonChange(event.target.value)} value={reasonCode}><option value="SOURCE_TEXT_CORRECTION">Source text correction</option><option value="VENDOR_CORRECTION">Vendor correction</option><option value="RULE_OVERRIDE">Rule override</option></select></label><label>Correction note<textarea aria-label={`Correction note for ${review.correction_field}`} onChange={(event) => onNoteChange(event.target.value)} placeholder="Why is this value correct?" value={note} /></label></div></div>;
 }
 
 function RequirementRow({ check }: { check: Check }) {

@@ -80,7 +80,7 @@ def test_api_flow_persists_review_correction_status_history_and_ledger() -> None
                 review = next(item for item in reviews.json()["items"] if item["vendor_id"] == vendor_id)
                 corrected = await client.patch(
                     f"/api/reviews/{review['id']}",
-                    json={"field": "certificate_holder", "value": "Northwind Construction LLC"},
+                    json={"field": "certificate_holder", "value": "Northwind Construction LLC", "reason_code": "SOURCE_TEXT_CORRECTION", "note": "Confirmed against the source certificate."},
                 )
                 assert corrected.status_code == 200, corrected.text
                 assert corrected.json()["status"]["status"] == "compliant"

@@ -4,17 +4,17 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Current state
 
-- **Phase:** Full product execution active; `V-01` full review desk is the current WIP item.
-- **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, D-01 discovery/baseline/scoring, W-01 workflow definitions/versioning/designer/evaluation gate, and R-01 durable runtime/workers/outbox/replay are passing.
-- **Last verification:** R-01 static, PostgreSQL integration, real Compose/PostgreSQL HTTP E2E, authenticated browser smoke, frontend typecheck/tests/build, W-01 regression, harness, and secret checks passed on 2026-08-04. Isolated stacks preserved named PostgreSQL volumes under the 32 GB guard.
+- **Phase:** Full product execution active; `C-01` connectors, MCP gateway, vault, and notifications is the current WIP item.
+- **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, D-01 discovery/baseline/scoring, W-01 workflow definitions/versioning/designer/evaluation gate, R-01 durable runtime/workers/outbox/replay, and V-01 review desk/queue/provenance/corrections are passing.
+- **Last verification:** V-01 static contract, real Compose/PostgreSQL HTTP E2E, populated browser keyboard flow, provenance highlight, queue/SLA, assignment/escalation, bulk cap, reason-coded correction, event history, workspace isolation, backend pytest, frontend typecheck/tests/build, harness, and secret checks passed on 2026-08-04. Isolated stacks preserved named PostgreSQL volumes under the 32 GB guard.
 - **Branch:** `feat/mvp-compliance-mvp`
 
 ## Feature status (source of truth: `feature-list.json`)
 
-- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01, R-01
-- **Active (WIP=1):** V-01 - review desk, queue, provenance, corrections, and operator controls
+- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01, R-01, V-01
+- **Active (WIP=1):** C-01 - connectors, MCP gateway, vault, and notifications
 - **Blocked:** none
-- **Not started:** C-01 through LAUNCH-01 in dependency order; do not activate more than one package.
+- **Not started:** P-01 through LAUNCH-01 in dependency order; do not activate more than one package.
 
 ## Known issues / blockers
 
@@ -26,8 +26,8 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Next actions (ordered; the next session starts at #1)
 
-1. Implement V-01 operator review desk, queue/SLA state, provenance, corrections, escalation, and guarded bulk actions.
-2. Run V-01 static, PostgreSQL, and real browser evidence before activating C-01.
+1. Read the C-01 section of `task.md`, `05-ARCHITECTURE.md`, and `docs/ARCHITECTURE-RULES.md`, then implement the connector/MCP/vault contract behind explicit workspace-scoped interfaces.
+2. Add C-01 static, sandbox/integration, secret-redaction, rotation, and browser/API evidence before activating P-01.
 3. Keep the Compose/PostgreSQL path, browser gate, and three-layer verification contract intact while extending the product.
 
 ---

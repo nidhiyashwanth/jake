@@ -211,7 +211,7 @@ try {
     $holderReview = $openReviews | Where-Object { $_.correction_field -eq "certificate_holder" } | Select-Object -First 1
     Assert-Condition -Condition ($null -ne $holderReview) -Message "No certificate_holder review task was available for human correction"
 
-    $secondVerification = Invoke-JsonApi -Method PATCH -Path "/api/reviews/$($holderReview.id)" -Body @{ field = "certificate_holder"; value = "Northwind Construction LLC" }
+    $secondVerification = Invoke-JsonApi -Method PATCH -Path "/api/reviews/$($holderReview.id)" -Body @{ field = "certificate_holder"; value = "Northwind Construction LLC"; reason_code = "SOURCE_TEXT_CORRECTION"; note = "Confirmed against the source certificate." }
     Assert-Condition -Condition ($secondVerification.status.status -eq "compliant") -Message "Review correction did not produce compliant status"
 
     $status = Invoke-JsonApi -Method GET -Path "/api/vendors/$($vendor.id)/status"

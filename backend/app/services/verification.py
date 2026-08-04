@@ -11,6 +11,7 @@ from app.errors import DomainError
 from app.models import AuditEvent, ComplianceCheck, ComplianceDocument, ComplianceStatus, ReviewTask, Vendor, new_id, utc_now
 from app.services.audit import append_audit_log
 from app.services.documents import as_date
+from app.services.review_desk import append_review_event, prepare_review_task
 
 
 @dataclass(frozen=True)
@@ -157,6 +158,7 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
     for task in old_open_tasks:
         task.status = "superseded"
         task.resolved_at = now
+        task.last_touched_at = now
 
     checks: list[ComplianceCheck] = []
     reviews: list[ReviewTask] = []
@@ -187,10 +189,34 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
                 correction_field=result.field,
                 reason_code=result.reason_code,
                 status="open",
+                created_at=now,
+                updated_at=now,
+                last_touched_at=now,
             )
+            prepare_review_task(review, document, now=now)
             db.add(review)
             reviews.append(review)
     db.flush()
+
+    for task in old_open_tasks:
+        append_review_event(
+            db,
+            task,
+            actor_id=actor_id,
+            event_type="review.superseded",
+            from_status="open",
+            to_status="superseded",
+            payload={"reason": "new_verification_run", "document_id": document.id},
+        )
+    for review in reviews:
+        append_review_event(
+            db,
+            review,
+            actor_id=actor_id,
+            event_type="review.created",
+            to_status="open",
+            payload={"reason_code": review.reason_code, "priority_band": review.priority_band},
+        )
 
     failing = [result.key for result in results if result.result != "pass"]
     status = "compliant" if not failing else "needs_review"
@@ -252,7 +278,24 @@ def review_payload(review: ReviewTask) -> dict[str, Any]:
         "correction_field": review.correction_field,
         "reason_code": review.reason_code,
         "status": review.status,
+        "priority_score": review.priority_score,
+        "priority_band": review.priority_band,
+        "priority_factors": review.priority_factors_json,
+        "assigned_to_user_id": review.assigned_to_user_id,
+        "assigned_at": review.assigned_at.isoformat() if review.assigned_at else None,
+        "sla_minutes": review.sla_minutes,
+        "due_at": review.due_at.isoformat() if review.due_at else None,
+        "escalation_level": review.escalation_level,
+        "escalated_at": review.escalated_at.isoformat() if review.escalated_at else None,
+        "escalation_reason": review.escalation_reason,
+        "correction_reason_code": review.correction_reason_code,
+        "correction_note": review.correction_note,
+        "before_value": review.before_value_json,
+        "after_value": review.after_value_json,
+        "provenance": review.provenance_json,
         "created_at": review.created_at.isoformat(),
+        "last_touched_at": review.last_touched_at.isoformat() if review.last_touched_at else None,
+        "updated_at": review.updated_at.isoformat(),
         "resolved_at": review.resolved_at.isoformat() if review.resolved_at else None,
     }
 

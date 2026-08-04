@@ -126,8 +126,64 @@ export interface ReviewTask {
   correction_field: string;
   reason_code: string;
   status: "open" | "resolved" | "superseded";
+  priority_score?: number;
+  priority_band?: "urgent" | "high" | "normal" | string;
+  priority_factors?: Record<string, unknown>;
+  assigned_to_user_id?: string | null;
+  assigned_to_name?: string | null;
+  assigned_at?: string | null;
+  sla_minutes?: number;
+  due_at?: string | null;
+  sla_state?: "overdue" | "within_sla" | string;
+  escalation_level?: number;
+  escalated_at?: string | null;
+  escalation_reason?: string | null;
+  correction_reason_code?: string | null;
+  correction_note?: string | null;
+  before_value?: unknown;
+  after_value?: unknown;
+  provenance?: ReviewProvenance;
+  document_filename?: string | null;
+  last_touched_at?: string | null;
+  updated_at?: string;
   created_at: string;
   resolved_at: string | null;
+}
+
+export interface ReviewProvenance {
+  document_id: string;
+  filename: string;
+  page: number;
+  line?: number;
+  char_start?: number;
+  char_end?: number;
+  bbox?: { x: number; y: number; width: number; height: number } | null;
+  matched_text?: string;
+  excerpt?: string;
+  locator_kind: string;
+  source_quality: string;
+}
+
+export interface ReviewTaskEvent {
+  id: string;
+  event_type: string;
+  from_status?: string | null;
+  to_status?: string | null;
+  actor_id?: string | null;
+  payload: Record<string, unknown>;
+  occurred_at: string;
+}
+
+export interface ReviewDetail extends ReviewTask {
+  events: ReviewTaskEvent[];
+}
+
+export interface ReviewQueueResponse {
+  items: ReviewTask[];
+  count: number;
+  limit: number;
+  priority_formula: string;
+  bulk_cap: number;
 }
 
 export interface AuditEvent {

@@ -331,10 +331,18 @@ export const api = {
   getStatus: (vendorId: string) => request<StatusResponse>(`/api/vendors/${vendorId}/status`),
   getLedger: (vendorId: string) => request<{ items: AuditEvent[] }>(`/api/vendors/${vendorId}/ledger`),
   getReviews: () => request<{ items: ReviewTask[] }>("/api/reviews"),
-  updateReview: (reviewId: string, value: unknown, field: string) =>
+  getReviewQueue: (status = "open", limit = 50) => request<import("./types").ReviewQueueResponse>(`/api/reviews/queue?status=${encodeURIComponent(status)}&limit=${limit}`),
+  getReviewDetail: (reviewId: string) => request<{ review: import("./types").ReviewDetail }>(`/api/reviews/${reviewId}`),
+  assignReview: (reviewId: string, assigneeUserId?: string | null) =>
+    request<{ review: ReviewTask }>(`/api/reviews/${reviewId}/assign`, { method: "POST", body: JSON.stringify({ assignee_user_id: assigneeUserId ?? null }) }),
+  escalateReview: (reviewId: string, reason: string, level?: number) =>
+    request<{ review: ReviewTask }>(`/api/reviews/${reviewId}/escalate`, { method: "POST", body: JSON.stringify({ reason, level }) }),
+  bulkReviewAction: (payload: { review_ids: string[]; action: "assign" | "unassign" | "escalate"; assignee_user_id?: string | null; reason?: string }) =>
+    request<{ action: string; updated: number; review_ids: string[] }>("/api/reviews/bulk", { method: "POST", body: JSON.stringify(payload) }),
+  updateReview: (reviewId: string, value: unknown, field: string, reasonCode: string, note?: string) =>
     request<VerificationResponse>(`/api/reviews/${reviewId}`, {
       method: "PATCH",
-      body: JSON.stringify({ value, field }),
+      body: JSON.stringify({ value, field, reason_code: reasonCode, note }),
     }),
   getDiscovery: () => request<DiscoveryResponse>("/api/discoveries"),
   saveDiscovery: (payload: Record<string, unknown>, processId?: string | null) =>

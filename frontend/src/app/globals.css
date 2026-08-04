@@ -176,6 +176,17 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .review-input-row input { background: white; border: 1px solid #ebc9b9; border-radius: 6px; color: var(--ink); min-width: 0; outline: none; padding: 9px 10px; width: 100%; }
 .review-input-row input:focus { border-color: var(--coral); box-shadow: 0 0 0 3px rgba(231,124,98,0.12); }
 .review-input-row .button { flex: 0 0 auto; }
+.review-provenance { background: rgba(255,255,255,0.68); border: 1px solid #efd7ca; border-radius: 7px; margin: 0 0 11px; padding: 8px 10px; }
+.review-provenance summary { color: #8d6759; cursor: pointer; font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; }
+.review-provenance > div { display: grid; gap: 3px; margin-top: 7px; }
+.review-provenance strong, .review-provenance span, .review-provenance small { color: #89675b; font-size: 10px; }
+.review-provenance blockquote { border-left: 2px solid #e7a28d; color: #5b4740; font-size: 11px; line-height: 1.45; margin: 5px 0 0; padding-left: 8px; }
+.review-provenance mark { background: #ffd28c; border-radius: 2px; color: inherit; padding: 0 2px; }
+.review-correction-meta { display: grid; gap: 7px; grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr); margin-top: 8px; }
+.review-correction-meta label { color: #8d6759; display: grid; font-size: 9px; font-weight: 700; gap: 4px; letter-spacing: 0.08em; text-transform: uppercase; }
+.review-correction-meta select, .review-correction-meta textarea { background: white; border: 1px solid #ebc9b9; border-radius: 6px; color: var(--ink); font: inherit; font-size: 11px; outline: none; padding: 8px; text-transform: none; }
+.review-correction-meta textarea { min-height: 34px; resize: vertical; }
+.review-correction-meta select:focus, .review-correction-meta textarea:focus { border-color: var(--coral); box-shadow: 0 0 0 3px rgba(231,124,98,0.12); }
 
 .requirements-table { overflow: hidden; }
 .requirements-head, .requirements-row { display: grid; gap: 17px; grid-template-columns: minmax(190px, 1.6fr) minmax(100px, 0.8fr) minmax(100px, 0.8fr) 75px; }

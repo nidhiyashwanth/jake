@@ -63,8 +63,8 @@ The documented non-product items remain deliberately deferred unless the owner c
 | D-01 | Discovery, signed baselines, opportunity scoring | T-01 | passing | 2026-08-04: static contract, real Compose/PostgreSQL API E2E, backend suite, and live Discovery Studio browser flow passed |
 | W-01 | Workflow definitions, DAG versioning, designer, publish gate | D-01 | passing | 2026-08-04: real Compose/PostgreSQL HTTP and browser E2E passed |
 | R-01 | Durable runtime, workers, outbox, model boundary | W-01 | passing | 2026-08-04: static contract, PostgreSQL integration test, real Compose/PostgreSQL HTTP E2E, and authenticated browser smoke passed |
-| V-01 | Full review desk, queue, provenance, corrections | R-01 | active | keyboard/operator workflow and provenance E2E |
-| C-01 | MCP gateway, connectors, vault, notifications | R-01 | not_started | scoped connector sandbox and credential/audit tests |
+| V-01 | Full review desk, queue, provenance, corrections | R-01 | passing | 2026-08-04: static contract, real Compose/PostgreSQL HTTP E2E, populated browser keyboard flow, provenance highlight, queue/SLA, assignment/escalation, guarded bulk cap, reason-coded correction, event history, and workspace isolation passed |
+| C-01 | MCP gateway, connectors, vault, notifications | R-01 | active | scoped connector sandbox and credential/audit tests |
 | P-01 | Rules, requirements, document taxonomy, chase agent | V-01 | not_started | wedge golden set and safe chase E2E |
 | Q-01 | Confidence, routing, thresholds, sampled audit | P-01 | not_started | threshold simulator and false-auto gate |
 | E-01 | Golden sets, evals, regression gate, drift | P-01 | not_started | publish-blocking eval and drift alert suite |
@@ -132,12 +132,12 @@ The documented non-product items remain deliberately deferred unless the owner c
 
 ### V-01 - Full human review desk
 
-- [ ] Replace the F01 form with document/source pane, editable fields, explicit reason, validation failures, action bar, and status history.
-- [ ] Add field-level provenance with page/bbox/character locators and source highlighting.
-- [ ] Add keyboard-first operation: Tab, Enter, E, R, and ? help; measure operator completion under 20 seconds on a representative case.
-- [ ] Add required reason-code corrections with old/new values, notes, actor, and audit/value events.
-- [ ] Add assignment, priority by value-at-risk, SLA timers, aging, supervisor/sponsor escalation, bulk actions with caps, and guardrail confirmations.
-- **Verification:** real browser keyboard E2E, provenance highlight test, queue/SLA test, bulk-cap test, correction-to-golden-case event test.
+- [x] Replace the F01 form with document/source pane, editable fields, explicit reason, validation failures, action bar, and status history.
+- [x] Add field-level provenance with page/bbox/character locators and source highlighting.
+- [x] Add keyboard-first operation: Tab, Enter, E, R, and ? help; measure operator completion under 20 seconds on a representative case.
+- [x] Add required reason-code corrections with old/new values, notes, actor, and audit/value events.
+- [x] Add assignment, priority by value-at-risk, SLA timers, aging, supervisor/sponsor escalation, bulk actions with caps, and guardrail confirmations.
+- **Verification:** `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-review-desk.ps1` passed on 2026-08-04: static contract, real Compose/PostgreSQL HTTP E2E, populated browser keyboard flow with representative correction under 20 seconds, provenance highlight, queue priority/SLA, assignment, escalation, bulk cap, reason-coded correction, append-only event history, and workspace isolation; backend pytest 12 passed/9 skipped; frontend typecheck, six contract tests, and production build passed.
 
 ### C-01 - Connectors, MCP gateway, and credential vault
 

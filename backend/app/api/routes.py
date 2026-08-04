@@ -70,6 +70,7 @@ from app.services.discovery import (
     update_process,
 )
 from app.services.repositories import get_document_or_404, get_review_or_404, get_vendor_or_404, latest_status
+from app.services.review_desk import append_review_event
 from app.services.tenancy import (
     RequestContext,
     create_development_session,
@@ -1176,16 +1177,40 @@ def update_review(review_id: str, payload: ReviewUpdate, db: ScopedDb) -> dict[s
     review = get_review_or_404(db, review_id)
     if review.status != "open":
         raise DomainError("REVIEW_NOT_OPEN", "This review task has already been resolved or superseded", 409)
+    if not payload.reason_code:
+        raise DomainError("CORRECTION_REASON_REQUIRED", "A reason code is required for every human correction", 422)
     if payload.field and payload.field != review.correction_field:
         raise DomainError("CORRECTION_FIELD_MISMATCH", f"This task expects {review.correction_field}", 422)
     document = get_document_or_404(db, review.document_id)
     vendor = get_vendor_or_404(db, review.vendor_id)
     corrected = coerce_correction(review.correction_field, payload.value)
     fields = dict(document.extracted_fields)
+    before_value = fields.get(review.correction_field)
     fields[review.correction_field] = corrected
     document.extracted_fields = fields
     review.status = "resolved"
     review.resolved_at = datetime.now(timezone.utc)
+    review.correction_reason_code = payload.reason_code
+    review.correction_note = payload.note
+    review.before_value_json = before_value
+    review.after_value_json = corrected
+    review.last_touched_at = review.resolved_at
+    review.updated_at = review.resolved_at
+    append_review_event(
+        db,
+        review,
+        actor_id=context.user_id,
+        event_type="review.correction_applied",
+        from_status="open",
+        to_status="resolved",
+        payload={
+            "field": review.correction_field,
+            "reason_code": payload.reason_code,
+            "note": payload.note,
+            "before": before_value,
+            "after": corrected,
+        },
+    )
     db.add(
         AuditEvent(
             workspace_id=context.workspace_id,
@@ -1204,7 +1229,7 @@ def update_review(review_id: str, payload: ReviewUpdate, db: ScopedDb) -> dict[s
         target_id=review.id,
         workspace_id=context.workspace_id,
         actor_id=context.user_id,
-        after={"field": review.correction_field, "value": corrected, "document_id": document.id},
+        after={"field": review.correction_field, "value": corrected, "reason_code": payload.reason_code, "document_id": document.id},
     )
     db.flush()
     return run_verification(db, vendor, document, actor_type=context.role)

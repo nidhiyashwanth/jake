@@ -296,8 +296,44 @@ class ReviewTask(WorkspaceScopedMixin, Base):
     correction_field: Mapped[str] = mapped_column(String(80), nullable=False)
     reason_code: Mapped[str] = mapped_column(String(80), nullable=False)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="open")
+    priority_score: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    priority_band: Mapped[str] = mapped_column(String(20), nullable=False, default="normal")
+    priority_factors_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    assigned_to_user_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    sla_minutes: Mapped[int] = mapped_column(nullable=False, default=60)
+    due_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    escalation_level: Mapped[int] = mapped_column(nullable=False, default=0)
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    escalation_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    correction_reason_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    correction_note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    before_value_json: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    after_value_json: Mapped[Any | None] = mapped_column(JSON, nullable=True)
+    provenance_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    last_touched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
     resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    events: Mapped[list["ReviewTaskEvent"]] = relationship(back_populates="review_task", cascade="all, delete-orphan")
+
+
+class ReviewTaskEvent(WorkspaceScopedMixin, Base):
+    """Append-only operator history for assignment, correction, and escalation."""
+
+    __tablename__ = "review_task_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    review_task_id: Mapped[str] = mapped_column(ForeignKey("review_tasks.id"), nullable=False, index=True)
+    actor_id: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    from_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    to_status: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+    review_task: Mapped[ReviewTask] = relationship(back_populates="events")
 
 
 class ComplianceStatus(WorkspaceScopedMixin, Base):
