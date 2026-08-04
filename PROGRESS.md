@@ -39,4 +39,4 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 - [x] New durable decisions are recorded in `DECISIONS.md`.
 - [x] No debug code, temporary files, or stale TODOs remain.
 - [x] One concrete next action is documented.
-- [ ] Git working tree is clean after the release checkpoint is committed and pushed.
+- [x] Git working tree is clean after the release checkpoint is committed and pushed.
