@@ -205,6 +205,7 @@ jobs:
           output: artifacts/backend.trivy.sarif
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+          limit-severities-for-sarif: true
           exit-code: "1"
 
       - name: Generate frontend SBOM
@@ -222,6 +223,7 @@ jobs:
           output: artifacts/frontend.trivy.sarif
           severity: HIGH,CRITICAL
           ignore-unfixed: true
+          limit-severities-for-sarif: true
           exit-code: "1"
 
       - name: Upload SBOM, audit, and recovery evidence

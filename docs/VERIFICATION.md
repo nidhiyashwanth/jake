@@ -72,7 +72,8 @@ Anchore SBOM, and Trivy HIGH/CRITICAL image gates. Docker Scout CVE output is
 optional only for an explicitly unauthenticated local run; CI Trivy remains the
 required security result. The Trivy policy fails on HIGH/CRITICAL findings with
 an upstream fix and retains the SARIF evidence for review; `ignore-unfixed` is
-used for findings whose source distribution has not published a fix yet.
+used for findings whose source distribution has not published a fix yet, while
+the SARIF severity filter remains limited to HIGH/CRITICAL for the exit gate.
 Deployment and rollback semantics are canonical in
 `docs/DEPLOYMENT.md`, and migration policy is canonical in `docs/MIGRATIONS.md`.
 
