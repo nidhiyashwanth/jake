@@ -57,6 +57,22 @@ history, incident lifecycle, export access logging, audit-pack completeness, and
 database append-only mutation fences. The durable contract is documented in
 `docs/GOVERNANCE.md`.
 
+X-01's focused gate is:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-x01.ps1
+```
+
+It must pass static CI/deployment/migration checks, a real isolated Compose
+staging-sandbox with PostgreSQL and a browser smoke, forward-only migration
+evidence, custom-format backup plus isolated restore-drill evidence, and image
+secret-config/SBOM checks. The checked-in CI workflow adds clean-checkout
+`pip-audit`, `npm audit`, ephemeral PostgreSQL integration, golden evaluation,
+Anchore SBOM, and Trivy HIGH/CRITICAL image gates. Docker Scout CVE output is
+optional only for an explicitly unauthenticated local run; CI Trivy remains the
+required security result. Deployment and rollback semantics are canonical in
+`docs/DEPLOYMENT.md`, and migration policy is canonical in `docs/MIGRATIONS.md`.
+
 ## Three-layer Definition of Done
 
 Every future feature must stop at the first failed layer:

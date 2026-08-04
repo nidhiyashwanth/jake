@@ -1,0 +1,12 @@
+{
+  "policy_version": "migrations.v1",
+  "mode": "forward_only",
+  "expected_head": "0017_governance",
+  "expand_contract_required_for": [
+    "executions",
+    "execution_steps",
+    "value_events",
+    "governance_artifacts"
+  ],
+  "production_downgrade_allowed": false
+}

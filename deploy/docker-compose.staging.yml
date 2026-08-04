@@ -1,0 +1,25 @@
+# Production-like local/staging overlay. Do not run this with the placeholder
+# env template; supply values from the staging secret manager at deploy time.
+services:
+  backend:
+    environment:
+      ENVIRONMENT: staging
+      AUTH_PROVIDER: oidc_jwt
+      ALLOW_DEVELOPMENT_IDENTITY: "false"
+      VAULT_KEK_BASE64: ${VAULT_KEK_BASE64:?Set VAULT_KEK_BASE64 from the staging secret manager}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS to the staging frontend origin}
+  runtime-worker:
+    environment:
+      ENVIRONMENT: staging
+      AUTH_PROVIDER: oidc_jwt
+      ALLOW_DEVELOPMENT_IDENTITY: "false"
+      VAULT_KEK_BASE64: ${VAULT_KEK_BASE64:?Set VAULT_KEK_BASE64 from the staging secret manager}
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS to the staging frontend origin}
+  frontend:
+    build:
+      args:
+        NEXT_PUBLIC_AUTH_MODE: provider
+        NEXT_PUBLIC_ALLOW_DEVELOPMENT_AUTH: "false"
+    environment:
+      NEXT_PUBLIC_AUTH_MODE: provider
+      NEXT_PUBLIC_ALLOW_DEVELOPMENT_AUTH: "false"

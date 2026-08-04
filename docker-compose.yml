@@ -108,4 +108,4 @@ services:
 
 volumes:
   ai-ops-platform-ledger-data:
-    name: ai-ops-platform-ledger-data
+    name: ${POSTGRES_VOLUME_NAME:-ai-ops-platform-ledger-data}

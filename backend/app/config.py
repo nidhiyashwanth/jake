@@ -6,6 +6,9 @@ from pydantic import Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+SUPPORTED_ENVIRONMENTS = {"development", "dev", "test", "staging", "production"}
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
 
@@ -45,13 +48,18 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def validate_auth_boundary(self) -> "Settings":
-        if self.environment.casefold() not in {"development", "dev", "test"}:
+        environment = self.environment.casefold().strip()
+        if environment not in SUPPORTED_ENVIRONMENTS:
+            raise ValueError("ENVIRONMENT must be development, staging, or production")
+        if environment not in {"development", "dev", "test"}:
             if self.auth_provider == "development" or self.allow_development_identity:
                 raise ValueError("production-like environments require a non-development auth provider")
         if self.auth_provider not in {"development", "oidc_jwt"}:
             raise ValueError("AUTH_PROVIDER must be development or oidc_jwt")
-        if self.environment.casefold() not in {"development", "dev", "test"} and not self.vault_kek_base64:
+        if environment not in {"development", "dev", "test"} and not self.vault_kek_base64:
             raise ValueError("production-like environments require VAULT_KEK_BASE64 from the deployment secret manager")
+        if environment not in {"development", "dev", "test"} and (not self.allowed_origins_list or "*" in self.allowed_origins_list):
+            raise ValueError("production-like environments require an explicit non-wildcard ALLOWED_ORIGINS value")
         if self.vault_kek_base64:
             try:
                 decoded = base64.b64decode(self.vault_kek_base64, validate=True)

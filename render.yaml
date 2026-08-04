@@ -1,0 +1,83 @@
+services:
+  - type: web
+    name: ai-ops-platform-api
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    healthCheckPath: /api/health
+    autoDeploy: false
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: AUTH_PROVIDER
+        value: oidc_jwt
+      - key: ALLOW_DEVELOPMENT_IDENTITY
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-ops-platform-db
+          property: connectionString
+      - key: VAULT_KEK_BASE64
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: CONNECTOR_EGRESS_ALLOWLIST
+        sync: false
+      - key: OTEL_EXPORTER_OTLP_ENDPOINT
+        sync: false
+      - key: LANGFUSE_HOST
+        sync: false
+      - key: LANGFUSE_OTEL_ENDPOINT
+        sync: false
+      - key: LANGFUSE_PUBLIC_KEY
+        sync: false
+      - key: LANGFUSE_SECRET_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+
+  - type: worker
+    name: ai-ops-platform-runtime-worker
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    dockerCommand: python -m app.worker
+    autoDeploy: false
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: AUTH_PROVIDER
+        value: oidc_jwt
+      - key: ALLOW_DEVELOPMENT_IDENTITY
+        value: "false"
+      - key: DATABASE_URL
+        fromDatabase:
+          name: ai-ops-platform-db
+          property: connectionString
+      - key: VAULT_KEK_BASE64
+        sync: false
+      - key: ALLOWED_ORIGINS
+        sync: false
+      - key: CONNECTOR_EGRESS_ALLOWLIST
+        sync: false
+
+  - type: web
+    name: ai-ops-platform-frontend
+    runtime: docker
+    dockerfilePath: ./frontend/Dockerfile
+    dockerContext: ./frontend
+    healthCheckPath: /
+    autoDeploy: false
+    envVars:
+      - key: NEXT_PUBLIC_API_BASE_URL
+        sync: false
+      - key: NEXT_PUBLIC_AUTH_MODE
+        value: provider
+      - key: NEXT_PUBLIC_ALLOW_DEVELOPMENT_AUTH
+        value: "false"
+
+databases:
+  - name: ai-ops-platform-db
+    databaseName: ai_ops_platform
+    user: ai_ops_platform
+    plan: basic-256mb
