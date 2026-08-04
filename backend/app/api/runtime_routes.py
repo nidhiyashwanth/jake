@@ -19,6 +19,7 @@ from app.schemas import (
 )
 from app.services.audit import append_audit_log, append_data_access_log
 from app.services.authorization import authorize
+from app.services.observability import runtime_observability
 from app.services.runtime import (
     advance_execution,
     create_execution,
@@ -239,6 +240,7 @@ def replay_runtime_execution(
         actor_id=context.user_id,
         idempotency_key=payload.idempotency_key,
         correlation_id=payload.correlation_id,
+        workflow_version_id=payload.workflow_version_id,
     )
     append_audit_log(
         db,
@@ -251,7 +253,29 @@ def replay_runtime_execution(
     )
     db.commit()
     _set_correlation(response, replay.correlation_id)
-    return {"execution": execution_payload(db, replay), "side_effects": False, "replay_of_id": original.id}
+    return {
+        "execution": execution_payload(db, replay),
+        "side_effects": False,
+        "replay_of_id": original.id,
+        "replay_workflow_version_id": replay.workflow_version_id,
+    }
+
+
+@router.get("/observability")
+def get_runtime_observability(db: ScopedDb) -> dict[str, Any]:
+    context = current_context(db)
+    authorize(db, context, "execution.read", target_type="worker", target_id=context.workspace_id)
+    payload = runtime_observability(db, workspace_id=context.workspace_id)
+    append_data_access_log(
+        db,
+        workspace_id=context.workspace_id,
+        actor_id=context.user_id,
+        artifact_id=context.workspace_id,
+        resource_type="runtime_observability",
+        purpose="runtime_health_read",
+    )
+    db.commit()
+    return payload
 
 
 @router.post("/workers/recover")

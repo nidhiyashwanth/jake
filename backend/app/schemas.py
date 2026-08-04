@@ -1080,6 +1080,7 @@ class RuntimeReplayRequest(BaseModel):
 
     idempotency_key: str | None = Field(default=None, min_length=8, max_length=200)
     correlation_id: str | None = Field(default=None, max_length=120)
+    workflow_version_id: str | None = Field(default=None, min_length=1, max_length=36)
 
 
 class RuntimeOutboxDispatchRequest(BaseModel):

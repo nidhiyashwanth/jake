@@ -68,8 +68,8 @@ The documented non-product items remain deliberately deferred unless the owner c
 | P-01 | Rules, requirements, document taxonomy, chase agent | V-01 | passing | 2026-08-04: static catalog/golden suite, real Compose/PostgreSQL rule verification, document fixtures, supersession, chase guardrails, attachment matching, escalation CC, and compliant-and-verified success passed |
 | Q-01 | Confidence, routing, thresholds, sampled audit | P-01 | passing | 2026-08-04: static calibration tests, real Compose/PostgreSQL threshold versioning and audit log, six-signal route E2E, model-confidence rejection, simulator reconciliation, 100% sampled false-auto rollback, and frontend production build passed |
 | E-01 | Golden sets, evals, regression gate, drift | Q-01 | passing | 2026-08-04: static, real Compose/PostgreSQL HTTP, frontend typecheck/tests/build, publish blocking/recovery, canary, metric, and drift evidence passed |
-| I-01 | Execution inspector, replay, Langfuse/OTel signals | R-01 | active | run drill-down and side-effect-free replay E2E |
-| L-01 | Value ledger, costs, dashboard, exports | D-01,R-01 | not_started | baseline-linked reconciliation and CSV/PDF export checks |
+| I-01 | Execution inspector, replay, Langfuse/OTel signals | R-01 | passing | 2026-08-04: static, pure redaction/trace tests, real Compose/PostgreSQL HTTP, and browser E2E passed for run inspection, immutable target-version replay, zero-write dry runs, correlation, worker/degraded signals, failure alerts, and secret/PII redaction |
+| L-01 | Value ledger, costs, dashboard, exports | D-01,R-01 | active | baseline-linked reconciliation and CSV/PDF export checks |
 | G-01 | Governance, PII, retention, incidents, audit pack | T-01,R-01 | not_started | access-log, retention, audit-pack, security tests |
 | X-01 | CI, staging/production deployment, backup/restore | all runtime packages | not_started | CI, migration, deploy, restore-drill evidence |
 | LAUNCH-01 | Customer-ready acceptance, runbooks, hardening | all packages | not_started | 10-day acceptance simulation, handover pack, clean release |
@@ -176,11 +176,11 @@ The documented non-product items remain deliberately deferred unless the owner c
 
 ### I-01 - Execution inspector, replay, and observability
 
-- [ ] Build timeline and node detail for inputs/outputs, versions, citations, tool calls, retries, errors, interventions, tokens, latency, cost, and outcome.
-- [ ] Add safe replay against a selected immutable workflow version with tools stubbed and writes disabled.
-- [ ] Emit OpenTelemetry traces/metrics/log correlation and integrate Langfuse self-hosted for model traces; do not build a custom trace store.
-- [ ] Add Sentry-compatible application error reporting and operator-facing degraded-mode signals.
-- **Verification:** run drill-down under 60 seconds, replay side-effect test, trace correlation test, redaction test, failure-alert test.
+- [x] Build timeline and node detail for inputs/outputs, versions, citations, tool calls, retries, errors, interventions, tokens, latency, cost, and outcome.
+- [x] Add safe replay against a selected immutable workflow version with tools stubbed and writes disabled.
+- [x] Emit OpenTelemetry traces/metrics/log correlation and integrate Langfuse self-hosted for model traces; do not build a custom trace store.
+- [x] Add Sentry-compatible application error reporting and operator-facing degraded-mode signals.
+- **Verification:** `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-inspector.ps1` passed on 2026-08-04: static contract, pure redaction/trace tests, real Compose/PostgreSQL HTTP, and authenticated browser smoke verified trace/span correlation, redacted secret/PII evidence, selected immutable-version replay, dry-run zero-write behavior, worker heartbeat degradation, dead-letter failure alerts, and response correlation headers. Frontend `npm run typecheck`, `npm test -- --runInBand`, and `npm run build` passed.
 
 ### L-01 - Value realization ledger, dashboards, and exports
 

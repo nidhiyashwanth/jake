@@ -1,0 +1,24 @@
+{
+  "contract_version": "i01.inspector.v1",
+  "scope": "immutable execution inspection, safe replay, trace correlation, redaction, and degraded-mode signals",
+  "required_api_paths": [
+    "/api/runtime/executions/{execution_id}",
+    "/api/runtime/executions/{execution_id}/replay",
+    "/api/runtime/observability"
+  ],
+  "required_evidence": [
+    "trace_id",
+    "span_id",
+    "redaction.applied",
+    "workflow_version_hash",
+    "side_effects=false",
+    "degraded_signals"
+  ],
+  "ui": {
+    "navigation_name": "Execution runtime",
+    "heading": "Execution runtime",
+    "degraded_marker": "Degraded runtime signals",
+    "trace_marker": "Trace correlation",
+    "replay_marker": "Replay against immutable version"
+  }
+}

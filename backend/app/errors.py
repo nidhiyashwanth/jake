@@ -2,6 +2,8 @@ from fastapi import Request
 from fastapi.responses import JSONResponse
 from typing import Any
 
+from app.services.observability import capture_exception
+
 
 class DomainError(Exception):
     def __init__(
@@ -19,7 +21,9 @@ class DomainError(Exception):
         super().__init__(message)
 
 
-async def domain_error_handler(_: Request, exc: DomainError) -> JSONResponse:
+async def domain_error_handler(request: Request, exc: DomainError) -> JSONResponse:
+    if exc.status_code >= 500:
+        capture_exception(exc, correlation_id=getattr(request.state, "correlation_id", None))
     error: dict[str, Any] = {"code": exc.code, "message": exc.message}
     if exc.details is not None:
         error["details"] = exc.details

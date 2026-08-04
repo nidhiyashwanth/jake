@@ -4,7 +4,7 @@ Research completed 2026-08-03. Source: full teardown of deployly.ai (all 6 publi
 
 ## Current operating phase
 
-This workspace has a **passing F01 foundation, passing W-01 workflow-definition slice, passing R-01 durable runtime, passing E-01 evaluation/release evidence, and an active full-product execution plan**. The research set is complete, the vendor/subcontractor compliance-document wedge and full-time/raise operating mode are selected, and the remaining application is decomposed in [task.md](task.md). Read [AGENTS.md](AGENTS.md) before changing anything.
+This workspace has a **passing F01 foundation, passing W-01 workflow-definition slice, passing R-01 durable runtime, passing E-01 evaluation/release evidence, passing I-01 execution inspection/observability, and an active full-product execution plan**. The research set is complete, the vendor/subcontractor compliance-document wedge and full-time/raise operating mode are selected, and the remaining application is decomposed in [task.md](task.md). Read [AGENTS.md](AGENTS.md) before changing anything.
 
 Run the current harness check with:
 
@@ -48,9 +48,15 @@ Run the passing E-01 golden-set, publish-block, and drift gate with real Compose
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-evaluations.ps1
 ```
 
+Run the passing I-01 execution inspector, redaction, trace, replay, and degraded-mode gate with real Compose/PostgreSQL and browser evidence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-inspector.ps1
+```
+
 The complete product backlog, reusable workstream prompt, dependencies, and package gates live in [task.md](task.md). F01 is the foundation checkpoint; it is not the whole product.
 
-The current WIP package is `I-01` execution inspection, replay, and observability. E-01 golden sets, evaluation gates, and drift is a passing checkpoint. WIP remains one package at a time.
+The current WIP package is `L-01` value ledger, costs, dashboards, and exports. I-01 execution inspection, replay, and observability is a passing checkpoint. WIP remains one package at a time.
 
 The harness state lives in [PROGRESS.md](PROGRESS.md), durable reasoning lives in [DECISIONS.md](DECISIONS.md), and executable scope lives in [feature-list.json](feature-list.json).
 

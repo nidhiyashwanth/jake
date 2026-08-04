@@ -31,6 +31,7 @@ from app.models import (
     new_id,
     utc_now,
 )
+from app.services.observability import emit_runtime_event, observability_status, redact_untrusted, trace_context
 
 
 TERMINAL_EXECUTION_STATES = frozenset({"completed", "dead_letter", "failed", "halted", "replayed"})
@@ -82,16 +83,22 @@ def _event(
     step: ExecutionStep | None = None,
     payload: dict[str, Any] | None = None,
 ) -> ExecutionEvent:
+    event_id = new_id()
+    event_payload = redact_untrusted(payload or {})
+    trace = trace_context(execution.correlation_id, event_id)
+    if isinstance(event_payload, dict):
+        event_payload = {**event_payload, "trace_id": trace["trace_id"], "span_id": trace["span_id"]}
     item = ExecutionEvent(
-        id=new_id(),
+        id=event_id,
         workspace_id=execution.workspace_id,
         execution_id=execution.id,
         step_id=step.id if step else None,
         event_type=event_type,
         correlation_id=execution.correlation_id,
-        payload_json=payload or {},
+        payload_json=event_payload,
     )
     db.add(item)
+    emit_runtime_event(event_type, correlation_id=execution.correlation_id, span_key=event_id, payload=event_payload)
     return item
 
 
@@ -468,15 +475,24 @@ def _advance_one(db: Session, execution: Execution, worker_id: str) -> Execution
             output["structured_output"] = config.get("output_schema", {})
             output["model_ref"] = step.model_ref
             output["prompt_ref"] = step.prompt_ref
+            if isinstance(config.get("citations"), list):
+                output["citations"] = redact_untrusted(config["citations"])
         if node.node_type == "rule":
             output["rule_result"] = bool(config.get("result", True))
         if node.node_type == "score":
             output["score"] = float(config.get("score", 1.0))
         if node.node_type == "tool" and bool(config.get("writes_external", config.get("write", False))):
+            output["tool_call"] = {
+                "tool_key": config.get("tool_key", config.get("connector_key", "bounded.connector")),
+                "arguments": redact_untrusted(context),
+                "side_effects": not execution.dry_run,
+            }
             if execution.dry_run:
                 output["external_write"] = "stubbed; no connector write performed"
+                output["tool_call"]["response"] = "stubbed; no connector write performed"
             else:
                 output["external_write"] = _external_write(db, execution, step, config, output)[0]
+                output["tool_call"]["response"] = redact_untrusted(output["external_write"])
                 enqueue_outbox(
                     db,
                     execution,
@@ -628,13 +644,26 @@ def retry_execution(db: Session, execution: Execution, *, reason: str, step_id: 
     return step
 
 
-def replay_execution(db: Session, original: Execution, *, actor_id: str, idempotency_key: str | None, correlation_id: str | None) -> Execution:
-    replay_key = idempotency_key or f"replay:{original.id}:{uuid4().hex}"
+def replay_execution(
+    db: Session,
+    original: Execution,
+    *,
+    actor_id: str,
+    idempotency_key: str | None,
+    correlation_id: str | None,
+    workflow_version_id: str | None = None,
+) -> Execution:
+    target_version = _version_or_404(db, original.workspace_id, workflow_version_id or original.workflow_version_id)
+    if target_version.status != "published" or not target_version.immutable_hash:
+        raise DomainError("REPLAY_VERSION_NOT_PUBLISHED", "Safe replay requires a published immutable workflow version", 409)
+    if target_version.workflow_id != original.workflow_id:
+        raise DomainError("REPLAY_WORKFLOW_MISMATCH", "Safe replay must stay within the original workflow family", 422)
+    replay_key = f"replay:{idempotency_key}" if idempotency_key else f"replay:{original.id}:{uuid4().hex}"
     replay, _ = create_execution(
         db,
         workspace_id=original.workspace_id,
         actor_id=actor_id,
-        version_id=original.workflow_version_id,
+        version_id=target_version.id,
         input_json=original.input_json,
         idempotency_key=replay_key,
         correlation_id=correlation_id or f"replay-{uuid4().hex}",
@@ -662,7 +691,17 @@ def replay_execution(db: Session, original: Execution, *, actor_id: str, idempot
         if after == before and replay.status == "running":
             break
     replay.status = "replayed" if replay.status == "completed" else replay.status
-    _event(db, replay, "execution.replay_completed", payload={"replay_of_id": original.id, "side_effects": False})
+    _event(
+        db,
+        replay,
+        "execution.replay_completed",
+        payload={
+            "replay_of_id": original.id,
+            "side_effects": False,
+            "target_workflow_version_id": target_version.id,
+            "target_workflow_version_hash": target_version.immutable_hash,
+        },
+    )
     return replay
 
 
@@ -727,6 +766,7 @@ def execution_payload(db: Session, execution: Execution, *, include_events: bool
     receipts = db.scalars(
         select(ExternalWriteReceipt).where(ExternalWriteReceipt.execution_id == execution.id)
     ).all()
+    execution_trace = trace_context(execution.correlation_id, execution.id)
     return {
         "id": execution.id,
         "workspace_id": execution.workspace_id,
@@ -736,9 +776,9 @@ def execution_payload(db: Session, execution: Execution, *, include_events: bool
         "idempotency_key": execution.idempotency_key,
         "correlation_id": execution.correlation_id,
         "status": execution.status,
-        "input": execution.input_json,
-        "output": execution.output_json,
-        "error": execution.error_json,
+        "input": redact_untrusted(execution.input_json),
+        "output": redact_untrusted(execution.output_json),
+        "error": redact_untrusted(execution.error_json),
         "retry_count": execution.retry_count,
         "max_retries": execution.max_retries,
         "dry_run": execution.dry_run,
@@ -748,6 +788,8 @@ def execution_payload(db: Session, execution: Execution, *, include_events: bool
         "started_at": execution.started_at.isoformat() if execution.started_at else None,
         "completed_at": execution.completed_at.isoformat() if execution.completed_at else None,
         "next_attempt_at": execution.next_attempt_at.isoformat() if execution.next_attempt_at else None,
+        "trace": {**execution_trace, "observability": observability_status()},
+        "redaction": {"applied": True, "policy_version": "redaction.v1"},
         "steps": [
             {
                 "id": step.id,
@@ -756,9 +798,9 @@ def execution_payload(db: Session, execution: Execution, *, include_events: bool
                 "sequence": step.sequence,
                 "status": step.status,
                 "attempt": step.attempt,
-                "input": step.input_json,
-                "output": step.output_json,
-                "error": step.error_json,
+                "input": redact_untrusted(step.input_json),
+                "output": redact_untrusted(step.output_json),
+                "error": redact_untrusted(step.error_json),
                 "provider": step.provider,
                 "model_ref": step.model_ref,
                 "prompt_ref": step.prompt_ref,
@@ -771,6 +813,10 @@ def execution_payload(db: Session, execution: Execution, *, include_events: bool
                 "correlation_id": step.correlation_id,
                 "wait_reason": step.wait_reason,
                 "compensation": step.compensation_json,
+                "trace_id": execution_trace["trace_id"],
+                "span_id": trace_context(execution.correlation_id, step.id)["span_id"],
+                "citations": redact_untrusted(step.output_json.get("citations", [])) if isinstance(step.output_json, dict) else [],
+                "tool_call": redact_untrusted(step.output_json.get("tool_call")) if isinstance(step.output_json, dict) else None,
                 "claimed_by": step.claimed_by,
                 "started_at": step.started_at.isoformat() if step.started_at else None,
                 "completed_at": step.completed_at.isoformat() if step.completed_at else None,
@@ -797,7 +843,7 @@ def execution_payload(db: Session, execution: Execution, *, include_events: bool
                 "type": item.event_type,
                 "step_id": item.step_id,
                 "correlation_id": item.correlation_id,
-                "payload": item.payload_json,
+                "payload": redact_untrusted(item.payload_json),
                 "occurred_at": item.occurred_at.isoformat(),
             }
             for item in events

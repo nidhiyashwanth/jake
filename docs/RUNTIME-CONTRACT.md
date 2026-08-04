@@ -26,9 +26,20 @@ write application state, or bypass authorization.
   external writer performs its write only when the waiting step is resumed with
   a decision. Compensation metadata is stored with the step for later connector
   policy work.
-- Replays pin the original workflow version, run with `dry_run=true`, and
-  never create external-write receipts. The replay timeline records that the
-  side-effect boundary was disabled.
+- Replays pin the original workflow version by default or a selected published
+  immutable version from the same workflow family, run with `dry_run=true`,
+  and never create external-write receipts. The replay timeline records the
+  selected version and that the side-effect boundary was disabled.
+- Inspector payloads redact secret-like and PII fields before returning inputs,
+  outputs, tool arguments, events, or provider traces. Every run and event has
+  stable trace/span correlation derived from its server-owned correlation key.
+- OpenTelemetry emits optional provider spans/log correlation to an OTLP or
+  self-hosted Langfuse sink; the business timeline remains in the existing
+  execution tables and no custom trace store is introduced. Sentry-compatible
+  reporting is optional and never receives default PII.
+- When trace/error sinks or the worker heartbeat are unavailable, the runtime
+  returns explicit degraded signals. Failed/dead-letter executions are counted
+  in that operator-facing health payload.
 - Outbox records are written in the same transaction as the state change.
   Dispatch marks a durable handoff as delivered; a future connector package
   owns provider delivery and its failure taxonomy.
@@ -52,6 +63,8 @@ The protected routes live under `/api/runtime`:
 - `POST /executions/{id}/retry` manually requeues a failed/waiting step.
 - `POST /executions/{id}/resume` records a human decision.
 - `POST /executions/{id}/replay` creates a safe dry-run replay.
+- `GET /observability` returns scoped trace-provider, redaction, worker-heartbeat,
+  queue, failed-run, and degraded-signal status.
 - `POST /workers/recover` recovers stale claims.
 - `POST /outbox/dispatch` claims and records outbox handoffs.
 
@@ -64,6 +77,12 @@ Run the focused gate from the repository root:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-runtime.ps1
+```
+
+Run the I-01 inspection/replay/observability gate:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-inspector.ps1
 ```
 
 The gate starts an isolated Compose project using the ignored `.env`, applies

@@ -1174,3 +1174,20 @@ class ExecutionEvent(WorkspaceScopedMixin, Base):
     correlation_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
     payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+
+class RuntimeWorkerHeartbeat(WorkspaceScopedMixin, Base):
+    """Last durable signal from a runtime worker for operator degraded-mode checks."""
+
+    __tablename__ = "runtime_worker_heartbeats"
+    __table_args__ = (UniqueConstraint("workspace_id", "worker_id", name="uq_runtime_worker_heartbeats_scope_worker"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    worker_id: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="healthy", index=True)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    processed_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    trace_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)

@@ -111,14 +111,14 @@
       "id": "I-01",
       "behavior": "An authorized user can inspect every run and safely replay it against an immutable version without external side effects.",
       "verification": "Inspector drill-down, trace correlation, redaction, and side-effect-free replay E2E suite",
-      "state": "active",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-inspector.ps1 passed static, pure redaction/trace tests, real Compose/PostgreSQL HTTP, and authenticated browser checks for timeline/node evidence, secret/PII redaction, correlation headers and trace/span IDs, selected immutable target-version replay with dry_run and zero external receipts, worker heartbeat/degraded signals, and dead-letter failure alert evidence; frontend typecheck/tests/build passed."
     },
     {
       "id": "L-01",
       "behavior": "A sponsor can reconcile immutable value events, costs, ROI dashboards, drill-down records, and CSV/PDF exports to a signed baseline.",
       "verification": "Ledger reconciliation, dashboard parity, drill-down, and CSV/PDF export suite",
-      "state": "not_started",
+      "state": "active",
       "evidence": ""
     },
     {

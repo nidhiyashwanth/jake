@@ -810,6 +810,10 @@ export interface RuntimeExecutionStep {
   correlation_id: string;
   wait_reason?: string | null;
   compensation?: Record<string, unknown> | null;
+  trace_id?: string;
+  span_id?: string;
+  citations?: unknown[];
+  tool_call?: Record<string, unknown> | null;
   claimed_by?: string | null;
   started_at?: string | null;
   completed_at?: string | null;
@@ -860,6 +864,33 @@ export interface RuntimeExecution {
   outbox: RuntimeOutboxEvent[];
   external_write_count: number;
   events: RuntimeExecutionEvent[];
+  trace?: {
+    trace_id: string;
+    span_id: string;
+    correlation_id: string;
+    observability?: Record<string, unknown>;
+  };
+  redaction?: {
+    applied: boolean;
+    policy_version: string;
+  };
+}
+
+export interface RuntimeObservability {
+  status: string;
+  trace: { provider: string; configured: boolean };
+  langfuse: { configured: boolean; host_configured: boolean };
+  error_reporting: { provider: string; configured: boolean };
+  redaction: { status: string; policy_version: string; pii_and_secret_fields_hidden: boolean };
+  runtime_worker?: {
+    status: string;
+    worker_id?: string | null;
+    last_seen_at?: string | null;
+    processed_count: number;
+    last_error?: string | null;
+  };
+  queue?: { queued_or_running: number; failed_or_dead_letter: number };
+  degraded_signals: string[];
 }
 
 export interface RuntimeExecutionResponse {
@@ -868,6 +899,7 @@ export interface RuntimeExecutionResponse {
   idempotent?: boolean;
   side_effects?: boolean;
   replay_of_id?: string;
+  replay_workflow_version_id?: string;
   advanced_steps?: string[];
   retried_step_id?: string;
   resumed_step_id?: string;

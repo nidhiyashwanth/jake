@@ -2,6 +2,7 @@ from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from uuid import uuid4
 
 from app.api.routes import router
 from app.api.review_routes import router as review_router
@@ -13,6 +14,7 @@ from app.api.confidence_routes import router as confidence_router
 from app.api.evaluation_routes import router as evaluation_router
 from app.config import get_settings
 from app.errors import DomainError, domain_error_handler
+from app.services.observability import capture_exception
 
 
 settings = get_settings()
@@ -24,6 +26,22 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next):
+    correlation_id = request.headers.get("X-Correlation-ID") or f"http-{uuid4().hex}"
+    request.state.correlation_id = correlation_id
+    try:
+        response = await call_next(request)
+    except Exception as error:
+        capture_exception(error, correlation_id=correlation_id)
+        raise
+    if "X-Correlation-ID" not in response.headers:
+        response.headers["X-Correlation-ID"] = correlation_id
+    return response
+
+
 app.add_exception_handler(DomainError, domain_error_handler)
 
 

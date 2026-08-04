@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     vault_kek_base64: str | None = None
     vault_key_version: str = "local-kms-v1"
     connector_egress_allowlist: str = "localhost,sandbox.local,mcp.local,rest.local"
+    otel_exporter_otlp_endpoint: str | None = None
+    langfuse_host: str | None = None
+    langfuse_otel_endpoint: str | None = None
+    langfuse_public_key: str | None = None
+    langfuse_secret_key: str | None = None
+    sentry_dsn: str | None = None
 
     dev_default_organization_id: str = "00000000-0000-0000-0000-000000000001"
     dev_default_workspace_id: str = "00000000-0000-0000-0000-000000000002"

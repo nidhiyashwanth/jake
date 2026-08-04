@@ -1295,6 +1295,27 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   .confidence-footer { align-items: flex-start; flex-direction: column; }
 }
 
+/* I-01 runtime inspection, trace correlation, and degraded-mode evidence */
+.runtime-degraded { align-items: center; background: #fff2e9; border: 1px solid #f1cdbb; border-radius: 9px; color: #8f513f; display: flex; flex-wrap: wrap; font-size: 10px; gap: 9px; justify-content: space-between; line-height: 1.4; padding: 10px 12px; }
+.runtime-degraded strong { color: #7d3f2c; }
+.runtime-degraded span { font-family: Consolas, monospace; font-size: 8px; }
+.runtime-trace { background: #f1f6e7; border: 1px solid #dbe8c6; border-radius: 9px; display: grid; gap: 10px; grid-template-columns: repeat(3, minmax(0, 1fr)); margin-bottom: 16px; padding: 11px; }
+.runtime-trace > div { display: grid; gap: 4px; min-width: 0; }
+.runtime-trace span, .runtime-step-detail span { color: var(--muted); font-size: 8px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; }
+.runtime-trace code, .runtime-step-detail code, .runtime-event-list code { color: var(--forest); font-family: Consolas, monospace; font-size: 8px; overflow-wrap: anywhere; }
+.runtime-trace strong { color: var(--forest-2); font-size: 9px; }
+.runtime-replay-field { margin: 0 0 14px; }
+.runtime-step-evidence, .runtime-event-list { border-top: 1px solid var(--line); margin-top: 16px; padding-top: 14px; }
+.runtime-step-evidence > .eyebrow, .runtime-event-list > .eyebrow { color: var(--forest-2); margin-bottom: 8px; }
+.runtime-step-detail { background: #f8faf5; border: 1px solid var(--line); border-radius: 7px; margin-top: 6px; padding: 9px 10px; }
+.runtime-step-detail summary { color: var(--ink); cursor: pointer; font-size: 10px; font-weight: 800; }
+.runtime-step-detail > div { display: grid; gap: 4px; margin-top: 9px; }
+.runtime-event-list ul { display: grid; gap: 7px; list-style: none; margin: 0; padding: 0; }
+.runtime-event-list li { background: #f8faf5; border: 1px solid var(--line); border-radius: 7px; display: grid; gap: 7px; padding: 9px 10px; }
+.runtime-event-list li > div { align-items: center; display: flex; gap: 10px; justify-content: space-between; }
+.runtime-event-list strong { font-size: 10px; }
+.runtime-event-list small { color: var(--muted); font-size: 8px; }
+
 /* E-01 evaluation evidence and drift surface */
 .evaluation-surface { display: grid; gap: 20px; min-width: 0; }
 .evaluation-hero { align-items: end; background: linear-gradient(120deg, #1d3d38 0%, #285d4e 58%, #806b43 100%); border-radius: 16px; color: white; display: flex; gap: 28px; justify-content: space-between; min-height: 245px; overflow: hidden; padding: clamp(25px, 5vw, 48px); position: relative; }

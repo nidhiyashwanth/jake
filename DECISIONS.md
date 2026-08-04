@@ -145,3 +145,11 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** Confidence thresholds alone cannot establish release quality. A customer needs to see what cases were authorized for evaluation, why a release is blocked, which metrics changed, and where live corrections drift after publish. One server-owned gate avoids competing release decisions in the UI or a parallel evaluation table.
 - **Rejected alternative:** Trust browser-supplied evaluation metrics, store golden cases without rights metadata, allow a failed regression to publish, or create a separate release gate disconnected from the W-01 exact-hash contract.
 - **Remaining constraints:** The canonical 100-case wedge source and release-size policy remain test fixtures until the customer curation workflow is connected; I-01 must add run inspection and safe replay before release evidence is considered fully operable.
+
+## D-019 -- Keep inspection evidence in the runtime contract and provider traces optional
+
+- **Date:** 2026-08-04
+- **Decision:** I-01 keeps the durable business timeline in the existing execution, step, event, outbox, and receipt records; the inspector adds redacted node/event detail, stable trace/span correlation, selected immutable-version dry-run replay, and a scoped observability health endpoint. OpenTelemetry exports optional OTLP/Langfuse spans, and Sentry-compatible error reporting is optional. Worker heartbeats and failed/dead-letter counts provide explicit degraded-mode signals when external sinks or workers are unavailable.
+- **Why:** Operators need a sub-minute answer to what ran, which version ran, what it changed, and whether it is safe to replay. A second trace database would create competing evidence and increase retention/PII risk, while silently dropping provider telemetry would hide degraded operation.
+- **Rejected alternative:** Store a custom trace graph, allow replay to mutate the original execution or invoke live connector writes, return raw inputs/tool arguments, or treat missing Langfuse/Sentry configuration as healthy.
+- **Remaining constraints:** Provider sink credentials remain in ignored `.env`/deployment secret management; OTel/Langfuse connectivity is not required for local correctness, and L-01 must consume the immutable execution/cost evidence without duplicating runtime ownership.

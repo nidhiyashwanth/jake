@@ -10,6 +10,7 @@ from sqlalchemy import select
 
 from app.db import SessionLocal, set_workspace_scope
 from app.models import Execution, Workspace
+from app.services.observability import record_worker_heartbeat
 from app.services.runtime import advance_execution, dispatch_outbox, recover_stale_claims
 
 
@@ -28,22 +29,49 @@ def run_once(worker_id: str) -> int:
         workspaces = db.scalars(select(Workspace).order_by(Workspace.id)).all()
         for workspace in workspaces:
             set_workspace_scope(db, workspace.id)
-            recover_stale_claims(db, workspace_id=workspace.id)
-            dispatch_outbox(db, workspace_id=workspace.id, worker_id=worker_id, limit=20)
-            executions = db.scalars(
-                select(Execution)
-                .where(
-                    Execution.workspace_id == workspace.id,
-                    Execution.status.in_(("queued", "running")),
+            try:
+                record_worker_heartbeat(
+                    db,
+                    workspace_id=workspace.id,
+                    worker_id=worker_id,
+                    processed_count=processed,
+                    status="healthy",
                 )
-                .order_by(Execution.created_at)
-                .limit(20)
-                .with_for_update(skip_locked=True)
-            ).all()
-            for execution in executions:
-                if advance_execution(db, execution, worker_id=worker_id, max_steps=1):
-                    processed += 1
-            db.commit()
+                recover_stale_claims(db, workspace_id=workspace.id)
+                dispatch_outbox(db, workspace_id=workspace.id, worker_id=worker_id, limit=20)
+                executions = db.scalars(
+                    select(Execution)
+                    .where(
+                        Execution.workspace_id == workspace.id,
+                        Execution.status.in_(("queued", "running")),
+                    )
+                    .order_by(Execution.created_at)
+                    .limit(20)
+                    .with_for_update(skip_locked=True)
+                ).all()
+                for execution in executions:
+                    if advance_execution(db, execution, worker_id=worker_id, max_steps=1):
+                        processed += 1
+                record_worker_heartbeat(
+                    db,
+                    workspace_id=workspace.id,
+                    worker_id=worker_id,
+                    processed_count=processed,
+                    status="healthy",
+                )
+                db.commit()
+            except Exception as error:
+                db.rollback()
+                set_workspace_scope(db, workspace.id)
+                record_worker_heartbeat(
+                    db,
+                    workspace_id=workspace.id,
+                    worker_id=worker_id,
+                    processed_count=processed,
+                    status="degraded",
+                    last_error=type(error).__name__,
+                )
+                db.commit()
     finally:
         db.close()
     return processed

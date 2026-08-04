@@ -4,7 +4,7 @@ This workspace contains the research, product plan, and the runnable foundation 
 
 ## Current phase
 
-The harness baseline, F01 foundation, T-01 tenancy, D-01 discovery, W-01 workflow-definition slice, R-01 durable runtime, V-01 review desk, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, Q-01 confidence/routing/thresholds/sampled audit, and E-01 golden-set evaluation/release evidence are passing. The full documented product build is active: `I-01` is the current WIP item, and every subsequent package must be selected from `task.md` one at a time. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, `feature-list.json`, and `task.md` are the operational source of truth for agent work.
+The harness baseline, F01 foundation, T-01 tenancy, D-01 discovery, W-01 workflow-definition slice, R-01 durable runtime, V-01 review desk, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, Q-01 confidence/routing/thresholds/sampled audit, E-01 golden-set evaluation/release evidence, and I-01 execution inspection/replay/observability are passing. The full documented product build is active: `L-01` is the current WIP item, and every subsequent package must be selected from `task.md` one at a time. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, `feature-list.json`, and `task.md` are the operational source of truth for agent work.
 
 ## Start here
 
@@ -85,6 +85,12 @@ The current E-01 golden-set, publish-block, canary, and drift gate is:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-evaluations.ps1
+```
+
+The current I-01 execution inspector, replay, redaction, trace, and degraded-mode gate is:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-inspector.ps1
 ```
 
 The complete-product gate is the task board plus the relevant package checks. Do not mark a package passing until its row in `task.md`, its row in `feature-list.json`, and its executable evidence agree.
