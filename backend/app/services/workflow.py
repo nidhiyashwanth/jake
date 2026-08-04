@@ -58,6 +58,7 @@ from app.schemas import (
     WorkflowVersionPatch,
 )
 from app.services.audit import append_audit_log
+from app.services.governance import register_model_change
 
 
 CURRENT_WORKFLOW_SCHEMA_VERSION = "workflow.v1"
@@ -1527,9 +1528,13 @@ def create_model_config(db: Session, *, workspace_id: str, actor_id: str, payloa
         provider=payload.provider,
         model_id=payload.model_id,
         params_json=payload.params,
+        training_policy=payload.training_policy,
+        opt_in_reference=payload.opt_in_reference,
         created_by=actor_id,
     )
     db.add(config)
+    db.flush()
+    register_model_change(db, config=config, actor_id=actor_id, change_summary="Model configuration registered")
     return config
 
 
@@ -1542,6 +1547,8 @@ def model_config_payload(config: ModelConfig) -> dict[str, Any]:
         "provider": config.provider,
         "model_id": config.model_id,
         "params": config.params_json,
+        "training_policy": config.training_policy,
+        "opt_in_reference": config.opt_in_reference,
         "created_by": config.created_by,
         "created_at": config.created_at.isoformat(),
     }

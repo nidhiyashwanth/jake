@@ -44,6 +44,19 @@ It must pass the static contract, pure reconciliation tests, real Compose/Postgr
 HTTP path, signed-baseline/hash provenance, dashboard/event parity, CFO drill-down,
 CSV/PDF render checks, signed-baseline mutation fence, and authenticated browser smoke.
 
+G-01's focused gate is:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-governance.ps1
+```
+
+It must pass the static contract, pure governance tests, real Compose/PostgreSQL
+HTTP path, authenticated browser smoke, PII field-path classification, redaction,
+retention dry-run and source deletion, legal-hold skip/release, model no-training
+history, incident lifecycle, export access logging, audit-pack completeness, and
+database append-only mutation fences. The durable contract is documented in
+`docs/GOVERNANCE.md`.
+
 ## Three-layer Definition of Done
 
 Every future feature must stop at the first failed layer:

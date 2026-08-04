@@ -82,6 +82,7 @@ from app.services.tenancy import (
 )
 from app.services.verification import history_payload, review_payload, run_verification, status_payload
 from app.services.value_ledger import append_value_event
+from app.services.governance import redact_governance_payload, register_artifact
 
 
 router = APIRouter(prefix="/api")
@@ -1094,6 +1095,17 @@ async def upload_document(
     )
     db.add(document)
     db.flush()
+    register_artifact(
+        db,
+        workspace_id=context.workspace_id,
+        artifact_type="compliance_document",
+        artifact_id=document.id,
+        storage_ref=f"db://compliance_documents/{document.id}",
+        sha256=document.sha256,
+        mime_type=document.media_type,
+        payload_for_classification=fields,
+        created_at=now,
+    )
     previous_documents = db.scalars(
         select(ComplianceDocument).where(
             ComplianceDocument.workspace_id == context.workspace_id,
@@ -1127,7 +1139,7 @@ async def upload_document(
             actor_type="operator",
             entity_type="compliance_document",
             entity_id=document.id,
-            payload={"filename": filename, "doc_type": normalized_doc_type, "extracted_fields": fields},
+            payload={"filename": filename, "doc_type": normalized_doc_type, "extracted_fields": redact_governance_payload(fields)},
         )
     )
     append_audit_log(
@@ -1137,7 +1149,7 @@ async def upload_document(
         target_id=document.id,
         workspace_id=context.workspace_id,
         actor_id=context.user_id,
-        after={"filename": filename, "doc_type": normalized_doc_type, "fields": fields},
+        after={"filename": filename, "doc_type": normalized_doc_type, "fields": redact_governance_payload(fields), "pii_policy_version": "pii.v1"},
     )
     db.commit()
     db.refresh(document)
@@ -1149,6 +1161,8 @@ def verify_document(document_id: str, db: ScopedDb) -> dict[str, Any]:
     context = current_context(db)
     authorize(db, context, "document.verify", target_type="compliance_document", target_id=document_id)
     document = get_document_or_404(db, document_id)
+    if document.status == "source_deleted":
+        raise DomainError("SOURCE_CONTENT_DELETED", "Retention has deleted the source content; derived evidence remains available", 410)
     vendor = get_vendor_or_404(db, document.vendor_id)
     append_data_access_log(
         db,

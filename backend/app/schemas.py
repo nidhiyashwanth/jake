@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, model_validator
@@ -917,6 +917,8 @@ class ModelConfigCreate(BaseModel):
     model_id: str = Field(min_length=1, max_length=160)
     version: int | None = Field(default=None, ge=1)
     params: dict[str, Any] = Field(default_factory=dict)
+    training_policy: Literal["no_training", "customer_opt_in"] = "no_training"
+    opt_in_reference: str | None = Field(default=None, max_length=240)
 
     @field_validator("key", "provider", "model_id")
     @classmethod
@@ -925,6 +927,113 @@ class ModelConfigCreate(BaseModel):
         if not value:
             raise ValueError("model config text cannot be blank")
         return value
+
+    @model_validator(mode="after")
+    def require_opt_in_reference(self) -> "ModelConfigCreate":
+        if self.training_policy == "customer_opt_in" and not self.opt_in_reference:
+            raise ValueError("opt_in_reference is required for customer_opt_in")
+        if self.training_policy == "no_training" and self.opt_in_reference:
+            raise ValueError("opt_in_reference is only valid for customer_opt_in")
+        return self
+
+
+class RetentionPolicyCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_type: str = Field(min_length=1, max_length=80)
+    retention_days: int = Field(ge=1, le=3650)
+    action: Literal["delete_source_keep_derived", "retain"] = "delete_source_keep_derived"
+    active: bool = True
+
+    @field_validator("artifact_type")
+    @classmethod
+    def trim_artifact_type(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("artifact_type cannot be blank")
+        return value
+
+
+class RetentionPolicyPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    active: bool
+
+
+class GovernanceArtifactCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_type: str = Field(min_length=1, max_length=80)
+    artifact_id: str = Field(min_length=1, max_length=120)
+    storage_ref: str | None = Field(default=None, max_length=500)
+    sha256: str | None = Field(default=None, min_length=64, max_length=64)
+    mime_type: str | None = Field(default=None, max_length=120)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class RetentionRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    as_of: datetime | None = None
+    dry_run: bool = True
+
+
+class LegalHoldCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    artifact_type: str = Field(min_length=1, max_length=80)
+    artifact_id: str = Field(min_length=1, max_length=120)
+    reason: str = Field(min_length=1, max_length=4000)
+
+
+class IncidentCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    severity: Literal["low", "medium", "high", "critical"] = "medium"
+    summary: str = Field(min_length=1, max_length=10_000)
+    workflow_id: str | None = Field(default=None, max_length=36)
+    execution_id: str | None = Field(default=None, max_length=36)
+    customer_notification_status: Literal["not_started", "not_required", "pending", "sent"] = "not_started"
+    detected_at: datetime | None = None
+    root_cause: str | None = Field(default=None, max_length=10_000)
+    postmortem_link: str | None = Field(default=None, max_length=500)
+
+
+class IncidentPatch(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    severity: Literal["low", "medium", "high", "critical"] | None = None
+    status: Literal["open", "investigating", "contained", "resolved"] | None = None
+    summary: str | None = Field(default=None, min_length=1, max_length=10_000)
+    root_cause: str | None = Field(default=None, max_length=10_000)
+    customer_notification_status: Literal["not_started", "not_required", "pending", "sent"] | None = None
+    postmortem_link: str | None = Field(default=None, max_length=500)
+
+    @model_validator(mode="after")
+    def require_incident_edit(self) -> "IncidentPatch":
+        if not self.model_fields_set:
+            raise ValueError("an incident field is required")
+        return self
+
+
+class IncidentTimelineRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    event: str = Field(min_length=1, max_length=120)
+    details: dict[str, Any] = Field(default_factory=dict)
+
+
+class AuditPackRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    period_start: date | None = None
+    period_end: date | None = None
+
+    @model_validator(mode="after")
+    def ordered_period(self) -> "AuditPackRequest":
+        if self.period_start and self.period_end and self.period_end < self.period_start:
+            raise ValueError("period_end cannot be before period_start")
+        return self
 
 
 class DiscoveryDraftPatch(BaseModel):

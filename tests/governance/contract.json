@@ -1,0 +1,37 @@
+{
+  "feature": "G-01",
+  "migration": "0017_governance",
+  "routes": [
+    "/api/governance/summary",
+    "/api/governance/artifacts",
+    "/api/governance/retention-policies",
+    "/api/governance/retention/run",
+    "/api/governance/legal-holds",
+    "/api/governance/incidents",
+    "/api/governance/model-registry",
+    "/api/governance/audit-packs"
+  ],
+  "controls": [
+    "pii.v1",
+    "audit_logs_immutable",
+    "data_access_logs_immutable",
+    "credential_access_logs_immutable",
+    "model_change_history_immutable",
+    "retention_runs_immutable",
+    "audit_packs_immutable",
+    "no_training",
+    "delete_source_keep_derived",
+    "prompt_bodies_excluded"
+  ],
+  "roles": {
+    "owner": ["governance.read", "governance.manage", "governance.export"],
+    "admin": ["governance.read", "governance.manage", "governance.export"],
+    "auditor": ["governance.read", "governance.export"],
+    "viewer": []
+  },
+  "browser": {
+    "nav": "Governance",
+    "heading": "Make every decision inspectable.",
+    "empty_state": "No governed artifacts yet."
+  }
+}

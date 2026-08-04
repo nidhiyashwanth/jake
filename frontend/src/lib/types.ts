@@ -979,6 +979,134 @@ export interface ValueRollup {
   drilldown: Record<string, string>;
 }
 
+export interface GovernanceSummary {
+  policy_version: string;
+  artifact_count: number;
+  pii_detected_count: number;
+  source_deleted_count: number;
+  active_legal_hold_count: number;
+  active_retention_policy_count: number;
+  open_incident_count: number;
+  model_count: number;
+  audit_log_count: number;
+  data_access_log_count: number;
+  credential_access_log_count: number;
+  last_retention_run: RetentionRunRecord | null;
+  controls: Record<string, boolean>;
+}
+
+export interface GovernanceArtifactRecord {
+  id: string;
+  artifact_type: string;
+  artifact_id: string;
+  storage_ref?: string | null;
+  sha256?: string | null;
+  mime_type?: string | null;
+  pii_status: string;
+  pii_flags: string[];
+  classification: string;
+  retention_until?: string | null;
+  source_deleted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RetentionPolicyRecord {
+  id: string;
+  artifact_type: string;
+  retention_days: number;
+  action: string;
+  version: number;
+  active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RetentionRunRecord {
+  id: string;
+  as_of: string;
+  dry_run: boolean;
+  scanned_count: number;
+  eligible_count: number;
+  held_count: number;
+  deleted_count: number;
+  report: Record<string, unknown>;
+  actor_id: string;
+  created_at: string;
+}
+
+export interface LegalHoldRecord {
+  id: string;
+  artifact_type: string;
+  artifact_id: string;
+  reason: string;
+  status: string;
+  placed_by: string;
+  placed_at: string;
+  released_by?: string | null;
+  released_at?: string | null;
+}
+
+export interface GovernanceIncidentRecord {
+  id: string;
+  workflow_id?: string | null;
+  execution_id?: string | null;
+  severity: string;
+  status: string;
+  summary: string;
+  root_cause?: string | null;
+  customer_notification_status: string;
+  detected_at: string;
+  resolved_at?: string | null;
+  postmortem_link?: string | null;
+  timeline: Array<Record<string, unknown>>;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelChangeRecord {
+  id: string;
+  model_config_id: string;
+  key: string;
+  version: number;
+  provider: string;
+  model_id: string;
+  prompt_key?: string | null;
+  prompt_version?: number | null;
+  change_type: string;
+  change_summary?: string | null;
+  training_policy: string;
+  opt_in_reference?: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface GovernanceModelRecord {
+  id: string;
+  key: string;
+  version: number;
+  provider: string;
+  model_id: string;
+  params: Record<string, unknown>;
+  training_policy: string;
+  opt_in_reference?: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface AuditPackRecord {
+  id: string;
+  schema_version: string;
+  redaction_policy_version: string;
+  sha256: string;
+  generated_by: string;
+  generated_at: string;
+  payload?: Record<string, unknown>;
+}
+
 export interface ValueEventsResponse {
   items: ValueEventRecord[];
   count: number;

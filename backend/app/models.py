@@ -282,6 +282,29 @@ class ComplianceDocument(WorkspaceScopedMixin, Base):
     vendor: Mapped[Vendor] = relationship(back_populates="documents")
 
 
+class GovernanceArtifact(WorkspaceScopedMixin, Base):
+    """Workspace-scoped artifact metadata used for PII, retention, and legal holds."""
+
+    __tablename__ = "governance_artifacts"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "artifact_type", "artifact_id", name="uq_governance_artifacts_scope_ref"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    artifact_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    artifact_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    storage_ref: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    mime_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    pii_status: Mapped[str] = mapped_column(String(24), nullable=False, default="unknown")
+    pii_flags_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    classification: Mapped[str] = mapped_column(String(24), nullable=False, default="confidential")
+    retention_until: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    source_deleted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
 class ComplianceCheck(WorkspaceScopedMixin, Base):
     __tablename__ = "compliance_checks"
 
@@ -854,8 +877,31 @@ class ModelConfig(WorkspaceScopedMixin, Base):
     provider: Mapped[str] = mapped_column(String(80), nullable=False)
     model_id: Mapped[str] = mapped_column(String(160), nullable=False)
     params_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    training_policy: Mapped[str] = mapped_column(String(32), nullable=False, default="no_training")
+    opt_in_reference: Mapped[str | None] = mapped_column(String(240), nullable=True)
     created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class ModelChangeHistory(WorkspaceScopedMixin, Base):
+    """Append-only model registry history without prompt bodies or credentials."""
+
+    __tablename__ = "model_change_history"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    model_config_id: Mapped[str] = mapped_column(ForeignKey("model_configs.id"), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(120), nullable=False)
+    version: Mapped[int] = mapped_column(nullable=False)
+    provider: Mapped[str] = mapped_column(String(80), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    prompt_key: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    prompt_version: Mapped[int | None] = mapped_column(nullable=True)
+    change_type: Mapped[str] = mapped_column(String(40), nullable=False, default="registered")
+    change_summary: Mapped[str | None] = mapped_column(String(1000), nullable=True)
+    training_policy: Mapped[str] = mapped_column(String(32), nullable=False, default="no_training")
+    opt_in_reference: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
 
 
 class WorkflowEvaluationResult(WorkspaceScopedMixin, Base):
@@ -1221,4 +1267,94 @@ class ValueEvent(WorkspaceScopedMixin, Base):
     formula_version: Mapped[str] = mapped_column(String(40), nullable=False)
     metadata_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     computed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class RetentionPolicy(WorkspaceScopedMixin, Base):
+    """Versioned workspace policy for source retention and derived evidence."""
+
+    __tablename__ = "retention_policies"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "artifact_type", "version", name="uq_retention_policies_scope_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    artifact_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    retention_days: Mapped[int] = mapped_column(nullable=False)
+    action: Mapped[str] = mapped_column(String(40), nullable=False, default="delete_source_keep_derived")
+    version: Mapped[int] = mapped_column(nullable=False, default=1)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, index=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class LegalHold(WorkspaceScopedMixin, Base):
+    """An auditable hold that prevents source deletion for one artifact."""
+
+    __tablename__ = "legal_holds"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    artifact_type: Mapped[str] = mapped_column(String(80), nullable=False, index=True)
+    artifact_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="active", index=True)
+    placed_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    placed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    released_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    released_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class RetentionRun(WorkspaceScopedMixin, Base):
+    """Durable dry-run or execution evidence for retention decisions."""
+
+    __tablename__ = "retention_runs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    dry_run: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    scanned_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    eligible_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    held_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    deleted_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    report_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    actor_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class GovernanceIncident(WorkspaceScopedMixin, Base):
+    """Customer-visible incident record for drift, safety, and runtime failures."""
+
+    __tablename__ = "governance_incidents"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    workflow_id: Mapped[str | None] = mapped_column(ForeignKey("workflows.id"), nullable=True, index=True)
+    execution_id: Mapped[str | None] = mapped_column(ForeignKey("executions.id"), nullable=True, index=True)
+    severity: Mapped[str] = mapped_column(String(16), nullable=False, default="medium", index=True)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="open", index=True)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    root_cause: Mapped[str | None] = mapped_column(Text, nullable=True)
+    customer_notification_status: Mapped[str] = mapped_column(String(24), nullable=False, default="not_started")
+    detected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    postmortem_link: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    timeline_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    updated_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+
+class AuditPack(WorkspaceScopedMixin, Base):
+    """Redacted, dated governance evidence bundle generated from canonical records."""
+
+    __tablename__ = "audit_packs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    schema_version: Mapped[str] = mapped_column(String(40), nullable=False, default="audit-pack.v1")
+    redaction_policy_version: Mapped[str] = mapped_column(String(40), nullable=False, default="pii.v1")
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    generated_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    generated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)

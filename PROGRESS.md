@@ -4,15 +4,15 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Current state
 
-- **Phase:** Full product execution active; `G-01` governance, PII, retention, incidents, and audit pack is the current WIP item.
-- **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, D-01 discovery/baseline/scoring, W-01 workflow definitions/versioning/designer/evaluation gate, R-01 durable runtime/workers/outbox/replay, V-01 review desk/queue/provenance/corrections, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, Q-01 confidence/routing/thresholds/sampled audit, E-01 golden-set evaluation/publish blocking/drift, I-01 execution inspection/replay/observability, and L-01 value realization ledger are passing.
-- **Last verification:** L-01 static and real Compose/PostgreSQL HTTP/browser gate passed immutable event generation, signed baseline/hash provenance, auto/reviewed/halted reconciliation, dashboard/event parity, CFO drill-down, baseline mutation rejection, and CSV/PDF export validation. Backend pure L-01 tests plus frontend typecheck, tests, and production build passed on 2026-08-04. Isolated stacks preserved named PostgreSQL volumes under the 32 GB guard.
+- **Phase:** Full product execution active; `X-01` CI, environments, deployment, and recovery is the current WIP item.
+- **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, D-01 discovery/baseline/scoring, W-01 workflow definitions/versioning/designer/evaluation gate, R-01 durable runtime/workers/outbox/replay, V-01 review desk/queue/provenance/corrections, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, Q-01 confidence/routing/thresholds/sampled audit, E-01 golden-set evaluation/publish blocking/drift, I-01 execution inspection/replay/observability, L-01 value realization ledger, and G-01 governance/privacy controls are passing.
+- **Last verification:** G-01 static and real Compose/PostgreSQL HTTP/browser gate passed PII field-path classification/redaction, legal-hold retention, source deletion with derived metadata retained, no-training model history, incident lifecycle, export access logging, redacted audit-pack download, and append-only database trigger rejection. Pure G-01/L-01 tests, frontend typecheck/tests/build, migration to `0017_governance`, and the full harness path passed on 2026-08-04. Isolated stacks preserved named PostgreSQL volumes under the 32 GB guard.
 - **Branch:** `feat/mvp-compliance-mvp`
 
 ## Feature status (source of truth: `feature-list.json`)
 
-- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01, R-01, V-01, C-01, P-01, Q-01, E-01, I-01, L-01
-- **Active (WIP=1):** G-01 - governance, PII, retention, incidents, and audit pack
+- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01, R-01, V-01, C-01, P-01, Q-01, E-01, I-01, L-01, G-01
+- **Active (WIP=1):** X-01 - CI, environments, deployment, and recovery
 - **Blocked:** none
 - **Not started:** X-01 and LAUNCH-01 in dependency order; do not activate more than one package.
 
@@ -26,8 +26,8 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Next actions (ordered; the next session starts at #1)
 
-1. Read the G-01 section of `task.md` and the governance/privacy sections of `04-PRODUCT-SPEC.md`, `05-ARCHITECTURE.md`, and `09-RISKS-COMPLIANCE.md`, then inventory existing access and audit evidence.
-2. Add the smallest complete governance package with retention/legal-hold and redacted audit-pack evidence before activating X-01.
+1. Read the X-01 section of `task.md` and the deployment/recovery sections of `05-ARCHITECTURE.md`, `08-ROADMAP-90-DAY.md`, and `09-RISKS-COMPLIANCE.md`, then inventory the current images, migrations, CI, and backup seams.
+2. Add the smallest complete CI, deployment, migration, storage-budget, and recovery package without changing the documented stack.
 3. Keep the Compose/PostgreSQL path, browser gate, and three-layer verification contract intact while extending the product.
 
 ---

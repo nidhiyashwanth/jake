@@ -13,6 +13,7 @@ from app.api.compliance_routes import router as compliance_router
 from app.api.confidence_routes import router as confidence_router
 from app.api.evaluation_routes import router as evaluation_router
 from app.api.value_routes import router as value_router
+from app.api.governance_routes import router as governance_router
 from app.config import get_settings
 from app.errors import DomainError, domain_error_handler
 from app.services.observability import capture_exception
@@ -67,3 +68,4 @@ app.include_router(compliance_router)
 app.include_router(confidence_router)
 app.include_router(evaluation_router)
 app.include_router(value_router)
+app.include_router(governance_router)

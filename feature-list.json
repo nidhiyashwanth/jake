@@ -125,14 +125,14 @@
       "id": "G-01",
       "behavior": "An auditor can inspect access, PII, retention, incidents, model changes, and a redacted dated audit pack.",
       "verification": "Governance, retention, legal-hold, PII, incident, and audit-pack security suite",
-      "state": "active",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-governance.ps1 passed static, pure governance tests, real Compose/PostgreSQL HTTP, and authenticated browser checks for field-path-only PII classification, redaction, legal-hold retention, source deletion with derived metadata retained, no-training model history, incident lifecycle, export access logging, redacted audit-pack download, and append-only database trigger rejection."
     },
     {
       "id": "X-01",
       "behavior": "The product has reproducible CI, staging/production deployment, migrations, observability, dependency evidence, and tested backup recovery.",
       "verification": "Clean-checkout CI, staging smoke, deploy/rollback, migration, SBOM, security, and restore-drill evidence",
-      "state": "not_started",
+      "state": "active",
       "evidence": ""
     },
     {

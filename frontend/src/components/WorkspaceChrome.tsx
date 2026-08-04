@@ -5,7 +5,7 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import type { AuthMode, SessionContext, UserRole, WorkspaceContext, WorkspaceMode } from "@/lib/types";
 import { can, modeLabel, roleLabel } from "@/lib/tenancy";
 
-export type SurfaceKey = "review" | "compliance" | "confidence" | "evaluations" | "handoff" | "workflows" | "discovery" | "runtime" | "connections" | "ledger" | "members";
+export type SurfaceKey = "review" | "compliance" | "confidence" | "evaluations" | "handoff" | "workflows" | "discovery" | "runtime" | "connections" | "ledger" | "governance" | "members";
 
 interface SurfaceItem {
   key: SurfaceKey;
@@ -26,7 +26,8 @@ export const SURFACE_ITEMS: SurfaceItem[] = [
   { key: "runtime", title: "Execution runtime", kicker: "R-01 / active", icon: "08", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
   { key: "connections", title: "Connections", kicker: "C-01 / live", icon: "09", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
   { key: "ledger", title: "Value ledger", kicker: "L-01 / live", icon: "10", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
-  { key: "members", title: "Org & members", kicker: "T-01 / next", icon: "11", allowedRoles: ["owner", "admin"] },
+  { key: "governance", title: "Governance", kicker: "G-01 / live", icon: "11", allowedRoles: ["owner", "admin", "auditor"], live: true },
+  { key: "members", title: "Org & members", kicker: "T-01 / next", icon: "12", allowedRoles: ["owner", "admin"] },
 ];
 
 interface WorkspaceSwitcherProps {

@@ -70,8 +70,8 @@ The documented non-product items remain deliberately deferred unless the owner c
 | E-01 | Golden sets, evals, regression gate, drift | Q-01 | passing | 2026-08-04: static, real Compose/PostgreSQL HTTP, frontend typecheck/tests/build, publish blocking/recovery, canary, metric, and drift evidence passed |
 | I-01 | Execution inspector, replay, Langfuse/OTel signals | R-01 | passing | 2026-08-04: static, pure redaction/trace tests, real Compose/PostgreSQL HTTP, and browser E2E passed for run inspection, immutable target-version replay, zero-write dry runs, correlation, worker/degraded signals, failure alerts, and secret/PII redaction |
 | L-01 | Value ledger, costs, dashboard, exports | D-01,R-01 | passing | 2026-08-04: static contract, pure reconciliation tests, real Compose/PostgreSQL HTTP, authenticated browser smoke, signed baseline/hash provenance, dashboard/event parity, drill-down, and CSV/PDF export checks passed |
-| G-01 | Governance, PII, retention, incidents, audit pack | T-01,R-01 | active | access-log, retention, audit-pack, security tests |
-| X-01 | CI, staging/production deployment, backup/restore | all runtime packages | not_started | CI, migration, deploy, restore-drill evidence |
+| G-01 | Governance, PII, retention, incidents, audit pack | T-01,R-01 | passing | 2026-08-04: static contract, pure governance tests, real Compose/PostgreSQL HTTP, authenticated browser smoke, PII field-path classification/redaction, legal-hold retention, source deletion, model history, incident lifecycle, export access logging, redacted audit pack, and append-only trigger checks passed |
+| X-01 | CI, staging/production deployment, backup/restore | all runtime packages | active | CI, migration, deploy, restore-drill evidence |
 | LAUNCH-01 | Customer-ready acceptance, runbooks, hardening | all packages | not_started | 10-day acceptance simulation, handover pack, clean release |
 
 ## Detailed tasks and Definition of Done
@@ -193,12 +193,14 @@ The documented non-product items remain deliberately deferred unless the owner c
 
 ### G-01 - Governance, PII, retention, incidents, and audit pack
 
-- [ ] Add full audit log for reads, changes, approvals, exports, credential access, model changes, and role changes.
-- [ ] Add artifact classification, PII detection/redaction, field-level access control, data-access logs, retention policy, deletion workflow, and legal hold behavior.
-- [ ] Add model registry with provider/model/prompt/version/change history and no-training/opt-in metadata.
-- [ ] Add incidents with severity, root cause, customer notification, timeline, and postmortem links.
-- [ ] Generate a dated audit pack containing production workflows/versions, models, oversight design, data flows, metrics, incidents, and retention state.
-- **Verification:** role/PII matrix, retention dry run, legal hold, export audit, incident lifecycle, audit-pack completeness and redaction tests.
+- [x] Add full audit log for reads, changes, approvals, exports, credential access, model changes, and role changes.
+- [x] Add artifact classification, PII detection/redaction, field-level access control, data-access logs, retention policy, deletion workflow, and legal hold behavior.
+- [x] Add model registry with provider/model/prompt/version/change history and no-training/opt-in metadata.
+- [x] Add incidents with severity, root cause, customer notification, timeline, and postmortem links.
+- [x] Generate a dated audit pack containing production workflows/versions, models, oversight design, data flows, metrics, incidents, and retention state.
+- **Verification:** `scripts/verify-governance.ps1 -StaticOnly` and `scripts/verify-governance.ps1 -KeepRunning` passed on 2026-08-04: static contract, pure tests, real Compose/PostgreSQL HTTP, authenticated browser smoke, PII field-path classification/redaction, legal-hold retention, source deletion with derived metadata retained, model history, incident lifecycle, access-log evidence, redacted audit-pack download, and database append-only trigger checks.
+
+See the canonical contract in `docs/GOVERNANCE.md`.
 
 ### X-01 - CI, environments, deployment, and recovery
 
