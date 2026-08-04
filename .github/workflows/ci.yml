@@ -170,9 +170,10 @@ jobs:
           exit 1
 
       - name: Verify migration head and run PostgreSQL integration suite
+        working-directory: backend
         shell: bash
         run: |
-          docker compose --project-name "$CI_PROJECT" --env-file "$CI_ENV_FILE" --file docker-compose.yml exec -T backend alembic current
+          docker compose --project-name "$CI_PROJECT" --env-file "../$CI_ENV_FILE" --file ../docker-compose.yml exec -T backend alembic current
           DATABASE_URL="postgresql+psycopg://ci_user:${CI_DATABASE_PASSWORD}@localhost:15432/ci_db" python -m pytest -m integration -q
 
       - name: Run staging-sandbox and recovery evidence

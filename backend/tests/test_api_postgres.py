@@ -97,6 +97,22 @@ def test_api_flow_persists_review_correction_status_history_and_ledger() -> None
     finally:
         if vendor_id:
             with engine.begin() as connection:
+                connection.execute(text('ALTER TABLE "value_events" DISABLE TRIGGER "value_events_immutable"'))
+                connection.execute(
+                    text(
+                        "DELETE FROM value_events "
+                        "WHERE review_task_id IN (SELECT id FROM review_tasks WHERE vendor_id = :vendor_id)"
+                    ),
+                    {"vendor_id": vendor_id},
+                )
+                connection.execute(text('ALTER TABLE "value_events" ENABLE TRIGGER "value_events_immutable"'))
+                connection.execute(
+                    text(
+                        "DELETE FROM review_task_events "
+                        "WHERE review_task_id IN (SELECT id FROM review_tasks WHERE vendor_id = :vendor_id)"
+                    ),
+                    {"vendor_id": vendor_id},
+                )
                 for table in ("audit_events", "compliance_status", "review_tasks", "compliance_checks", "compliance_documents"):
                     connection.execute(text(f"DELETE FROM {table} WHERE vendor_id = :vendor_id"), {"vendor_id": vendor_id})
                 connection.execute(text("DELETE FROM vendors WHERE id = :vendor_id"), {"vendor_id": vendor_id})
