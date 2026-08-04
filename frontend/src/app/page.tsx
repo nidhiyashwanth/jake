@@ -10,6 +10,7 @@ import ExecutionRuntime from "@/components/ExecutionRuntime";
 import ConnectorsView from "@/components/ConnectorsView";
 import ComplianceView from "@/components/ComplianceView";
 import ConfidenceView from "@/components/ConfidenceView";
+import EvaluationView from "@/components/EvaluationView";
 import ReviewQueuePanel from "@/components/ReviewQueuePanel";
 import { AppSidebar, AuthorizationDenied, MemberDisabled, SURFACE_ITEMS, WorkspaceHeader } from "@/components/WorkspaceChrome";
 import type { SurfaceKey } from "@/components/WorkspaceChrome";
@@ -415,6 +416,10 @@ export default function HomePage() {
   ) : activeSurface === "confidence" ? (
     <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>
       <ConfidenceView onAuthFailure={handleSessionExpired} session={session} workspace={activeWorkspace} />
+    </SurfaceFrame>
+  ) : activeSurface === "evaluations" ? (
+    <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>
+      <EvaluationView onAuthFailure={handleSessionExpired} session={session} workspace={activeWorkspace} />
     </SurfaceFrame>
   ) : (
     <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>

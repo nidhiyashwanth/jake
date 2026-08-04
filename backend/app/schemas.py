@@ -786,6 +786,102 @@ class ConfidenceAuditOutcomeRequest(BaseModel):
         return value or None
 
 
+class EvaluationGateConfig(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    max_false_auto_rate: float = Field(default=0.02, ge=0, le=1, allow_inf_nan=False)
+    min_exact_match_rate: float = Field(default=0.90, ge=0, le=1, allow_inf_nan=False)
+    min_macro_field_precision: float = Field(default=0.90, ge=0, le=1, allow_inf_nan=False)
+    min_macro_field_recall: float = Field(default=0.90, ge=0, le=1, allow_inf_nan=False)
+    max_correction_rate: float = Field(default=0.15, ge=0, le=1, allow_inf_nan=False)
+    max_regression_delta: float = Field(default=0.03, ge=0, le=1, allow_inf_nan=False)
+
+
+class GoldenCaseCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    case_key: str = Field(min_length=1, max_length=200)
+    source_type: Literal["corrected", "manual", "canary", "synthetic"]
+    rights_status: Literal["contractual_rights", "manual_review", "synthetic"]
+    rights_basis: str = Field(min_length=1, max_length=1000)
+    sender: str = Field(default="unknown", max_length=240)
+    document_type: str = Field(default="unknown", max_length=80)
+    input: dict[str, Any] = Field(default_factory=dict)
+    expected: dict[str, Any] = Field(default_factory=dict)
+    prediction: dict[str, Any] = Field(default_factory=dict)
+    canary: bool = False
+
+    @field_validator("case_key", "rights_basis", "sender", "document_type")
+    @classmethod
+    def trim_golden_case_text(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("golden case text cannot be blank")
+        return value
+
+
+class GoldenSetCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    workflow_version_id: str = Field(min_length=1, max_length=36)
+    name: str = Field(min_length=1, max_length=200)
+    version: int | None = Field(default=None, ge=1)
+    status: Literal["draft", "active"] = "active"
+    source_policy: dict[str, Any] = Field(default_factory=dict)
+    gate: EvaluationGateConfig = Field(default_factory=EvaluationGateConfig)
+    cases: list[GoldenCaseCreate] = Field(min_length=1, max_length=10000)
+
+    @field_validator("name")
+    @classmethod
+    def trim_golden_set_name(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("golden set name cannot be blank")
+        return value
+
+
+class GoldenEvaluationRunRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    golden_set_id: str = Field(min_length=1, max_length=36)
+    baseline_evaluation_id: str | None = Field(default=None, max_length=36)
+
+
+class DriftObservationInput(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sender: str = Field(min_length=1, max_length=240)
+    document_type: str = Field(min_length=1, max_length=80)
+    corrected: bool
+
+    @field_validator("sender", "document_type")
+    @classmethod
+    def trim_drift_text(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("drift observation text cannot be blank")
+        return value
+
+
+class DriftSnapshotRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    workflow_version_id: str = Field(min_length=1, max_length=36)
+    window_key: str = Field(min_length=1, max_length=160)
+    baseline_correction_rate: float = Field(ge=0, le=1, allow_inf_nan=False)
+    max_delta: float = Field(default=0.10, ge=0, le=1, allow_inf_nan=False)
+    min_samples: int = Field(default=5, ge=1, le=100000)
+    observations: list[DriftObservationInput] = Field(min_length=1, max_length=10000)
+
+    @field_validator("window_key")
+    @classmethod
+    def trim_window_key(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("window_key cannot be blank")
+        return value
+
+
 class PromptCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

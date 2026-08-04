@@ -653,6 +653,75 @@ export interface EvaluationGate {
   metric_deltas?: Record<string, number | string | null>;
 }
 
+export interface GoldenCaseRecord {
+  id: string;
+  case_key: string;
+  source_type: "corrected" | "manual" | "canary" | "synthetic" | string;
+  rights_status: "contractual_rights" | "manual_review" | "synthetic" | string;
+  rights_basis: string;
+  sender: string;
+  document_type: string;
+  input: Record<string, unknown>;
+  expected: Record<string, unknown>;
+  prediction: Record<string, unknown>;
+  canary: boolean;
+  created_at: string;
+}
+
+export interface GoldenSetRecord {
+  id: string;
+  workflow_id: string;
+  workflow_version_id: string;
+  name: string;
+  version: number;
+  status: "draft" | "active" | string;
+  source_policy: Record<string, unknown>;
+  gate: Record<string, number>;
+  canonical_hash: string;
+  case_count: number;
+  created_by: string;
+  created_at: string;
+  cases?: GoldenCaseRecord[];
+}
+
+export interface EvaluationRecord {
+  id: string;
+  workflow_version_id: string;
+  definition_hash: string;
+  passed: boolean;
+  metrics: Record<string, unknown>;
+  failure_reasons: string[];
+  evaluator: string;
+  evaluation_type: string;
+  golden_set_id?: string | null;
+  baseline_evaluation_id?: string | null;
+  metric_deltas: Record<string, number | string | null>;
+  failing_cases: string[];
+  created_by?: string | null;
+  evaluated_at: string;
+}
+
+export interface GoldenEvaluationResponse {
+  evaluation: EvaluationRecord;
+  passed: boolean;
+  failure_reasons: string[];
+  failing_cases: string[];
+  evaluation_gate: EvaluationGate;
+}
+
+export interface DriftSnapshotRecord {
+  id: string;
+  workflow_version_id: string;
+  window_key: string;
+  status: "ok" | "alert" | string;
+  baseline_correction_rate: number;
+  max_delta: number;
+  metrics: Record<string, { sample_count: number; correction_count: number; correction_rate: number; delta: number }>;
+  alerts: Array<{ group: string; sample_count: number; correction_rate: number; delta: number; reason: string }>;
+  created_by: string;
+  created_at: string;
+}
+
 export interface WorkflowSummary {
   id: string;
   workspace_id: string;

@@ -870,11 +870,83 @@ class WorkflowEvaluationResult(WorkspaceScopedMixin, Base):
     metrics_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
     failure_reasons_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
     evaluator: Mapped[str] = mapped_column(String(120), nullable=False)
+    evaluation_type: Mapped[str] = mapped_column(String(40), nullable=False, default="workflow")
+    golden_set_id: Mapped[str | None] = mapped_column(ForeignKey("golden_sets.id"), nullable=True, index=True)
+    baseline_evaluation_id: Mapped[str | None] = mapped_column(
+        ForeignKey("workflow_evaluation_results.id"), nullable=True, index=True
+    )
+    metric_deltas_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    failing_cases_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
     created_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
     evaluated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     workflow_version: Mapped[WorkflowVersion] = relationship(back_populates="evaluations")
+
+
+class GoldenSet(WorkspaceScopedMixin, Base):
+    """Immutable, rights-labelled evaluation cases for one workflow family."""
+
+    __tablename__ = "golden_sets"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "workflow_version_id", "name", "version", name="uq_golden_sets_scope_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    workflow_id: Mapped[str] = mapped_column(ForeignKey("workflows.id"), nullable=False, index=True)
+    workflow_version_id: Mapped[str] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    version: Mapped[int] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="active", index=True)
+    source_policy_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    gate_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    canonical_hash: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    cases: Mapped[list["GoldenCase"]] = relationship(
+        back_populates="golden_set", cascade="all, delete-orphan", order_by="GoldenCase.case_key"
+    )
+
+
+class GoldenCase(WorkspaceScopedMixin, Base):
+    """One corrected, manually curated, or injection-canary case with rights evidence."""
+
+    __tablename__ = "golden_cases"
+    __table_args__ = (UniqueConstraint("golden_set_id", "case_key", name="uq_golden_cases_set_key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    golden_set_id: Mapped[str] = mapped_column(ForeignKey("golden_sets.id", ondelete="CASCADE"), nullable=False, index=True)
+    case_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    rights_status: Mapped[str] = mapped_column(String(40), nullable=False)
+    rights_basis: Mapped[str] = mapped_column(Text, nullable=False)
+    sender: Mapped[str] = mapped_column(String(240), nullable=False, default="unknown")
+    document_type: Mapped[str] = mapped_column(String(80), nullable=False, default="unknown")
+    input_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    expected_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    prediction_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    canary: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    golden_set: Mapped[GoldenSet] = relationship(back_populates="cases")
+
+
+class DriftSnapshot(WorkspaceScopedMixin, Base):
+    """Append-only rolling correction-rate snapshot and operator alert."""
+
+    __tablename__ = "drift_snapshots"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    workflow_version_id: Mapped[str] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False, index=True)
+    window_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="ok", index=True)
+    baseline_correction_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    max_delta: Mapped[float] = mapped_column(Float, nullable=False)
+    metrics_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    alerts_json: Mapped[list[Any]] = mapped_column(JSON, nullable=False, default=list)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
 
 
 class ConfidenceThresholdSet(WorkspaceScopedMixin, Base):

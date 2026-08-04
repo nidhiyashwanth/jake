@@ -41,6 +41,9 @@ import type {
   ConfidenceAuditRecord,
   ConfidenceSimulationResult,
   ConfidenceThresholdSetRecord,
+  DriftSnapshotRecord,
+  GoldenEvaluationResponse,
+  GoldenSetRecord,
   ReasonCodeRecord,
   RequirementSetRecord,
 } from "./types";
@@ -387,6 +390,37 @@ export const api = {
   listConfidenceAudits: () => request<{ items: ConfidenceAuditRecord[] }>("/api/confidence/audits"),
   completeConfidenceAudit: (auditId: string, actualCorrect: boolean, outcomeSummary?: string) =>
     request<{ audit: ConfidenceAuditRecord; thresholds: ConfidenceThresholdSetRecord[] }>(`/api/confidence/audits/${auditId}/outcome`, { method: "POST", body: JSON.stringify({ actual_correct: actualCorrect, outcome_summary: outcomeSummary }) }),
+  listGoldenSets: () => request<{ items: GoldenSetRecord[] }>("/api/evaluations/golden-sets"),
+  createGoldenSet: (payload: {
+    workflow_version_id: string;
+    name: string;
+    status?: "draft" | "active";
+    source_policy?: Record<string, unknown>;
+    gate?: Record<string, number>;
+    cases: Array<{
+      case_key: string;
+      source_type: "corrected" | "manual" | "canary" | "synthetic";
+      rights_status: "contractual_rights" | "manual_review" | "synthetic";
+      rights_basis: string;
+      sender: string;
+      document_type: string;
+      input: Record<string, unknown>;
+      expected: Record<string, unknown>;
+      prediction: Record<string, unknown>;
+      canary?: boolean;
+    }>;
+  }) => request<{ golden_set: GoldenSetRecord }>("/api/evaluations/golden-sets", { method: "POST", body: JSON.stringify(payload) }),
+  runGoldenEvaluation: (versionId: string, goldenSetId: string, baselineEvaluationId?: string | null) =>
+    request<GoldenEvaluationResponse>(`/api/workflow-versions/${versionId}/evaluations/golden`, { method: "POST", body: JSON.stringify({ golden_set_id: goldenSetId, baseline_evaluation_id: baselineEvaluationId || undefined }) }),
+  listEvaluationDrift: () => request<{ items: DriftSnapshotRecord[] }>("/api/evaluations/drift"),
+  recordEvaluationDrift: (payload: {
+    workflow_version_id: string;
+    window_key: string;
+    baseline_correction_rate: number;
+    max_delta: number;
+    min_samples: number;
+    observations: Array<{ sender: string; document_type: string; corrected: boolean }>;
+  }) => request<{ snapshot: DriftSnapshotRecord; alerted: boolean }>("/api/evaluations/drift", { method: "POST", body: JSON.stringify(payload) }),
   getVendor: (vendorId: string) => request<VendorDetail>(`/api/vendors/${vendorId}`),
   createVendor: (legalName: string) =>
     request<Vendor>("/api/vendors", { method: "POST", body: JSON.stringify({ legal_name: legalName }) }),

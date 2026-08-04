@@ -104,14 +104,14 @@
       "id": "E-01",
       "behavior": "A workflow version is publishable only when golden-set metrics and injection canaries pass, with drift monitoring after release.",
       "verification": "Golden-set eval, regression-block, canary, and drift-alert integration suite",
-      "state": "active",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-evaluations.ps1 passed static and real Compose/PostgreSQL HTTP evidence for rights-labelled golden sets, field metrics, canaries, regression-blocking publish, recovered publish, rolling sender/document drift alerts, and audit events; frontend typecheck/tests/build passed."
     },
     {
       "id": "I-01",
       "behavior": "An authorized user can inspect every run and safely replay it against an immutable version without external side effects.",
       "verification": "Inspector drill-down, trace correlation, redaction, and side-effect-free replay E2E suite",
-      "state": "not_started",
+      "state": "active",
       "evidence": ""
     },
     {

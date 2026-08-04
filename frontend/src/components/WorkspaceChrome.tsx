@@ -5,7 +5,7 @@ import { ReactNode, useEffect, useRef, useState } from "react";
 import type { AuthMode, SessionContext, UserRole, WorkspaceContext, WorkspaceMode } from "@/lib/types";
 import { can, modeLabel, roleLabel } from "@/lib/tenancy";
 
-export type SurfaceKey = "review" | "compliance" | "confidence" | "handoff" | "workflows" | "discovery" | "runtime" | "connections" | "ledger" | "members";
+export type SurfaceKey = "review" | "compliance" | "confidence" | "evaluations" | "handoff" | "workflows" | "discovery" | "runtime" | "connections" | "ledger" | "members";
 
 interface SurfaceItem {
   key: SurfaceKey;
@@ -19,13 +19,14 @@ export const SURFACE_ITEMS: SurfaceItem[] = [
   { key: "review", title: "Review desk", kicker: "F01 / live", icon: "01", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
   { key: "compliance", title: "Compliance policy", kicker: "P-01 / live", icon: "02", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
   { key: "confidence", title: "Confidence lab", kicker: "Q-01 / live", icon: "03", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
-  { key: "handoff", title: "Field handoff", kicker: "T-01 / live", icon: "04", allowedRoles: ["owner", "admin", "operator", "viewer", "auditor"], live: true },
-  { key: "workflows", title: "Workflows", kicker: "W-01 / active", icon: "05", allowedRoles: ["owner", "admin", "builder", "operator", "viewer"], live: true },
-  { key: "discovery", title: "Discovery studio", kicker: "D-01 / active", icon: "06", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
-  { key: "runtime", title: "Execution runtime", kicker: "R-01 / active", icon: "07", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
-  { key: "connections", title: "Connections", kicker: "C-01 / live", icon: "08", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
-  { key: "ledger", title: "Audit ledger", kicker: "G-01 / next", icon: "09", allowedRoles: ["owner", "admin", "auditor"] },
-  { key: "members", title: "Org & members", kicker: "T-01 / next", icon: "10", allowedRoles: ["owner", "admin"] },
+  { key: "evaluations", title: "Evaluation control", kicker: "E-01 / live", icon: "04", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
+  { key: "handoff", title: "Field handoff", kicker: "T-01 / live", icon: "05", allowedRoles: ["owner", "admin", "operator", "viewer", "auditor"], live: true },
+  { key: "workflows", title: "Workflows", kicker: "W-01 / active", icon: "06", allowedRoles: ["owner", "admin", "builder", "operator", "viewer"], live: true },
+  { key: "discovery", title: "Discovery studio", kicker: "D-01 / active", icon: "07", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
+  { key: "runtime", title: "Execution runtime", kicker: "R-01 / active", icon: "08", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
+  { key: "connections", title: "Connections", kicker: "C-01 / live", icon: "09", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
+  { key: "ledger", title: "Audit ledger", kicker: "G-01 / next", icon: "10", allowedRoles: ["owner", "admin", "auditor"] },
+  { key: "members", title: "Org & members", kicker: "T-01 / next", icon: "11", allowedRoles: ["owner", "admin"] },
 ];
 
 interface WorkspaceSwitcherProps {

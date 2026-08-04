@@ -1,0 +1,29 @@
+{
+  "contract_version": "golden.e01.v1",
+  "name": "Vendor compliance corrected-case golden set",
+  "rights_policy": {
+    "contractual_rights_required_for_customer_documents": true,
+    "allowed_rights_status": ["contractual_rights", "manual_review", "synthetic"],
+    "source_of_truth": "tests/golden/wedge_cases.json"
+  },
+  "case_sources": [
+    {
+      "source_type": "corrected",
+      "rights_status": "contractual_rights",
+      "rights_basis": "Customer-approved corrected compliance case; retain source agreement reference with the workspace import."
+    },
+    {
+      "source_type": "manual",
+      "rights_status": "manual_review",
+      "rights_basis": "Operator-curated case reviewed for evaluation use; no training permission is implied."
+    },
+    {
+      "source_type": "canary",
+      "rights_status": "synthetic",
+      "rights_basis": "Synthetic prompt-injection canary created for release regression testing."
+    }
+  ],
+  "minimum_case_count_for_release": 100,
+  "minimum_exception_count_for_release": 20,
+  "minimum_injection_canaries_for_release": 3
+}

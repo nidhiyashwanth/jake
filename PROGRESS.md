@@ -4,15 +4,15 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Current state
 
-- **Phase:** Full product execution active; `E-01` golden-set evaluation, publish gates, and drift is the current WIP item.
-- **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, D-01 discovery/baseline/scoring, W-01 workflow definitions/versioning/designer/evaluation gate, R-01 durable runtime/workers/outbox/replay, V-01 review desk/queue/provenance/corrections, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, and Q-01 confidence/routing/thresholds/sampled audit are passing.
-- **Last verification:** Q-01 static six-signal calibration/property tests, real Compose/PostgreSQL workflow-scoped threshold v1/v2 audit, model-confidence rejection, auto/review/halt routing, simulator reconciliation, deterministic 100% sampled audit, false-auto alert, rollback to prior threshold that blocked the former auto route, audit-log evidence, and frontend six contract tests/production build passed on 2026-08-04. Isolated stacks preserved named PostgreSQL volumes under the 32 GB guard.
+- **Phase:** Full product execution active; `I-01` execution inspection, replay, and observability is the current WIP item.
+- **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, D-01 discovery/baseline/scoring, W-01 workflow definitions/versioning/designer/evaluation gate, R-01 durable runtime/workers/outbox/replay, V-01 review desk/queue/provenance/corrections, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, Q-01 confidence/routing/thresholds/sampled audit, and E-01 golden-set evaluation/publish blocking/drift are passing.
+- **Last verification:** E-01 static and real Compose/PostgreSQL HTTP gate passed rights-labelled immutable sets, field precision/recall, exact match, route mix, false-auto/correction/cost metrics, injection canaries, regression deltas, exact-version publish blocking/recovery, rolling sender/document drift alerts, and audit evidence. Frontend typecheck, six contract tests, and production build passed on 2026-08-04. Isolated stacks preserved named PostgreSQL volumes under the 32 GB guard.
 - **Branch:** `feat/mvp-compliance-mvp`
 
 ## Feature status (source of truth: `feature-list.json`)
 
-- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01, R-01, V-01, C-01, P-01, Q-01
-- **Active (WIP=1):** E-01 - golden sets, evaluation gates, and drift
+- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01, R-01, V-01, C-01, P-01, Q-01, E-01
+- **Active (WIP=1):** I-01 - execution inspector, replay, and observability
 - **Blocked:** none
 - **Not started:** I-01 through LAUNCH-01 in dependency order; do not activate more than one package.
 
@@ -26,8 +26,8 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Next actions (ordered; the next session starts at #1)
 
-1. Read the E-01 section of `task.md` and the evaluation/drift sections of `04-PRODUCT-SPEC.md` and `05-ARCHITECTURE.md`, then build the golden-set and publish-gate boundary.
-2. Add E-01 metric, canary, regression-block, drift, and real Compose/PostgreSQL evidence before activating I-01.
+1. Read the I-01 section of `task.md` and the execution/observability sections of `04-PRODUCT-SPEC.md` and `05-ARCHITECTURE.md`, then build the inspection boundary.
+2. Add run drill-down, safe replay, trace correlation, redaction, and degraded-mode evidence before activating L-01.
 3. Keep the Compose/PostgreSQL path, browser gate, and three-layer verification contract intact while extending the product.
 
 ---

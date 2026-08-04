@@ -137,3 +137,11 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** Self-reported model confidence is not an accountable control signal. Operators need a visible auto/review/halt tradeoff, a simulator tied to known outcomes, and a measured false-auto loop before automatic processing can be trusted.
 - **Rejected alternative:** Let the model choose its confidence or route, use unversioned environment thresholds, or treat a sampled audit as an informal dashboard metric without a rollback path.
 - **Remaining constraints:** The simulator consumes historical/golden cases without copying their canonical evidence; threshold changes remain auditable; E-01 must add publish-blocking golden evaluation and drift alerts before confidence policies are used as a release gate.
+
+## D-018 -- Make release evidence immutable, server-owned, and operationally observable
+
+- **Date:** 2026-08-04
+- **Decision:** E-01 stores rights-labelled golden sets and cases as immutable provenance, computes reproducible field/route/cost/correction metrics on the server, binds evaluation results to the exact workflow definition hash, and reuses the existing workflow publish gate. Canary failures, regression deltas, and rolling sender/document correction drift produce explicit failure or alert evidence and audit events. The frontend exposes the same boundary without accepting client-supplied pass/fail metrics.
+- **Why:** Confidence thresholds alone cannot establish release quality. A customer needs to see what cases were authorized for evaluation, why a release is blocked, which metrics changed, and where live corrections drift after publish. One server-owned gate avoids competing release decisions in the UI or a parallel evaluation table.
+- **Rejected alternative:** Trust browser-supplied evaluation metrics, store golden cases without rights metadata, allow a failed regression to publish, or create a separate release gate disconnected from the W-01 exact-hash contract.
+- **Remaining constraints:** The canonical 100-case wedge source and release-size policy remain test fixtures until the customer curation workflow is connected; I-01 must add run inspection and safe replay before release evidence is considered fully operable.

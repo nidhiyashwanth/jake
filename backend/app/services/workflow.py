@@ -1357,6 +1357,11 @@ def evaluation_payload(result: WorkflowEvaluationResult) -> dict[str, Any]:
         "metrics": result.metrics_json,
         "failure_reasons": result.failure_reasons_json,
         "evaluator": result.evaluator,
+        "evaluation_type": result.evaluation_type,
+        "golden_set_id": result.golden_set_id,
+        "baseline_evaluation_id": result.baseline_evaluation_id,
+        "metric_deltas": result.metric_deltas_json,
+        "failing_cases": result.failing_cases_json,
         "created_by": result.created_by,
         "evaluated_at": result.evaluated_at.isoformat(),
     }

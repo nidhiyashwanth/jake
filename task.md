@@ -67,8 +67,8 @@ The documented non-product items remain deliberately deferred unless the owner c
 | C-01 | MCP gateway, connectors, vault, notifications | R-01 | passing | 2026-08-04: static contract, real Compose/PostgreSQL HTTP/sandbox E2E, ciphertext-only vault and rotation, redacted MCP call logs, allow-list/workflow scope, approval/egress/RPA guards, auditor access, browser Connections UI, and workspace isolation passed |
 | P-01 | Rules, requirements, document taxonomy, chase agent | V-01 | passing | 2026-08-04: static catalog/golden suite, real Compose/PostgreSQL rule verification, document fixtures, supersession, chase guardrails, attachment matching, escalation CC, and compliant-and-verified success passed |
 | Q-01 | Confidence, routing, thresholds, sampled audit | P-01 | passing | 2026-08-04: static calibration tests, real Compose/PostgreSQL threshold versioning and audit log, six-signal route E2E, model-confidence rejection, simulator reconciliation, 100% sampled false-auto rollback, and frontend production build passed |
-| E-01 | Golden sets, evals, regression gate, drift | Q-01 | active | publish-blocking eval and drift alert suite |
-| I-01 | Execution inspector, replay, Langfuse/OTel signals | R-01 | not_started | run drill-down and side-effect-free replay E2E |
+| E-01 | Golden sets, evals, regression gate, drift | Q-01 | passing | 2026-08-04: static, real Compose/PostgreSQL HTTP, frontend typecheck/tests/build, publish blocking/recovery, canary, metric, and drift evidence passed |
+| I-01 | Execution inspector, replay, Langfuse/OTel signals | R-01 | active | run drill-down and side-effect-free replay E2E |
 | L-01 | Value ledger, costs, dashboard, exports | D-01,R-01 | not_started | baseline-linked reconciliation and CSV/PDF export checks |
 | G-01 | Governance, PII, retention, incidents, audit pack | T-01,R-01 | not_started | access-log, retention, audit-pack, security tests |
 | X-01 | CI, staging/production deployment, backup/restore | all runtime packages | not_started | CI, migration, deploy, restore-drill evidence |
@@ -167,12 +167,12 @@ The documented non-product items remain deliberately deferred unless the owner c
 
 ### E-01 - Golden sets, evaluation gates, and drift
 
-- [ ] Build golden sets from corrected cases and manually curated cases with contractual rights metadata.
-- [ ] Compute field precision/recall, exact match, straight-through, false-auto, review rate, cost/run, and correction-rate by sender/document type.
-- [ ] Add injection canaries and regression cases; run evaluations on workflow/prompt/model changes.
-- [ ] Block publication on regression beyond configured thresholds; expose metric deltas and failing cases.
-- [ ] Add rolling drift detection and operator alerts when layouts/templates or correction rates change.
-- **Verification:** eval-run integration, publish-block test, canary suite, drift fixture, reproducible metric snapshot.
+- [x] Build golden sets from corrected cases and manually curated cases with contractual rights metadata.
+- [x] Compute field precision/recall, exact match, straight-through, false-auto, review rate, cost/run, and correction-rate by sender/document type.
+- [x] Add injection canaries and regression cases; run evaluations on workflow/prompt/model changes.
+- [x] Block publication on regression beyond configured thresholds; expose metric deltas and failing cases.
+- [x] Add rolling drift detection and operator alerts when layouts/templates or correction rates change.
+- **Verification:** `scripts/verify-evaluations.ps1` passed static and real Compose/PostgreSQL HTTP evidence on 2026-08-04; frontend `npm run typecheck`, `npm test -- --runInBand`, and `npm run build` passed. The gate verified rights-labelled immutable sets, reproducible metrics, canary/regression failures, exact-version publish blocking and recovery, sender/document drift alerts, and audit events.
 
 ### I-01 - Execution inspector, replay, and observability
 
