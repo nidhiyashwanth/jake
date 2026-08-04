@@ -4,17 +4,17 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Current state
 
-- **Phase:** Full product execution active; `L-01` value ledger, costs, dashboards, and exports is the current WIP item.
-- **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, D-01 discovery/baseline/scoring, W-01 workflow definitions/versioning/designer/evaluation gate, R-01 durable runtime/workers/outbox/replay, V-01 review desk/queue/provenance/corrections, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, Q-01 confidence/routing/thresholds/sampled audit, E-01 golden-set evaluation/publish blocking/drift, and I-01 execution inspection/replay/observability are passing.
-- **Last verification:** I-01 static and real Compose/PostgreSQL HTTP/browser gate passed timeline/node evidence, secret/PII redaction, trace/span and response correlation, selected immutable-version replay with dry-run zero writes, worker heartbeat/degraded signals, and dead-letter failure alerts. Backend pure redaction/trace tests plus frontend typecheck, six contract tests, and production build passed on 2026-08-04. Isolated stacks preserved named PostgreSQL volumes under the 32 GB guard.
+- **Phase:** Full product execution active; `G-01` governance, PII, retention, incidents, and audit pack is the current WIP item.
+- **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, D-01 discovery/baseline/scoring, W-01 workflow definitions/versioning/designer/evaluation gate, R-01 durable runtime/workers/outbox/replay, V-01 review desk/queue/provenance/corrections, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, Q-01 confidence/routing/thresholds/sampled audit, E-01 golden-set evaluation/publish blocking/drift, I-01 execution inspection/replay/observability, and L-01 value realization ledger are passing.
+- **Last verification:** L-01 static and real Compose/PostgreSQL HTTP/browser gate passed immutable event generation, signed baseline/hash provenance, auto/reviewed/halted reconciliation, dashboard/event parity, CFO drill-down, baseline mutation rejection, and CSV/PDF export validation. Backend pure L-01 tests plus frontend typecheck, tests, and production build passed on 2026-08-04. Isolated stacks preserved named PostgreSQL volumes under the 32 GB guard.
 - **Branch:** `feat/mvp-compliance-mvp`
 
 ## Feature status (source of truth: `feature-list.json`)
 
-- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01, R-01, V-01, C-01, P-01, Q-01, E-01, I-01
-- **Active (WIP=1):** L-01 - value ledger, costs, dashboards, and exports
+- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01, R-01, V-01, C-01, P-01, Q-01, E-01, I-01, L-01
+- **Active (WIP=1):** G-01 - governance, PII, retention, incidents, and audit pack
 - **Blocked:** none
-- **Not started:** G-01 through LAUNCH-01 in dependency order; do not activate more than one package.
+- **Not started:** X-01 and LAUNCH-01 in dependency order; do not activate more than one package.
 
 ## Known issues / blockers
 
@@ -26,8 +26,8 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Next actions (ordered; the next session starts at #1)
 
-1. Read the L-01 section of `task.md` and the ledger/value sections of `04-PRODUCT-SPEC.md`, `05-ARCHITECTURE.md`, and `07-DELIVERY-PLAYBOOK.md`, then build the immutable value-event boundary.
-2. Add baseline-linked reconciliation, cost/value rollups, dashboard drill-down, and CSV/PDF export evidence before activating G-01.
+1. Read the G-01 section of `task.md` and the governance/privacy sections of `04-PRODUCT-SPEC.md`, `05-ARCHITECTURE.md`, and `09-RISKS-COMPLIANCE.md`, then inventory existing access and audit evidence.
+2. Add the smallest complete governance package with retention/legal-hold and redacted audit-pack evidence before activating X-01.
 3. Keep the Compose/PostgreSQL path, browser gate, and three-layer verification contract intact while extending the product.
 
 ---

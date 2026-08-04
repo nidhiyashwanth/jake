@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     langfuse_public_key: str | None = None
     langfuse_secret_key: str | None = None
     sentry_dsn: str | None = None
+    value_infra_cost_per_run_usd: float = Field(default=0, ge=0, le=100000)
 
     dev_default_organization_id: str = "00000000-0000-0000-0000-000000000001"
     dev_default_workspace_id: str = "00000000-0000-0000-0000-000000000002"

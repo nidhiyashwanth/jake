@@ -153,3 +153,11 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** Operators need a sub-minute answer to what ran, which version ran, what it changed, and whether it is safe to replay. A second trace database would create competing evidence and increase retention/PII risk, while silently dropping provider telemetry would hide degraded operation.
 - **Rejected alternative:** Store a custom trace graph, allow replay to mutate the original execution or invoke live connector writes, return raw inputs/tool arguments, or treat missing Langfuse/Sentry configuration as healthy.
 - **Remaining constraints:** Provider sink credentials remain in ignored `.env`/deployment secret management; OTel/Langfuse connectivity is not required for local correctness, and L-01 must consume the immutable execution/cost evidence without duplicating runtime ownership.
+
+## D-020 -- Make value realization append-only and server-calculated
+
+- **Date:** 2026-08-04
+- **Decision:** L-01 stores immutable, workspace-scoped `value_events` keyed by an idempotency key. Runtime terminal transitions append execution volume, benefit, and cost evidence; review corrections append a zero-dollar or priced human-touch record. The database enforces RLS and rejects update/delete mutations. Rollups, drill-downs, CSV, and PDF exports are calculated from those same event rows and retain signed baseline and immutable workflow hashes.
+- **Why:** A sponsor needs to reconcile every dollar and unit to a source execution or review without allowing a UI or model to forge savings. Count-only and unpriced events make missing rates explicit instead of fabricating certainty, while one ledger avoids divergence between dashboards and exports.
+- **Rejected alternative:** Let the frontend submit value totals, update prior events when a baseline changes, store a second custom analytics database, or infer error prevention and dollar value without sampled or signed evidence.
+- **Remaining constraints:** `value.v1` is the current formula contract; measured error and payback remain null/unpriced when the required evidence or implementation cost is absent. G-01 must add the broader retention, PII, incident, and dated audit-pack controls without weakening this append-only boundary.

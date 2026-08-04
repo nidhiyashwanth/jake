@@ -118,14 +118,14 @@
       "id": "L-01",
       "behavior": "A sponsor can reconcile immutable value events, costs, ROI dashboards, drill-down records, and CSV/PDF exports to a signed baseline.",
       "verification": "Ledger reconciliation, dashboard parity, drill-down, and CSV/PDF export suite",
-      "state": "active",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-value-ledger.ps1 passed static, real Compose/PostgreSQL HTTP, and authenticated browser checks for append-only value events, signed baseline and immutable workflow hash provenance, auto/reviewed reconciliation, dashboard/event parity, CFO drill-down, signed-baseline mutation rejection, and CSV/PDF exports; backend pure L-01 tests and frontend typecheck/build passed."
     },
     {
       "id": "G-01",
       "behavior": "An auditor can inspect access, PII, retention, incidents, model changes, and a redacted dated audit pack.",
       "verification": "Governance, retention, legal-hold, PII, incident, and audit-pack security suite",
-      "state": "not_started",
+      "state": "active",
       "evidence": ""
     },
     {

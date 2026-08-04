@@ -81,6 +81,7 @@ from app.services.tenancy import (
     switch_session_workspace,
 )
 from app.services.verification import history_payload, review_payload, run_verification, status_payload
+from app.services.value_ledger import append_value_event
 
 
 router = APIRouter(prefix="/api")
@@ -1266,16 +1267,32 @@ def update_review(review_id: str, payload: ReviewUpdate, db: ScopedDb) -> dict[s
             "after": corrected,
         },
     )
-    db.add(
-        AuditEvent(
-            workspace_id=context.workspace_id,
-            vendor_id=vendor.id,
-            event_type="review_correction_applied",
-            actor_type="human_operator",
-            entity_type="review_task",
-            entity_id=review.id,
-            payload={"field": review.correction_field, "value": corrected, "document_id": document.id},
-        )
+    audit_event = AuditEvent(
+        id=new_id(),
+        workspace_id=context.workspace_id,
+        vendor_id=vendor.id,
+        event_type="review_correction_applied",
+        actor_type="human_operator",
+        entity_type="review_task",
+        entity_id=review.id,
+        payload={"field": review.correction_field, "value": corrected, "document_id": document.id},
+    )
+    db.add(audit_event)
+    append_value_event(
+        db,
+        workspace_id=context.workspace_id,
+        event_key=f"review:{review.id}:resolved",
+        source_artifact_type="review_task",
+        source_artifact_id=review.id,
+        review_task_id=review.id,
+        audit_event_id=audit_event.id,
+        kind="human_touch_cost",
+        quantity=1,
+        unit="review",
+        dollar_value=0,
+        method="measured_ab",
+        confidence="low",
+        metadata={"outcome": "reviewed", "valuation_status": "unpriced_review_correction", "actor_id": context.user_id},
     )
     append_audit_log(
         db,

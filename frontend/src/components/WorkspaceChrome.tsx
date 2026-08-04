@@ -25,7 +25,7 @@ export const SURFACE_ITEMS: SurfaceItem[] = [
   { key: "discovery", title: "Discovery studio", kicker: "D-01 / active", icon: "07", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
   { key: "runtime", title: "Execution runtime", kicker: "R-01 / active", icon: "08", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
   { key: "connections", title: "Connections", kicker: "C-01 / live", icon: "09", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
-  { key: "ledger", title: "Audit ledger", kicker: "G-01 / next", icon: "10", allowedRoles: ["owner", "admin", "auditor"] },
+  { key: "ledger", title: "Value ledger", kicker: "L-01 / live", icon: "10", allowedRoles: ["owner", "admin", "builder", "operator", "viewer", "auditor"], live: true },
   { key: "members", title: "Org & members", kicker: "T-01 / next", icon: "11", allowedRoles: ["owner", "admin"] },
 ];
 

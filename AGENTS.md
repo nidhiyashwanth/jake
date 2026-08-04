@@ -4,7 +4,7 @@ This workspace contains the research, product plan, and the runnable foundation 
 
 ## Current phase
 
-The harness baseline, F01 foundation, T-01 tenancy, D-01 discovery, W-01 workflow-definition slice, R-01 durable runtime, V-01 review desk, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, Q-01 confidence/routing/thresholds/sampled audit, E-01 golden-set evaluation/release evidence, and I-01 execution inspection/replay/observability are passing. The full documented product build is active: `L-01` is the current WIP item, and every subsequent package must be selected from `task.md` one at a time. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, `feature-list.json`, and `task.md` are the operational source of truth for agent work.
+The harness baseline, F01 foundation, T-01 tenancy, D-01 discovery, W-01 workflow-definition slice, R-01 durable runtime, V-01 review desk, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, Q-01 confidence/routing/thresholds/sampled audit, E-01 golden-set evaluation/release evidence, I-01 execution inspection/replay/observability, and L-01 value realization ledger are passing. The full documented product build is active: `G-01` is the current WIP item, and every subsequent package must be selected from `task.md` one at a time. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, `feature-list.json`, and `task.md` are the operational source of truth for agent work.
 
 ## Start here
 
@@ -93,6 +93,12 @@ The current I-01 execution inspector, replay, redaction, trace, and degraded-mod
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-inspector.ps1
 ```
 
+The current L-01 value realization ledger, reconciliation, drill-down, and export gate is:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-value-ledger.ps1
+```
+
 The complete-product gate is the task board plus the relevant package checks. Do not mark a package passing until its row in `task.md`, its row in `feature-list.json`, and its executable evidence agree.
 
 The final release gate refuses to pass while any required package is open:
@@ -139,6 +145,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-product.ps1
 - Risk, compliance, and contracts → `09-RISKS-COMPLIANCE.md`
 - Pricing, economics, and fundraising → `06-GTM-PRICING.md`, `10-UNIT-ECONOMICS.md`, `12-FUNDRAISING-PATH.md`
 - Verification and completion gates → `docs/VERIFICATION.md`
+- Value realization event and export contract → `docs/VALUE-CONTRACT.md`
 - Complete product execution backlog → `task.md`
 - Clock-in, clock-out, and handoff → `docs/WORKFLOW.md`
 

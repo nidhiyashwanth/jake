@@ -34,6 +34,16 @@ the authenticated browser smoke. The R-01 backend integration test is marked
 Compose gate remains the required evidence when the local test runner is not
 configured with that connection.
 
+L-01's focused gate is:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-value-ledger.ps1
+```
+
+It must pass the static contract, pure reconciliation tests, real Compose/PostgreSQL
+HTTP path, signed-baseline/hash provenance, dashboard/event parity, CFO drill-down,
+CSV/PDF render checks, signed-baseline mutation fence, and authenticated browser smoke.
+
 ## Three-layer Definition of Done
 
 Every future feature must stop at the first failed layer:

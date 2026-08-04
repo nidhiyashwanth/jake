@@ -69,8 +69,8 @@ The documented non-product items remain deliberately deferred unless the owner c
 | Q-01 | Confidence, routing, thresholds, sampled audit | P-01 | passing | 2026-08-04: static calibration tests, real Compose/PostgreSQL threshold versioning and audit log, six-signal route E2E, model-confidence rejection, simulator reconciliation, 100% sampled false-auto rollback, and frontend production build passed |
 | E-01 | Golden sets, evals, regression gate, drift | Q-01 | passing | 2026-08-04: static, real Compose/PostgreSQL HTTP, frontend typecheck/tests/build, publish blocking/recovery, canary, metric, and drift evidence passed |
 | I-01 | Execution inspector, replay, Langfuse/OTel signals | R-01 | passing | 2026-08-04: static, pure redaction/trace tests, real Compose/PostgreSQL HTTP, and browser E2E passed for run inspection, immutable target-version replay, zero-write dry runs, correlation, worker/degraded signals, failure alerts, and secret/PII redaction |
-| L-01 | Value ledger, costs, dashboard, exports | D-01,R-01 | active | baseline-linked reconciliation and CSV/PDF export checks |
-| G-01 | Governance, PII, retention, incidents, audit pack | T-01,R-01 | not_started | access-log, retention, audit-pack, security tests |
+| L-01 | Value ledger, costs, dashboard, exports | D-01,R-01 | passing | 2026-08-04: static contract, pure reconciliation tests, real Compose/PostgreSQL HTTP, authenticated browser smoke, signed baseline/hash provenance, dashboard/event parity, drill-down, and CSV/PDF export checks passed |
+| G-01 | Governance, PII, retention, incidents, audit pack | T-01,R-01 | active | access-log, retention, audit-pack, security tests |
 | X-01 | CI, staging/production deployment, backup/restore | all runtime packages | not_started | CI, migration, deploy, restore-drill evidence |
 | LAUNCH-01 | Customer-ready acceptance, runbooks, hardening | all packages | not_started | 10-day acceptance simulation, handover pack, clean release |
 
@@ -184,12 +184,12 @@ The documented non-product items remain deliberately deferred unless the owner c
 
 ### L-01 - Value realization ledger, dashboards, and exports
 
-- [ ] Implement immutable value events tied to execution, workflow version, signed baseline, method, confidence, formula version, and timestamps.
-- [ ] Record both benefits and costs: touches avoided, time saved, errors prevented, cycle reduction, human touch, model, infrastructure, and rework.
-- [ ] Implement rollups for volume, straight-through, review, measured error, cycle time vs baseline, hours saved, net dollars, cost/unit, ROI, payback, and adoption.
-- [ ] Add drill-down from every dashboard number to executions, reviews, source artifacts, and audit events.
-- [ ] Export CSV and PDF audit/value packs with reconciliation: auto + reviewed + halted = ingested, with no orphan events.
-- **Verification:** ledger reconciliation property tests, baseline/hash immutability, dashboard/API parity, CSV/PDF render checks, CFO drill-down E2E.
+- [x] Implement immutable value events tied to execution, workflow version, signed baseline, method, confidence, formula version, and timestamps.
+- [x] Record both benefits and costs: touches avoided, time saved, errors prevented, cycle reduction, human touch, model, infrastructure, and rework.
+- [x] Implement rollups for volume, straight-through, review, measured error, cycle time vs baseline, hours saved, net dollars, cost/unit, ROI, payback, and adoption.
+- [x] Add drill-down from every dashboard number to executions, reviews, source artifacts, and audit events.
+- [x] Export CSV and PDF audit/value packs with reconciliation: auto + reviewed + halted = ingested, with no orphan events.
+- **Verification:** `scripts/verify-value-ledger.ps1 -StaticOnly` and `scripts/verify-value-ledger.ps1 -KeepRunning` passed on 2026-08-04: pure reconciliation tests, real Compose/PostgreSQL HTTP, signed baseline/hash provenance, dashboard/event parity, drill-down, CSV/PDF validation, and authenticated browser smoke.
 
 ### G-01 - Governance, PII, retention, incidents, and audit pack
 

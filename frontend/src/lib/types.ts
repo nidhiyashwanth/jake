@@ -919,3 +919,74 @@ export interface RuntimeExecutionListResponse {
     completed_at?: string | null;
   }>;
 }
+
+export type ValueEventKind = "unit_processed" | "touch_avoided" | "time_saved" | "error_prevented" | "cycle_time_reduced" | "human_touch_cost" | "model_cost" | "infra_cost" | "rework" | string;
+
+export interface ValueEventRecord {
+  id: string;
+  event_key: string;
+  workspace_id: string;
+  execution_id?: string | null;
+  workflow_version_id?: string | null;
+  workflow_version_hash?: string | null;
+  baseline_id?: string | null;
+  baseline_hash?: string | null;
+  review_task_id?: string | null;
+  source_artifact_type: string;
+  source_artifact_id: string;
+  audit_event_id?: string | null;
+  kind: ValueEventKind;
+  quantity: number;
+  unit: string;
+  dollar_value: number;
+  method: string;
+  confidence: string;
+  formula_version: string;
+  metadata: Record<string, unknown>;
+  computed_at: string;
+  created_at: string;
+  links: Record<string, string>;
+}
+
+export interface ValueRollup {
+  formula_version: string;
+  period: { start?: string | null; end?: string | null };
+  baseline: { id?: string | null; hash?: string | null; metrics: Record<string, number> };
+  volume: {
+    ingested: number;
+    auto: number;
+    reviewed: number;
+    halted: number;
+    straight_through_rate_pct: number;
+    review_rate_pct: number;
+    measured_error_rate_pct?: number | null;
+  };
+  reconciliation: { ingested: number; auto: number; reviewed: number; halted: number; delta: number; reconciles: boolean; orphan_events: number };
+  value: {
+    hours_saved: number;
+    gross_benefits_usd: number;
+    costs_usd: number;
+    net_dollars_usd: number;
+    cost_per_completed_unit_usd?: number | null;
+    implementation_cost_usd: number;
+    roi_pct?: number | null;
+    payback_days?: number | null;
+    payback_date?: string | null;
+  };
+  cycle_time: { average_measured_hours?: number | null; baseline_hours?: number | null; reduction_hours: number };
+  adoption: Array<{ actor_id: string; department: string; units: number }>;
+  event_count: number;
+  drilldown: Record<string, string>;
+}
+
+export interface ValueEventsResponse {
+  items: ValueEventRecord[];
+  count: number;
+  limit: number;
+}
+
+export interface ValueDrilldownResponse {
+  metric: string;
+  items: ValueEventRecord[];
+  count: number;
+}

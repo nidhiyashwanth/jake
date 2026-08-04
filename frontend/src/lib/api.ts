@@ -34,6 +34,10 @@ import type {
   RuntimeExecutionListResponse,
   RuntimeExecutionResponse,
   RuntimeObservability,
+  ValueDrilldownResponse,
+  ValueEventRecord,
+  ValueEventsResponse,
+  ValueRollup,
   McpServerRecord,
   ChaseRecord,
   ComplianceDocumentTypeRecord,
@@ -438,6 +442,26 @@ export const api = {
     request<VerificationResponse>(`/api/documents/${documentId}/verify`, { method: "POST" }),
   getStatus: (vendorId: string) => request<StatusResponse>(`/api/vendors/${vendorId}/status`),
   getLedger: (vendorId: string) => request<{ items: AuditEvent[] }>(`/api/vendors/${vendorId}/ledger`),
+  getValueRollup: (params?: { periodStart?: string; periodEnd?: string; workflowVersionId?: string; baselineId?: string; implementationCostUsd?: number }) => {
+    const query = new URLSearchParams();
+    if (params?.periodStart) query.set("period_start", params.periodStart);
+    if (params?.periodEnd) query.set("period_end", params.periodEnd);
+    if (params?.workflowVersionId) query.set("workflow_version_id", params.workflowVersionId);
+    if (params?.baselineId) query.set("baseline_id", params.baselineId);
+    if (params?.implementationCostUsd !== undefined) query.set("implementation_cost_usd", String(params.implementationCostUsd));
+    return request<ValueRollup>(`/api/value/rollup${query.toString() ? `?${query.toString()}` : ""}`);
+  },
+  listValueEvents: (params?: { kind?: string; limit?: number; periodStart?: string; periodEnd?: string }) => {
+    const query = new URLSearchParams();
+    if (params?.kind) query.set("kind", params.kind);
+    if (params?.limit) query.set("limit", String(params.limit));
+    if (params?.periodStart) query.set("period_start", params.periodStart);
+    if (params?.periodEnd) query.set("period_end", params.periodEnd);
+    return request<ValueEventsResponse>(`/api/value/events${query.toString() ? `?${query.toString()}` : ""}`);
+  },
+  getValueDrilldown: (metric: string, limit = 100) => request<ValueDrilldownResponse>(`/api/value/drilldown?metric=${encodeURIComponent(metric)}&limit=${limit}`),
+  exportValueCsv: (params?: { implementationCostUsd?: number }) => requestBlob(`/api/value/exports/value.csv${params?.implementationCostUsd !== undefined ? `?implementation_cost_usd=${params.implementationCostUsd}` : ""}`),
+  exportValuePdf: (params?: { implementationCostUsd?: number }) => requestBlob(`/api/value/exports/value.pdf${params?.implementationCostUsd !== undefined ? `?implementation_cost_usd=${params.implementationCostUsd}` : ""}`),
   getReviews: () => request<{ items: ReviewTask[] }>("/api/reviews"),
   getReviewQueue: (status = "open", limit = 50) => request<import("./types").ReviewQueueResponse>(`/api/reviews/queue?status=${encodeURIComponent(status)}&limit=${limit}`),
   getReviewDetail: (reviewId: string) => request<{ review: import("./types").ReviewDetail }>(`/api/reviews/${reviewId}`),

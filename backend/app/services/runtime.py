@@ -32,6 +32,7 @@ from app.models import (
     utc_now,
 )
 from app.services.observability import emit_runtime_event, observability_status, redact_untrusted, trace_context
+from app.services.value_ledger import ensure_execution_value_events
 
 
 TERMINAL_EXECUTION_STATES = frozenset({"completed", "dead_letter", "failed", "halted", "replayed"})
@@ -531,6 +532,8 @@ def _advance_one(db: Session, execution: Execution, worker_id: str) -> Execution
 
 def _reconcile_execution(db: Session, execution: Execution) -> None:
     if execution.status in {"waiting_human", "halted", "dead_letter", "failed"}:
+        if execution.status in TERMINAL_EXECUTION_STATES:
+            ensure_execution_value_events(db, execution)
         return
     steps = db.scalars(select(ExecutionStep).where(ExecutionStep.execution_id == execution.id)).all()
     if steps and all(step.status in {"completed", "skipped"} for step in steps):
@@ -551,6 +554,8 @@ def _reconcile_execution(db: Session, execution: Execution) -> None:
         execution.status = "dead_letter"
     else:
         execution.status = "running"
+    if execution.status in TERMINAL_EXECUTION_STATES:
+        ensure_execution_value_events(db, execution)
 
 
 def advance_execution(db: Session, execution: Execution, *, worker_id: str, max_steps: int = 1) -> list[ExecutionStep]:

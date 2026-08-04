@@ -56,6 +56,8 @@ WORKFLOW_PUBLISH_ACTION = "workflow.publish"
 WORKFLOW_EVALUATION_WRITE_ACTION = "workflow.evaluation.write"
 BASELINE_SIGN_ACTION = "baseline.sign"
 AUDIT_READ_ACTION = "audit.read"
+VALUE_READ_ACTION = "value.read"
+VALUE_EXPORT_ACTION = "value.export"
 RUNTIME_READ_ACTIONS = frozenset({"execution.read", "execution.event.read", "execution.outbox.read"})
 RUNTIME_RUN_ACTIONS = frozenset({"execution.create", "execution.run", "execution.retry", "execution.replay"})
 WRITE_ACTIONS = frozenset(
@@ -87,7 +89,7 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | REVIEW_WRITE_ACTIONS
         | CONNECTOR_READ_ACTIONS
         | CONNECTOR_WRITE_ACTIONS
-        | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION}
+        | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION, VALUE_READ_ACTION, VALUE_EXPORT_ACTION}
         | WRITE_ACTIONS
         | MEMBERSHIP_ACTIONS
         | {"workspace.manage"}
@@ -110,7 +112,7 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | REVIEW_WRITE_ACTIONS
         | CONNECTOR_READ_ACTIONS
         | CONNECTOR_WRITE_ACTIONS
-        | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION}
+        | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION, VALUE_READ_ACTION, VALUE_EXPORT_ACTION}
         | WRITE_ACTIONS
         | MEMBERSHIP_ACTIONS
         | {"workspace.manage"}
@@ -128,13 +130,14 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | {WORKFLOW_PUBLISH_ACTION}
         | RUNTIME_READ_ACTIONS
         | RUNTIME_RUN_ACTIONS
+        | {VALUE_READ_ACTION}
         | REVIEW_READ_ACTIONS
         | {"connector.read", "mcp.read"}
         | {"vendor.create", "document.upload", "document.verify"}
     ),
-    "operator": GENERAL_READ_ACTIONS | COMPLIANCE_READ_ACTIONS | CHASE_WRITE_ACTIONS | CONFIDENCE_READ_ACTIONS | {"confidence.assess", "confidence.audit"} | REVIEW_READ_ACTIONS | REVIEW_WRITE_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {"execution.run", "execution.retry", "execution.replay", "vendor.create", "document.upload", "document.verify", "review.update", "connector.read", "mcp.read", "connector.test", "mcp.call"},
-    "viewer": GENERAL_READ_ACTIONS | COMPLIANCE_READ_ACTIONS | CONFIDENCE_READ_ACTIONS | REVIEW_READ_ACTIONS | DISCOVERY_READ_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {"connector.read", "mcp.read"},
-    "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"}) | COMPLIANCE_READ_ACTIONS | REVIEW_READ_ACTIONS | {"connector.read", "mcp.read", "credential.access.read"}
+    "operator": GENERAL_READ_ACTIONS | COMPLIANCE_READ_ACTIONS | CHASE_WRITE_ACTIONS | CONFIDENCE_READ_ACTIONS | {"confidence.assess", "confidence.audit"} | REVIEW_READ_ACTIONS | REVIEW_WRITE_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {VALUE_READ_ACTION} | {"execution.run", "execution.retry", "execution.replay", "vendor.create", "document.upload", "document.verify", "review.update", "connector.read", "mcp.read", "connector.test", "mcp.call"},
+    "viewer": GENERAL_READ_ACTIONS | COMPLIANCE_READ_ACTIONS | CONFIDENCE_READ_ACTIONS | REVIEW_READ_ACTIONS | DISCOVERY_READ_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {VALUE_READ_ACTION} | {"connector.read", "mcp.read"},
+    "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read", VALUE_READ_ACTION, VALUE_EXPORT_ACTION}) | COMPLIANCE_READ_ACTIONS | REVIEW_READ_ACTIONS | {"connector.read", "mcp.read", "credential.access.read"}
     | CONFIDENCE_READ_ACTIONS
     | DISCOVERY_READ_ACTIONS
     | WORKFLOW_READ_ACTIONS
