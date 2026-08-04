@@ -650,12 +650,15 @@ function Invoke-Compose {
 }
 
 function Invoke-StorageGuard {
-    $powerShellCommand = Get-Command powershell.exe -ErrorAction SilentlyContinue
+    $powerShellCommand = Get-Command pwsh -ErrorAction SilentlyContinue
+    if ($null -eq $powerShellCommand) {
+        $powerShellCommand = Get-Command powershell.exe -ErrorAction SilentlyContinue
+    }
     if ($null -eq $powerShellCommand) {
         $powerShellCommand = Get-Command powershell -ErrorAction SilentlyContinue
     }
     if ($null -eq $powerShellCommand) {
-        throw "W-01 prerequisite: Windows PowerShell was not found for the 32 GB Docker storage guard."
+        throw "W-01 prerequisite: a PowerShell host was not found for the 32 GB Docker storage guard."
     }
     $guardOutput = @(& $powerShellCommand.Source -NoProfile -ExecutionPolicy Bypass -File $storageGuardPath -MaxGb 32 2>&1)
     if ($LASTEXITCODE -ne 0) {

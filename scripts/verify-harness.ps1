@@ -166,8 +166,17 @@ function Test-Verification {
 
     $secretScriptPath = Join-Path $repoRoot 'scripts/check-secrets.ps1'
     if (Test-Path -LiteralPath $secretScriptPath -PathType Leaf) {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $secretScriptPath | Out-Null
-        if ($LASTEXITCODE -ne 0) {
+        $powerShellCommand = Get-Command pwsh -ErrorAction SilentlyContinue
+        if ($null -eq $powerShellCommand) { $powerShellCommand = Get-Command powershell.exe -ErrorAction SilentlyContinue }
+        if ($null -eq $powerShellCommand) { $powerShellCommand = Get-Command powershell -ErrorAction SilentlyContinue }
+        $secretExitCode = 0
+        if ($null -eq $powerShellCommand) {
+            Add-Failure 'A PowerShell host is required to run scripts/check-secrets.ps1.'
+        } else {
+            & $powerShellCommand.Source -NoProfile -ExecutionPolicy Bypass -File $secretScriptPath | Out-Null
+            $secretExitCode = $LASTEXITCODE
+        }
+        if ($secretExitCode -ne 0) {
             Add-Failure 'scripts/check-secrets.ps1 found a tracked credential or private-key pattern. Inspect the reported paths without printing secret contents.'
         }
     }

@@ -25,6 +25,9 @@ $composePrefix = @()
 $started = $false
 $envBackup = @{}
 $envHad = @{}
+$powerShellCommand = Get-Command pwsh -ErrorAction SilentlyContinue
+if ($null -eq $powerShellCommand) { $powerShellCommand = Get-Command powershell.exe -ErrorAction SilentlyContinue }
+if ($null -eq $powerShellCommand) { $powerShellCommand = Get-Command powershell -ErrorAction SilentlyContinue }
 $portEnv = [ordered]@{
     BACKEND_PORT = [string]$backendPort
     FRONTEND_PORT = [string]$frontendPort
@@ -41,9 +44,15 @@ function Assert-Condition {
     if (-not $Condition) { throw "X-01 assertion failed: $Message" }
 }
 
+function Invoke-PowerShell {
+    param([Parameter(Mandatory)][string[]]$Arguments)
+    Assert-Condition ($null -ne $script:powerShellCommand) "PowerShell is required for nested verifier scripts"
+    & $script:powerShellCommand.Source @Arguments
+}
+
 function Invoke-StorageGuard {
     if (Test-Path -LiteralPath $storageGuardPath -PathType Leaf) {
-        & powershell -NoProfile -ExecutionPolicy Bypass -File $storageGuardPath -MaxGb 32 2>&1 | Out-Null
+        Invoke-PowerShell -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $storageGuardPath, "-MaxGb", "32") 2>&1 | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "X-01 storage guard failed; Docker usage must remain within 32 GB" }
     }
 }
@@ -219,9 +228,9 @@ function Invoke-X01Browser {
 function Invoke-X01Recovery {
     $backupScript = Join-Path $repoRoot "scripts\backup-postgres.ps1"
     $restoreScript = Join-Path $repoRoot "scripts\restore-postgres.ps1"
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $backupScript -ProjectName $projectName -EnvFile ".env" -ComposeFile "docker-compose.yml" -OutputPath $backupPath | Out-Null
+    Invoke-PowerShell -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $backupScript, "-ProjectName", $projectName, "-EnvFile", ".env", "-ComposeFile", "docker-compose.yml", "-OutputPath", $backupPath) | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "X-01 backup script failed" }
-    & powershell -NoProfile -ExecutionPolicy Bypass -File $restoreScript -ProjectName $projectName -EnvFile ".env" -ComposeFile "docker-compose.yml" -BackupPath $backupPath | Out-Null
+    Invoke-PowerShell -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", $restoreScript, "-ProjectName", $projectName, "-EnvFile", ".env", "-ComposeFile", "docker-compose.yml", "-BackupPath", $backupPath) | Out-Null
     if ($LASTEXITCODE -ne 0) { throw "X-01 restore drill failed" }
     Write-Output "X-01 RECOVERY PASS: custom-format PostgreSQL backup, manifest hash, isolated restore, and schema evidence verified."
 }
@@ -243,7 +252,7 @@ function Invoke-X01SupplyChain {
             "-Image", $image
         )
         if ($AllowScannerAuthFailure) { $sbomArgs += "-AllowScannerAuthFailure" }
-        & powershell @sbomArgs
+        Invoke-PowerShell -Arguments $sbomArgs
         if ($LASTEXITCODE -ne 0) { throw "SBOM/CVE analysis failed for a built image" }
     }
     if ($AllowScannerAuthFailure) {
@@ -277,7 +286,7 @@ try {
         Write-Output "X-01 STATIC PASS: CI, environment boundaries, Docker hardening, Render target, migration policy, recovery scripts, SBOM contract, and browser smoke verified."
     } else {
         Start-X01Compose
-        & powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $repoRoot "scripts\verify-migrations.ps1") -ProjectName $projectName -EnvFile ".env" -ComposeFile "docker-compose.yml" | Out-Null
+        Invoke-PowerShell -Arguments @("-NoProfile", "-ExecutionPolicy", "Bypass", "-File", (Join-Path $repoRoot "scripts\verify-migrations.ps1"), "-ProjectName", $projectName, "-EnvFile", ".env", "-ComposeFile", "docker-compose.yml") | Out-Null
         if ($LASTEXITCODE -ne 0) { throw "X-01 migration verification failed" }
         Invoke-X01HttpSmoke
         Invoke-X01Browser
