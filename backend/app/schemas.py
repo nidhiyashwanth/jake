@@ -664,3 +664,59 @@ class ErrorEnvelope(BaseModel):
 
 
 JsonValue = Any
+
+
+class RuntimeExecutionCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    workflow_version_id: str = Field(min_length=1, max_length=36)
+    input: dict[str, Any] = Field(default_factory=dict)
+    idempotency_key: str = Field(min_length=8, max_length=200)
+    correlation_id: str | None = Field(default=None, max_length=120)
+    max_retries: int = Field(default=3, ge=0, le=12)
+
+    @field_validator("workflow_version_id", "idempotency_key", "correlation_id")
+    @classmethod
+    def trim_runtime_identifiers(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        if not value:
+            raise ValueError("runtime identifiers cannot be blank")
+        return value
+
+
+class RuntimeAdvanceRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    worker_id: str | None = Field(default=None, max_length=120)
+    max_steps: int = Field(default=1, ge=1, le=50)
+
+
+class RuntimeRetryRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    reason: str = Field(min_length=3, max_length=2000)
+    step_id: str | None = Field(default=None, max_length=36)
+
+
+class RuntimeResumeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    decision: str = Field(min_length=1, max_length=100)
+    output: dict[str, Any] = Field(default_factory=dict)
+    note: str | None = Field(default=None, max_length=2000)
+
+
+class RuntimeReplayRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    idempotency_key: str | None = Field(default=None, min_length=8, max_length=200)
+    correlation_id: str | None = Field(default=None, max_length=120)
+
+
+class RuntimeOutboxDispatchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    worker_id: str | None = Field(default=None, max_length=120)
+    limit: int = Field(default=20, ge=1, le=100)

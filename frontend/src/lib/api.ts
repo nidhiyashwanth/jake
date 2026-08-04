@@ -24,6 +24,9 @@ import type {
   WorkflowValidationResponse,
   WorkflowVersion,
   WorkflowVersionResponse,
+  RuntimeExecution,
+  RuntimeExecutionListResponse,
+  RuntimeExecutionResponse,
 } from "./types";
 import { normalizeWorkflowDetail, normalizeWorkflowList, normalizeWorkflowVersion, serializeWorkflowSpec } from "./workflow-contract";
 
@@ -413,6 +416,22 @@ export const api = {
     request<WorkflowVersionResponse>(`/api/workflow-versions/${versionId}/evaluation-runs`, { method: "POST", body: JSON.stringify({ suite_key: "w01.synthetic.baseline" }) }),
   publishWorkflowVersion: (workflowId: string, versionId: string) =>
     request<WorkflowPublishResponse>(`/api/workflow-versions/${versionId}/publish`, { method: "POST" }),
+  listExecutions: (status?: string) =>
+    request<RuntimeExecutionListResponse>(`/api/runtime/executions${status ? `?status=${encodeURIComponent(status)}` : ""}`),
+  getExecution: async (executionId: string): Promise<RuntimeExecution> =>
+    (await request<RuntimeExecutionResponse>(`/api/runtime/executions/${executionId}`)).execution,
+  createExecution: async (payload: { workflow_version_id: string; input: Record<string, unknown>; idempotency_key: string; correlation_id?: string; max_retries?: number }) =>
+    request<RuntimeExecutionResponse>("/api/runtime/executions", { method: "POST", body: JSON.stringify(payload) }),
+  advanceExecution: async (executionId: string, maxSteps = 1) =>
+    request<RuntimeExecutionResponse>(`/api/runtime/executions/${executionId}/advance`, { method: "POST", body: JSON.stringify({ max_steps: maxSteps }) }),
+  retryExecution: async (executionId: string, reason: string, stepId?: string) =>
+    request<RuntimeExecutionResponse>(`/api/runtime/executions/${executionId}/retry`, { method: "POST", body: JSON.stringify({ reason, step_id: stepId }) }),
+  resumeExecution: async (executionId: string, decision: string, output: Record<string, unknown> = {}, note?: string) =>
+    request<RuntimeExecutionResponse>(`/api/runtime/executions/${executionId}/resume`, { method: "POST", body: JSON.stringify({ decision, output, note }) }),
+  replayExecution: async (executionId: string, idempotencyKey?: string) =>
+    request<RuntimeExecutionResponse>(`/api/runtime/executions/${executionId}/replay`, { method: "POST", body: JSON.stringify({ idempotency_key: idempotencyKey }) }),
+  recoverRuntimeWorker: () => request<{ recovered: number; lease_seconds: number }>("/api/runtime/workers/recover", { method: "POST" }),
+  dispatchRuntimeOutbox: (limit = 20) => request<{ dispatched: number; event_ids: string[] }>("/api/runtime/outbox/dispatch", { method: "POST", body: JSON.stringify({ limit }) }),
 };
 
 function setActiveWorkspaceContext(workspaceId: string | null) {

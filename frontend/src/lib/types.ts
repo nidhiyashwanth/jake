@@ -411,3 +411,106 @@ export interface WorkflowPublishResponse {
   eval_gate?: EvaluationGate;
   failure_reasons?: string[];
 }
+
+export type ExecutionStatus = "queued" | "running" | "waiting_human" | "completed" | "failed" | "dead_letter" | "halted" | "replayed" | string;
+export type ExecutionStepStatus = "pending" | "claimed" | "running" | "waiting_human" | "completed" | "failed" | "dead_letter" | "skipped" | string;
+
+export interface RuntimeExecutionStep {
+  id: string;
+  node_key: string;
+  node_type: string;
+  sequence: number;
+  status: ExecutionStepStatus;
+  attempt: number;
+  input?: Record<string, unknown> | null;
+  output?: Record<string, unknown> | null;
+  error?: Record<string, unknown> | null;
+  provider?: string | null;
+  model_ref?: string | null;
+  prompt_ref?: string | null;
+  prompt_version?: number | null;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  latency_ms?: number | null;
+  idempotency_key?: string | null;
+  correlation_id: string;
+  wait_reason?: string | null;
+  compensation?: Record<string, unknown> | null;
+  claimed_by?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+export interface RuntimeOutboxEvent {
+  id: string;
+  event_type: string;
+  dedupe_key: string;
+  status: string;
+  attempts: number;
+  correlation_id: string;
+  created_at: string;
+  delivered_at?: string | null;
+}
+
+export interface RuntimeExecutionEvent {
+  id: string;
+  type: string;
+  step_id?: string | null;
+  correlation_id: string;
+  payload: Record<string, unknown>;
+  occurred_at: string;
+}
+
+export interface RuntimeExecution {
+  id: string;
+  workspace_id: string;
+  workflow_id: string;
+  workflow_version_id: string;
+  workflow_version_hash: string;
+  idempotency_key: string;
+  correlation_id: string;
+  status: ExecutionStatus;
+  input: Record<string, unknown>;
+  output?: Record<string, unknown> | null;
+  error?: Record<string, unknown> | null;
+  retry_count: number;
+  max_retries: number;
+  dry_run: boolean;
+  replay_of_id?: string | null;
+  created_by: string;
+  queued_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  next_attempt_at?: string | null;
+  steps: RuntimeExecutionStep[];
+  outbox: RuntimeOutboxEvent[];
+  external_write_count: number;
+  events: RuntimeExecutionEvent[];
+}
+
+export interface RuntimeExecutionResponse {
+  execution: RuntimeExecution;
+  created?: boolean;
+  idempotent?: boolean;
+  side_effects?: boolean;
+  replay_of_id?: string;
+  advanced_steps?: string[];
+  retried_step_id?: string;
+  resumed_step_id?: string;
+}
+
+export interface RuntimeExecutionListResponse {
+  items: Array<{
+    id: string;
+    workflow_id: string;
+    workflow_version_id: string;
+    workflow_version_hash: string;
+    status: ExecutionStatus;
+    correlation_id: string;
+    idempotency_key: string;
+    dry_run: boolean;
+    created_at: string;
+    completed_at?: string | null;
+  }>;
+}

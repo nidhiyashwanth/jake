@@ -97,3 +97,11 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** The live integration gate exposed drift between isolated frontend, backend, and verifier assumptions. A real product needs one durable ID contract, no client-forged evaluation result, and explicit proof that browser saves, workspace isolation, graph validation, and publish immutability operate against PostgreSQL.
 - **Rejected alternative:** Hide route/payload mismatches behind client adapters only, accept client-supplied pass/fail results, or treat a static graph screenshot as workflow persistence evidence.
 - **Remaining constraints:** Full golden-set evaluation, durable execution, connectors, review, ledger, governance, deployment, and launch packages remain separate dependency-gated work; published workflow children and evaluation results stay immutable.
+
+## D-013 â€” Derive runtime order from the published DAG, not canonical storage order
+
+- **Date:** 2026-08-04
+- **Decision:** R-01 creates execution steps from a deterministic topological traversal of the published workflow edges. Canonical node sorting remains available for stable definition hashes, but it is never treated as execution order.
+- **Why:** The live runtime gate exposed that lexicographic storage order could execute an approval node before the tool it was intended to gate. Edge-owned sequencing is required for durable retries, human waits, and side-effect fences to mean what the workflow author configured.
+- **Rejected alternative:** Use the sorted node rows as the queue order or let a model infer the next node at runtime.
+- **Remaining constraints:** Published workflow validation must continue to reject cycles; independent branches use stable node-key tie-breaking until explicit parallel-join semantics are introduced.

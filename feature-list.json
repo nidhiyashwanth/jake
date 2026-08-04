@@ -68,15 +68,15 @@
     {
       "id": "R-01",
       "behavior": "A durable worker can execute workflow nodes with retries, idempotency, human waits, outbox events, crash recovery, and replay without side effects.",
-      "verification": "Worker crash, retry, idempotency, outbox, and replay integration suite",
-      "state": "active",
-      "evidence": ""
+      "verification": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-runtime.ps1; python -m pytest -q backend/tests/runtime/test_runtime_postgres.py",
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-runtime.ps1 passed static, real Compose/PostgreSQL HTTP, and authenticated browser checks for pinned graph order, idempotency, approval/resume, exactly-once external-write receipts, safe replay, outbox dispatch, stale-claim recovery, RBAC, and workspace isolation; runtime PostgreSQL integration test passed 1 test; frontend typecheck, 6 contract tests, and production build passed."
     },
     {
       "id": "V-01",
       "behavior": "An operator can process a prioritized review queue using keyboard controls, field provenance, corrections, escalation, SLA, and guarded bulk actions.",
       "verification": "Real-browser keyboard, provenance, queue, SLA, correction, escalation, and bulk-cap E2E suite",
-      "state": "not_started",
+      "state": "active",
       "evidence": ""
     },
     {

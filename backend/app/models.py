@@ -538,3 +538,146 @@ class WorkflowEvaluationResult(WorkspaceScopedMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     workflow_version: Mapped[WorkflowVersion] = relationship(back_populates="evaluations")
+
+
+class Execution(WorkspaceScopedMixin, Base):
+    """Durable run state pinned to one immutable workflow version."""
+
+    __tablename__ = "executions"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "idempotency_key", name="uq_executions_workspace_idempotency"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    workflow_id: Mapped[str] = mapped_column(ForeignKey("workflows.id"), nullable=False, index=True)
+    workflow_version_id: Mapped[str] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False, index=True)
+    workflow_version_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    correlation_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="queued", index=True)
+    input_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    output_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    error_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    retry_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    max_retries: Mapped[int] = mapped_column(nullable=False, default=3)
+    dry_run: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    replay_of_id: Mapped[str | None] = mapped_column(ForeignKey("executions.id"), nullable=True, index=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    queued_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    steps: Mapped[list["ExecutionStep"]] = relationship(
+        back_populates="execution", cascade="all, delete-orphan", order_by="ExecutionStep.sequence"
+    )
+    outbox_events: Mapped[list["OutboxEvent"]] = relationship(
+        back_populates="execution", cascade="all, delete-orphan", order_by="OutboxEvent.created_at"
+    )
+
+
+class ExecutionStep(WorkspaceScopedMixin, Base):
+    """One durable node attempt; only pending rows are claimable by a worker."""
+
+    __tablename__ = "execution_steps"
+    __table_args__ = (
+        UniqueConstraint("execution_id", "node_key", name="uq_execution_steps_execution_node"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    execution_id: Mapped[str] = mapped_column(ForeignKey("executions.id"), nullable=False, index=True)
+    workflow_version_id: Mapped[str] = mapped_column(ForeignKey("workflow_versions.id"), nullable=False, index=True)
+    node_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    node_type: Mapped[str] = mapped_column(String(20), nullable=False)
+    sequence: Mapped[int] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending", index=True)
+    attempt: Mapped[int] = mapped_column(nullable=False, default=0)
+    input_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    output_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    error_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    provider: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    model_ref: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    prompt_ref: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    prompt_version: Mapped[int | None] = mapped_column(nullable=True)
+    input_tokens: Mapped[int] = mapped_column(nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(nullable=False, default=0)
+    cost_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0)
+    latency_ms: Mapped[int | None] = mapped_column(nullable=True)
+    idempotency_key: Mapped[str | None] = mapped_column(String(240), nullable=True, index=True)
+    correlation_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    claimed_by: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    wait_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    compensation_json: Mapped[dict[str, Any] | None] = mapped_column(JSON, nullable=True)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False
+    )
+
+    execution: Mapped[Execution] = relationship(back_populates="steps")
+
+
+class OutboxEvent(WorkspaceScopedMixin, Base):
+    """Transactional event delivery record; delivery is at-least-once and dedupe-keyed."""
+
+    __tablename__ = "outbox_events"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "dedupe_key", name="uq_outbox_workspace_dedupe"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    execution_id: Mapped[str | None] = mapped_column(ForeignKey("executions.id"), nullable=True, index=True)
+    step_id: Mapped[str | None] = mapped_column(ForeignKey("execution_steps.id"), nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    dedupe_key: Mapped[str] = mapped_column(String(240), nullable=False)
+    correlation_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending", index=True)
+    attempts: Mapped[int] = mapped_column(nullable=False, default=0)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    claimed_by: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    execution: Mapped[Execution | None] = relationship(back_populates="outbox_events")
+
+
+class ExternalWriteReceipt(WorkspaceScopedMixin, Base):
+    """The durable idempotency fence for an external connector write."""
+
+    __tablename__ = "external_write_receipts"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "idempotency_key", name="uq_external_writes_workspace_idempotency"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    execution_id: Mapped[str] = mapped_column(ForeignKey("executions.id"), nullable=False, index=True)
+    step_id: Mapped[str] = mapped_column(ForeignKey("execution_steps.id"), nullable=False, index=True)
+    idempotency_key: Mapped[str] = mapped_column(String(240), nullable=False)
+    connector_key: Mapped[str] = mapped_column(String(120), nullable=False)
+    payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    response_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class ExecutionEvent(WorkspaceScopedMixin, Base):
+    """Append-only run timeline used by the inspector and operational support."""
+
+    __tablename__ = "execution_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    execution_id: Mapped[str] = mapped_column(ForeignKey("executions.id"), nullable=False, index=True)
+    step_id: Mapped[str | None] = mapped_column(ForeignKey("execution_steps.id"), nullable=True, index=True)
+    event_type: Mapped[str] = mapped_column(String(100), nullable=False)
+    correlation_id: Mapped[str] = mapped_column(String(120), nullable=False, index=True)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)

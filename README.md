@@ -4,7 +4,7 @@ Research completed 2026-08-03. Source: full teardown of deployly.ai (all 6 publi
 
 ## Current operating phase
 
-This workspace has a **passing F01 foundation, passing W-01 workflow-definition slice, and an active full-product execution plan**. The research set is complete, the vendor/subcontractor compliance-document wedge and full-time/raise operating mode are selected, and the remaining application is decomposed in [task.md](task.md). Read [AGENTS.md](AGENTS.md) before changing anything.
+This workspace has a **passing F01 foundation, passing W-01 workflow-definition slice, passing R-01 durable runtime, and an active full-product execution plan**. The research set is complete, the vendor/subcontractor compliance-document wedge and full-time/raise operating mode are selected, and the remaining application is decomposed in [task.md](task.md). Read [AGENTS.md](AGENTS.md) before changing anything.
 
 Run the current harness check with:
 
@@ -18,9 +18,15 @@ Run the real local MVP path with Docker Desktop and PostgreSQL 16:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
 ```
 
+Run the durable runtime gate with real Compose/PostgreSQL and browser evidence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-runtime.ps1
+```
+
 The complete product backlog, reusable workstream prompt, dependencies, and package gates live in [task.md](task.md). F01 is the foundation checkpoint; it is not the whole product.
 
-The current WIP package is `R-01` durable execution, workers, outbox, and replay. WIP remains one package at a time.
+The current WIP package is `V-01` human review desk, queue, provenance, corrections, and operator controls. WIP remains one package at a time.
 
 The harness state lives in [PROGRESS.md](PROGRESS.md), durable reasoning lives in [DECISIONS.md](DECISIONS.md), and executable scope lives in [feature-list.json](feature-list.json).
 

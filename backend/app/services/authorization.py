@@ -47,6 +47,8 @@ WORKFLOW_PUBLISH_ACTION = "workflow.publish"
 WORKFLOW_EVALUATION_WRITE_ACTION = "workflow.evaluation.write"
 BASELINE_SIGN_ACTION = "baseline.sign"
 AUDIT_READ_ACTION = "audit.read"
+RUNTIME_READ_ACTIONS = frozenset({"execution.read", "execution.event.read", "execution.outbox.read"})
+RUNTIME_RUN_ACTIONS = frozenset({"execution.create", "execution.run", "execution.retry", "execution.replay"})
 WRITE_ACTIONS = frozenset(
     {
         "vendor.create",
@@ -65,6 +67,8 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | WORKFLOW_READ_ACTIONS
         | WORKFLOW_BUILD_ACTIONS
         | {WORKFLOW_PUBLISH_ACTION, WORKFLOW_EVALUATION_WRITE_ACTION}
+        | RUNTIME_READ_ACTIONS
+        | RUNTIME_RUN_ACTIONS
         | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION}
         | WRITE_ACTIONS
         | MEMBERSHIP_ACTIONS
@@ -77,6 +81,8 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | WORKFLOW_READ_ACTIONS
         | WORKFLOW_BUILD_ACTIONS
         | {WORKFLOW_PUBLISH_ACTION, WORKFLOW_EVALUATION_WRITE_ACTION}
+        | RUNTIME_READ_ACTIONS
+        | RUNTIME_RUN_ACTIONS
         | {BASELINE_SIGN_ACTION, AUDIT_READ_ACTION}
         | WRITE_ACTIONS
         | MEMBERSHIP_ACTIONS
@@ -89,13 +95,16 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | WORKFLOW_READ_ACTIONS
         | WORKFLOW_BUILD_ACTIONS
         | {WORKFLOW_PUBLISH_ACTION}
+        | RUNTIME_READ_ACTIONS
+        | RUNTIME_RUN_ACTIONS
         | {"vendor.create", "document.upload", "document.verify"}
     ),
-    "operator": GENERAL_READ_ACTIONS | WORKFLOW_READ_ACTIONS | {"vendor.create", "document.upload", "document.verify", "review.update"},
-    "viewer": GENERAL_READ_ACTIONS | DISCOVERY_READ_ACTIONS | WORKFLOW_READ_ACTIONS,
+    "operator": GENERAL_READ_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {"execution.run", "execution.retry", "execution.replay", "vendor.create", "document.upload", "document.verify", "review.update"},
+    "viewer": GENERAL_READ_ACTIONS | DISCOVERY_READ_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS,
     "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"})
     | DISCOVERY_READ_ACTIONS
-    | WORKFLOW_READ_ACTIONS,
+    | WORKFLOW_READ_ACTIONS
+    | RUNTIME_READ_ACTIONS,
 }
 
 

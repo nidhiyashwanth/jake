@@ -62,8 +62,8 @@ The documented non-product items remain deliberately deferred unless the owner c
 | T-01 | Organizations, workspaces, auth, RBAC, RLS | H-01 | passing | 2026-08-04: live Compose/API/browser tenant-isolation, role, RLS, session, audit, and F01 evidence passed |
 | D-01 | Discovery, signed baselines, opportunity scoring | T-01 | passing | 2026-08-04: static contract, real Compose/PostgreSQL API E2E, backend suite, and live Discovery Studio browser flow passed |
 | W-01 | Workflow definitions, DAG versioning, designer, publish gate | D-01 | passing | 2026-08-04: real Compose/PostgreSQL HTTP and browser E2E passed |
-| R-01 | Durable runtime, workers, outbox, model boundary | W-01 | active | crash/retry/idempotency/replay integration suite |
-| V-01 | Full review desk, queue, provenance, corrections | R-01 | not_started | keyboard/operator workflow and provenance E2E |
+| R-01 | Durable runtime, workers, outbox, model boundary | W-01 | passing | 2026-08-04: static contract, PostgreSQL integration test, real Compose/PostgreSQL HTTP E2E, and authenticated browser smoke passed |
+| V-01 | Full review desk, queue, provenance, corrections | R-01 | active | keyboard/operator workflow and provenance E2E |
 | C-01 | MCP gateway, connectors, vault, notifications | R-01 | not_started | scoped connector sandbox and credential/audit tests |
 | P-01 | Rules, requirements, document taxonomy, chase agent | V-01 | not_started | wedge golden set and safe chase E2E |
 | Q-01 | Confidence, routing, thresholds, sampled audit | P-01 | not_started | threshold simulator and false-auto gate |
@@ -123,12 +123,12 @@ The documented non-product items remain deliberately deferred unless the owner c
 
 ### R-01 - Durable execution runtime and worker boundary
 
-- [ ] Implement Postgres-backed execution and execution-step state machine with `FOR UPDATE SKIP LOCKED` claims.
-- [ ] Add transactional context/state/step writes, retry policy, timeouts, dead-letter/halt, human-wait states, and correlation keys.
-- [ ] Add idempotency keys for tool writes, outbox events, replay-safe step checks, and compensation metadata.
-- [ ] Add worker processes with graceful shutdown, crash recovery, backpressure, queue metrics, and manual retry controls.
-- [ ] Add provider abstraction, prompt/model version stamping, cost/token accounting, and bounded LangGraph execution only inside a node.
-- **Verification:** worker-kill recovery, duplicate-delivery idempotency, retry/backoff, replay-without-side-effects, outbox consistency, cost accounting tests.
+- [x] Implement Postgres-backed execution and execution-step state machine with `FOR UPDATE SKIP LOCKED` claims.
+- [x] Add transactional context/state/step writes, retry policy, timeouts, dead-letter/halt, human-wait states, and correlation keys.
+- [x] Add idempotency keys for tool writes, outbox events, replay-safe step checks, and compensation metadata.
+- [x] Add worker processes with graceful shutdown, crash recovery, backpressure, queue metrics, and manual retry controls.
+- [x] Add provider abstraction, prompt/model version stamping, cost/token accounting, and bounded LangGraph execution only inside a node.
+- **Verification:** `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-runtime.ps1` passed on 2026-08-04: static contract, migration, real Compose/PostgreSQL HTTP path, approval/resume external-write fence, idempotency, safe replay, outbox/recovery, RBAC, workspace isolation, and authenticated browser smoke. `python -m pytest -q backend/tests/runtime/test_runtime_postgres.py` passed 1 test against the R-01 PostgreSQL service; frontend typecheck, six contract tests, and production build passed.
 
 ### V-01 - Full human review desk
 
