@@ -4,17 +4,17 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Current state
 
-- **Phase:** Full product execution active; `X-01` CI, environments, deployment, and recovery is the current WIP item.
+- **Phase:** Complete documented product package is passing through `LAUNCH-01`; no required work package remains open. Customer-specific secret-manager wiring, contacts, and real acceptance are deployment-owner inputs, not unchecked repository work.
 - **Latest product checkpoint:** F01 foundation, SEC-01 secure configuration, H-01 full-product harness continuity, T-01 tenancy/auth/RLS, D-01 discovery/baseline/scoring, W-01 workflow definitions/versioning/designer/evaluation gate, R-01 durable runtime/workers/outbox/replay, V-01 review desk/queue/provenance/corrections, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, Q-01 confidence/routing/thresholds/sampled audit, E-01 golden-set evaluation/publish blocking/drift, I-01 execution inspection/replay/observability, L-01 value realization ledger, and G-01 governance/privacy controls are passing.
-- **Last verification:** G-01 static and real Compose/PostgreSQL HTTP/browser gate passed PII field-path classification/redaction, legal-hold retention, source deletion with derived metadata retained, no-training model history, incident lifecycle, export access logging, redacted audit-pack download, and append-only database trigger rejection. Pure G-01/L-01 tests, frontend typecheck/tests/build, migration to `0017_governance`, and the full harness path passed on 2026-08-04. Isolated stacks preserved named PostgreSQL volumes under the 32 GB guard.
+- **Last verification:** GitHub Actions run [`30888809656`](https://github.com/nidhiyashwanth/jake/actions/runs/30888809656) passed X-01 from a clean checkout on 2026-08-04: quality and locked audits, ephemeral PostgreSQL migrations/integration, staging/browser smoke, backup/restore drill, backend/frontend SPDX SBOMs, Trivy image gates, and exact Compose cleanup. The downloaded backend/frontend SARIF artifacts contained zero HIGH/CRITICAL results. The full local `scripts/verify-launch.ps1` then passed the isolated stack, 11-surface owner role tour, delivery/handoff mode switch, synthetic 10-business-day acceptance recomputation, and launch-owned cleanup; all stacks remained under the 32 GB storage guard.
 - **Branch:** `feat/mvp-compliance-mvp`
 
 ## Feature status (source of truth: `feature-list.json`)
 
-- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01, R-01, V-01, C-01, P-01, Q-01, E-01, I-01, L-01, G-01
-- **Active (WIP=1):** X-01 - CI, environments, deployment, and recovery
+- **Passing:** H01, H02, H03, F01, SEC-01, H-01, T-01, D-01, W-01, R-01, V-01, C-01, P-01, Q-01, E-01, I-01, L-01, G-01, X-01
+- **Active (WIP=1 maximum):** none; the product package board is complete
 - **Blocked:** none
-- **Not started:** X-01 and LAUNCH-01 in dependency order; do not activate more than one package.
+- **Not started:** none; any new work requires a new scoped package before implementation.
 
 ## Known issues / blockers
 
@@ -26,9 +26,9 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 
 ## Next actions (ordered; the next session starts at #1)
 
-1. Read the X-01 section of `task.md` and the deployment/recovery sections of `05-ARCHITECTURE.md`, `08-ROADMAP-90-DAY.md`, and `09-RISKS-COMPLIANCE.md`, then inventory the current images, migrations, CI, and backup seams.
-2. Add the smallest complete CI, deployment, migration, storage-budget, and recovery package without changing the documented stack.
-3. Keep the Compose/PostgreSQL path, browser gate, and three-layer verification contract intact while extending the product.
+1. Supply customer-specific secret-manager values, support route keys, and named acceptance owners outside Git.
+2. Replace the synthetic launch manifest with customer-owned, rights-approved evidence before live customer data is accepted.
+3. Promote only the exact CI SHA/image digests after the customer signs the baseline and acceptance window.
 
 ---
 
@@ -39,4 +39,4 @@ This is the living handoff for the AI Operations Deployment Platform. F01 is the
 - [x] New durable decisions are recorded in `DECISIONS.md`.
 - [x] No debug code, temporary files, or stale TODOs remain.
 - [x] One concrete next action is documented.
-- [ ] Git working tree is clean after repository initialization.
+- [ ] Git working tree is clean after the release checkpoint is committed and pushed.

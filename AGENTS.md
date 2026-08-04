@@ -4,7 +4,7 @@ This workspace contains the research, product plan, and the runnable foundation 
 
 ## Current phase
 
-The harness baseline, F01 foundation, T-01 tenancy, D-01 discovery, W-01 workflow-definition slice, R-01 durable runtime, V-01 review desk, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, Q-01 confidence/routing/thresholds/sampled audit, E-01 golden-set evaluation/release evidence, I-01 execution inspection/replay/observability, L-01 value realization ledger, and G-01 governance/privacy controls are passing. The full documented product build is active: `X-01` is the current WIP item, and every subsequent package must be selected from `task.md` one at a time. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, `feature-list.json`, and `task.md` are the operational source of truth for agent work.
+The harness baseline, F01 foundation, T-01 tenancy, D-01 discovery, W-01 workflow-definition slice, R-01 durable runtime, V-01 review desk, C-01 connectors/MCP/vault, P-01 rules/requirements/document taxonomy/chase, Q-01 confidence/routing/thresholds/sampled audit, E-01 golden-set evaluation/release evidence, I-01 execution inspection/replay/observability, L-01 value realization ledger, G-01 governance/privacy controls, X-01 CI/deployment/recovery, and LAUNCH-01 customer-ready acceptance are passing. The complete documented product package is built; new work must first create or activate one scoped item in `task.md` and preserve WIP=1. The numbered research documents are the product and market source material. `PROGRESS.md`, `DECISIONS.md`, `feature-list.json`, and `task.md` are the operational source of truth for agent work.
 
 ## Start here
 
@@ -24,6 +24,13 @@ Run the full local path, including Compose startup, PostgreSQL migrations, API f
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
+```
+
+Run the release-candidate acceptance gate, including the live role tour and
+launch-owned cleanup:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-launch.ps1
 ```
 
 To leave the services running for manual review, use `-KeepRunning`; stop that exact Compose project with:
@@ -105,6 +112,12 @@ The current G-01 governance, PII, retention, incident, and audit-pack gate is:
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-governance.ps1
 ```
 
+The current LAUNCH-01 release-candidate gate is:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-launch.ps1
+```
+
 The governance contract, redaction boundary, retention semantics, and audit-pack contents are routed through `docs/GOVERNANCE.md`.
 
 The complete-product gate is the task board plus the relevant package checks. Do not mark a package passing until its row in `task.md`, its row in `feature-list.json`, and its executable evidence agree.
@@ -153,6 +166,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-product.ps1
 - Risk, compliance, and contracts → `09-RISKS-COMPLIANCE.md`
 - Pricing, economics, and fundraising → `06-GTM-PRICING.md`, `10-UNIT-ECONOMICS.md`, `12-FUNDRAISING-PATH.md`
 - Verification and completion gates → `docs/VERIFICATION.md`
+- Launch acceptance, handover, support, and rollback → `docs/LAUNCH-ACCEPTANCE.md`, `docs/RELEASE-CHECKLIST.md`, `docs/OPERATIONS-RUNBOOK.md`
 - Value realization event and export contract → `docs/VALUE-CONTRACT.md`
 - Complete product execution backlog → `task.md`
 - Clock-in, clock-out, and handoff → `docs/WORKFLOW.md`

@@ -97,6 +97,7 @@ jobs:
           ./scripts/verify-migrations.ps1 -StaticOnly
           ./scripts/generate-sbom.ps1 -Image unused -StaticOnly
           ./scripts/verify-x01.ps1 -StaticOnly
+          ./scripts/verify-launch.ps1 -StaticOnly
 
   integration:
     name: Ephemeral PostgreSQL, migrations, staging smoke, and image reports
@@ -185,6 +186,10 @@ jobs:
         run: |
           Copy-Item -LiteralPath $env:CI_ENV_FILE -Destination .env -Force
           ./scripts/verify-x01.ps1 -SkipImageScan
+
+      - name: Run release-candidate acceptance and role tour
+        shell: pwsh
+        run: ./scripts/verify-launch.ps1
 
       - name: Prepare image evidence directory
         shell: bash

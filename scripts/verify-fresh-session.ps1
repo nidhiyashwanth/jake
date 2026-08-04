@@ -26,15 +26,17 @@ Require-Text -RelativePath 'DECISIONS.md' -Text 'D-007'
 
 $features = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'feature-list.json') | ConvertFrom-Json
 $active = @($features.features | Where-Object { $_.state -eq 'active' })
-if ($active.Count -ne 1) {
-    throw ('Fresh-session check failed: expected exactly one active package, found ' + $active.Count)
+if ($active.Count -gt 1) {
+    throw ('Fresh-session check failed: WIP=1 allows at most one active package, found ' + $active.Count)
 }
 
 $taskContent = Get-Content -Raw -LiteralPath (Join-Path $repoRoot 'task.md')
-$activeId = [regex]::Escape([string]$active[0].id)
-$taskPattern = '(?m)^\|\s*{0}\s*\|.*\|\s*active\s*\|' -f $activeId
-if ($taskContent -notmatch $taskPattern) {
-    throw ('Fresh-session check failed: active package is not aligned in task.md')
+if ($active.Count -eq 1) {
+    $activeId = [regex]::Escape([string]$active[0].id)
+    $taskPattern = '(?m)^\|\s*{0}\s*\|.*\|\s*active\s*\|' -f $activeId
+    if ($taskContent -notmatch $taskPattern) {
+        throw ('Fresh-session check failed: active package is not aligned in task.md')
+    }
 }
 
 & git -C $repoRoot check-ignore -q -- .env

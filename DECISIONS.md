@@ -169,3 +169,19 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** Governance is part of the product proof, but the proof itself must not become a new disclosure surface or silently rewrite history. Separating source deletion from derived evidence preserves auditability while respecting retention and legal-hold requirements.
 - **Rejected alternative:** Copy raw document or prompt content into audit packs, store PII values in classification records, delete all derived evidence with source bytes, allow implicit provider training, or rely on application-only immutability.
 - **Remaining constraints:** Production object storage, KMS/secret-manager integration, customer-specific retention schedules, and external incident notification remain deployment/launch concerns; all future packages must consume the G-01 redaction, access-log, and append-only boundaries.
+
+## D-022 -- Make CI image evidence the X-01 release gate
+
+- **Date:** 2026-08-04
+- **Decision:** X-01 uses the checked-in GitHub Actions workflow as the authoritative clean-checkout gate for locked dependency audits, real PostgreSQL integration, staging/browser smoke, backup/restore, SPDX SBOMs, and backend/frontend Trivy scans. Runtime images stay on the documented Python/Node stack, run non-root, and remove unused package-manager content from the production frontend image. Trivy blocks fixable HIGH/CRITICAL findings; unfixed upstream findings remain in the SARIF artifact for review. Local Docker Scout output is supplementary because it requires runner authentication, and the repository storage guard remains capped at 32 GB.
+- **Why:** A local build or a static Dockerfile review cannot prove the deployed image contract. The exact pushed SHA must cross the real Compose, browser, migration, recovery, SBOM, and image-scan boundaries from a clean checkout while preserving the existing stack and bounded local storage.
+- **Rejected alternative:** Treat local Docker Scout output as the release gate, suppress all image findings, change frameworks or databases to avoid scanner results, or make production deployment depend on credentials committed to the repository.
+- **Remaining constraints:** Production provider credentials, object storage, KMS/secret-manager wiring, and customer-specific retention settings remain outside the local X-01 gate and must be supplied through the deployment target before live customer data is accepted.
+
+## D-023 -- Make launch acceptance executable without fabricating customer proof
+
+- **Date:** 2026-08-04
+- **Decision:** LAUNCH-01 uses a checked-in synthetic release-candidate manifest only to prove the acceptance math and evidence shape. The launch gate recomputes the 10-business-day routing counts, straight-through/error rates, sampled-audit floor, golden-set/canary minimums, ledger reconciliation, P1 closure, handover requirements, and release documentation. It then runs the isolated X-01 Compose/PostgreSQL stack, tours all 11 live owner surfaces in a real browser, switches delivery/handoff mode, and removes only the launch-owned project and volume.
+- **Why:** A checklist or mocked browser cannot prove the product can be handed to an operator. A customer-ready system needs explicit ship/hold controls while remaining honest that synthetic evidence is not a customer's signed acceptance.
+- **Rejected alternative:** Mark launch passing from documents alone, use a shared development stack or customer secrets in the tour, trust supplied rate fields without recomputation, or delete the existing base/MVP volume during launch cleanup.
+- **Remaining constraints:** Customer-specific documents, signed baseline, support route keys, secret-manager values, and the real 10-business-day acceptance window must replace the synthetic manifest before production customer data is accepted.

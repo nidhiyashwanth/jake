@@ -38,6 +38,7 @@ if ($openFeatures.Count -gt 0) {
 Invoke-RepositoryScript -RelativePath "scripts/verify-harness.ps1"
 Invoke-RepositoryScript -RelativePath "scripts/check-secrets.ps1"
 Invoke-RepositoryScript -RelativePath "scripts/verify-mvp.ps1"
+Invoke-RepositoryScript -RelativePath "scripts/verify-launch.ps1"
 
 & git -C $repoRoot diff --check
 if ($LASTEXITCODE -ne 0) {

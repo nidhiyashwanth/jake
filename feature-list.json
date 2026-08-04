@@ -132,15 +132,15 @@
       "id": "X-01",
       "behavior": "The product has reproducible CI, staging/production deployment, migrations, observability, dependency evidence, and tested backup recovery.",
       "verification": "Clean-checkout CI, staging smoke, deploy/rollback, migration, SBOM, security, and restore-drill evidence",
-      "state": "active",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-x01.ps1 -StaticOnly passed locally. GitHub Actions run 30888809656 passed from the pushed SHA with clean-checkout quality, locked dependency audits, ephemeral PostgreSQL migration/integration, staging browser smoke, backup/restore drill, backend/frontend SPDX SBOMs, and Trivy image gates; final backend/frontend SARIF artifacts contained zero HIGH/CRITICAL results and the ephemeral Compose project was cleaned up."
     },
     {
       "id": "LAUNCH-01",
       "behavior": "A customer-ready release can pass shadow mode, acceptance criteria, role training, handover, support, export, and rollback checks.",
       "verification": "Release-candidate acceptance simulation and handover evidence bundle",
-      "state": "not_started",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-launch.ps1 -StaticOnly and full launch gate passed. The isolated X-01 stack passed HTTP, migrations, browser, connector, and restore evidence; the live owner role tour visited 11 surfaces and switched delivery/handoff modes; the synthetic acceptance report recomputed 120 cases as 100 auto, 18 reviewed, and 2 halted (83.33% straight-through, 1% measured auto error, 4% sampled audit, zero orphans); exact launch cleanup passed."
     }
   ]
 }

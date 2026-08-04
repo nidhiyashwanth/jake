@@ -1,0 +1,28 @@
+{
+  "contract_version": "launch.v1",
+  "required_paths": [
+    "docs/LAUNCH-ACCEPTANCE.md",
+    "docs/DISCOVERY-INTERVIEW.md",
+    "docs/SOW-ACCEPTANCE-TEMPLATE.md",
+    "docs/OPERATIONS-RUNBOOK.md",
+    "docs/THRESHOLD-RATIONALE.md",
+    "docs/VALUE-REPORT-TEMPLATE.md",
+    "docs/INCIDENT-HISTORY.md",
+    "docs/ROLE-WALKTHROUGHS.md",
+    "docs/SUPPORT-ESCALATION.md",
+    "docs/RELEASE-CHECKLIST.md",
+    "tests/launch/acceptance-manifest.json",
+    "tests/launch/browser_role_tour.py",
+    "scripts/verify-launch.ps1"
+  ],
+  "required_markers": {
+    "acceptance": ["shadow mode", "10-business-day", "straight-through", "sampled audit", "P1"],
+    "operations": ["worker failure", "restore", "retention", "rollback"],
+    "roles": ["Owner", "Builder", "Operator", "Auditor", "non-builder"],
+    "release": ["known limitations", "export", "deletion", "support", "image digests"]
+  },
+  "live": {
+    "frontend_url": "http://localhost:13006",
+    "compose_project": "ai-ops-platform-x01"
+  }
+}

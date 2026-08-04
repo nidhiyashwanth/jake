@@ -77,6 +77,19 @@ the SARIF severity filter remains limited to HIGH/CRITICAL for the exit gate.
 Deployment and rollback semantics are canonical in
 `docs/DEPLOYMENT.md`, and migration policy is canonical in `docs/MIGRATIONS.md`.
 
+LAUNCH-01's focused gate is:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-launch.ps1
+```
+
+It must pass the static acceptance contract, recompute the synthetic shadow/live
+acceptance thresholds from counts, run the isolated X-01 Compose/PostgreSQL
+stack, complete the live owner role tour across the product surfaces, exercise
+delivery/handoff mode switching, and remove only the launch-owned project and
+temporary volume. Customer-specific production values and real customer
+acceptance must replace the synthetic manifest before live data is accepted.
+
 ## Three-layer Definition of Done
 
 Every future feature must stop at the first failed layer:

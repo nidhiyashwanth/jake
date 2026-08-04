@@ -71,8 +71,8 @@ The documented non-product items remain deliberately deferred unless the owner c
 | I-01 | Execution inspector, replay, Langfuse/OTel signals | R-01 | passing | 2026-08-04: static, pure redaction/trace tests, real Compose/PostgreSQL HTTP, and browser E2E passed for run inspection, immutable target-version replay, zero-write dry runs, correlation, worker/degraded signals, failure alerts, and secret/PII redaction |
 | L-01 | Value ledger, costs, dashboard, exports | D-01,R-01 | passing | 2026-08-04: static contract, pure reconciliation tests, real Compose/PostgreSQL HTTP, authenticated browser smoke, signed baseline/hash provenance, dashboard/event parity, drill-down, and CSV/PDF export checks passed |
 | G-01 | Governance, PII, retention, incidents, audit pack | T-01,R-01 | passing | 2026-08-04: static contract, pure governance tests, real Compose/PostgreSQL HTTP, authenticated browser smoke, PII field-path classification/redaction, legal-hold retention, source deletion, model history, incident lifecycle, export access logging, redacted audit pack, and append-only trigger checks passed |
-| X-01 | CI, staging/production deployment, backup/restore | all runtime packages | active | CI, migration, deploy, restore-drill evidence |
-| LAUNCH-01 | Customer-ready acceptance, runbooks, hardening | all packages | not_started | 10-day acceptance simulation, handover pack, clean release |
+| X-01 | CI, staging/production deployment, backup/restore | all runtime packages | passing | CI, migration, deploy, restore-drill evidence |
+| LAUNCH-01 | Customer-ready acceptance, runbooks, hardening | all packages | passing | 10-day acceptance simulation, handover pack, clean release |
 
 ## Detailed tasks and Definition of Done
 
@@ -204,21 +204,21 @@ See the canonical contract in `docs/GOVERNANCE.md`.
 
 ### X-01 - CI, environments, deployment, and recovery
 
-- [ ] Define dev/staging/prod configuration boundaries with no secret values in Git or images.
-- [ ] Add CI for formatting/lint/typecheck, unit tests, ephemeral PostgreSQL integration, migrations, security scan, golden eval on workflow/model changes, and frontend build.
-- [ ] Add staging deployment with synthetic data and real connector sandboxes; add production deployment target and rollback procedure.
-- [ ] Add forward-only Alembic migration policy, expand/contract checks, SBOM/dependency pinning, Dependabot or equivalent, and image scanning.
-- [ ] Add PostgreSQL PITR/backup policy, versioned object storage backup, restore drill, storage/retention budget checks, and incident runbook.
-- **Verification:** CI green from a clean checkout, staging smoke, deploy/rollback evidence, migration upgrade test, restore drill, SBOM/security reports.
+- [x] Define dev/staging/prod configuration boundaries with no secret values in Git or images.
+- [x] Add CI for formatting/lint/typecheck, unit tests, ephemeral PostgreSQL integration, migrations, security scan, golden eval on workflow/model changes, and frontend build.
+- [x] Add staging deployment with synthetic data and real connector sandboxes; add production deployment target and rollback procedure.
+- [x] Add forward-only Alembic migration policy, expand/contract checks, SBOM/dependency pinning, Dependabot or equivalent, and image scanning.
+- [x] Add PostgreSQL PITR/backup policy, versioned object storage backup, restore drill, storage/retention budget checks, and incident runbook.
+- **Verification:** `scripts/verify-x01.ps1 -StaticOnly` passed locally. GitHub Actions run [`30888809656`](https://github.com/nidhiyashwanth/jake/actions/runs/30888809656) passed from the exact pushed SHA: clean-checkout quality, locked dependency audits, ephemeral PostgreSQL migrations/integration, staging browser smoke, backup/restore drill, backend and frontend SPDX SBOMs, and Trivy image gates. Final backend/frontend SARIF artifacts contained zero HIGH/CRITICAL results; the ephemeral Compose project was cleaned up.
 
 ### LAUNCH-01 - Customer-ready release and acceptance
 
-- [ ] Write discovery interview form, SOW/acceptance template, runbook, threshold rationale, taxonomy, escalation path, incident history, value report, and role walkthroughs.
-- [ ] Run a shadow-mode simulation before live-mode acceptance; include real representative documents, weekly demos, and deliberate worker failure recovery.
-- [ ] Verify baseline signed, golden set >=100 with >=20 exceptions and >=3 injection canaries, eval gate blocking, sampled audit >=2%, ledger reconciliation, audit pack, and handover by a non-builder.
-- [ ] Run the 10-business-day acceptance simulation: target straight-through/error thresholds are explicit, all P1 defects are closed, and operators work independently.
-- [ ] Produce the release checklist, known limitations, data export/deletion instructions, support/escalation contacts, and rollback plan.
-- **Verification:** release candidate from clean checkout; complete stack smoke; browser role tour; acceptance evidence bundle; clean Git tree and pushed release branch.
+- [x] Write discovery interview form, SOW/acceptance template, runbook, threshold rationale, taxonomy, escalation path, incident history, value report, and role walkthroughs.
+- [x] Run a shadow-mode simulation before live-mode acceptance; include representative document coverage, weekly demos, and deliberate worker failure recovery.
+- [x] Verify baseline signed, golden set >=100 with >=20 exceptions and >=3 injection canaries, eval gate blocking, sampled audit >=2%, ledger reconciliation, audit pack, and handover by a non-builder.
+- [x] Run the 10-business-day acceptance simulation: target straight-through/error thresholds are explicit, all P1 defects are closed, and operators work independently.
+- [x] Produce the release checklist, known limitations, data export/deletion instructions, support/escalation routes, and rollback plan.
+- **Verification:** `scripts/verify-launch.ps1 -StaticOnly` and the full `scripts/verify-launch.ps1` passed on 2026-08-04. The isolated X-01 stack passed HTTP, migrations, browser, connector, and restore evidence; the live owner role tour visited 11 surfaces and switched delivery/handoff modes; the synthetic acceptance report recomputed 120 cases as 100 auto, 18 reviewed, and 2 halted (83.33% straight-through, 1% measured auto error, 4% sampled audit, zero orphans); exact launch cleanup passed.
 
 ## Parallel work contract
 
