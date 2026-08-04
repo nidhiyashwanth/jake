@@ -122,6 +122,10 @@ jobs:
           python -m pip install --requirement backend/requirements-test.lock
           python -m pip install --no-deps --editable backend
 
+      - name: Install Chromium for browser smoke
+        shell: bash
+        run: python -m playwright install --with-deps chromium
+
       - name: Create ephemeral CI environment
         shell: pwsh
         run: |
