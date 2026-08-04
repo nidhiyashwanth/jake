@@ -34,6 +34,15 @@ import type {
   RuntimeExecutionListResponse,
   RuntimeExecutionResponse,
   McpServerRecord,
+  ChaseRecord,
+  ComplianceDocumentTypeRecord,
+  ComplianceRuleRecord,
+  ConfidenceAssessmentRecord,
+  ConfidenceAuditRecord,
+  ConfidenceSimulationResult,
+  ConfidenceThresholdSetRecord,
+  ReasonCodeRecord,
+  RequirementSetRecord,
 } from "./types";
 import { normalizeWorkflowDetail, normalizeWorkflowList, normalizeWorkflowVersion, serializeWorkflowSpec } from "./workflow-contract";
 
@@ -321,6 +330,63 @@ export const api = {
       body: JSON.stringify({ mode }),
     }),
   listVendors: () => request<{ items: Vendor[] }>("/api/vendors"),
+  listComplianceDocumentTypes: () => request<{ items: ComplianceDocumentTypeRecord[]; count: number }>("/api/compliance/document-types"),
+  listComplianceRules: () => request<{ items: ComplianceRuleRecord[]; count: number }>("/api/compliance/rule-library"),
+  listReasonCodes: () => request<{ items: ReasonCodeRecord[]; count: number; taxonomy_version: string }>("/api/compliance/reason-codes"),
+  listRequirementSets: () => request<{ items: RequirementSetRecord[]; count: number }>("/api/compliance/requirement-sets"),
+  createRequirementSet: (payload: { name: string; version: number; status?: "draft" | "active"; project_id?: string | null }) =>
+    request<{ requirement_set: RequirementSetRecord }>("/api/compliance/requirement-sets", { method: "POST", body: JSON.stringify(payload) }),
+  listConfidenceThresholdSets: () => request<{ items: ConfidenceThresholdSetRecord[] }>("/api/confidence/threshold-sets"),
+  createConfidenceThresholdSet: (payload: {
+    workflow_version_id?: string | null;
+    version?: number;
+    status?: "draft" | "active";
+    auto_threshold: number;
+    review_threshold: number;
+    halt_threshold: number;
+    value_at_risk_limit: number;
+    sample_rate: number;
+    cost_auto_usd?: number;
+    cost_review_usd?: number;
+    cost_halt_usd?: number;
+    reason?: string | null;
+  }) => request<{ threshold_set: ConfidenceThresholdSetRecord }>("/api/confidence/threshold-sets", { method: "POST", body: JSON.stringify(payload) }),
+  assessConfidence: (payload: {
+    assessment_key: string;
+    workflow_version_id?: string | null;
+    extraction_consistency: number;
+    validation_severity: number;
+    matching_score: number;
+    novelty_score: number;
+    sender_history_score: number;
+    value_at_risk: number;
+    required_halt?: boolean;
+    model_confidence?: number;
+    evidence?: Record<string, unknown>;
+  }) => request<{ assessment: ConfidenceAssessmentRecord; audit: ConfidenceAuditRecord | null; idempotent_replay: boolean }>("/api/confidence/assess", { method: "POST", body: JSON.stringify(payload) }),
+  simulateConfidence: (payload: {
+    cases: Array<{
+      case_key: string;
+      extraction_consistency: number;
+      validation_severity: number;
+      matching_score: number;
+      novelty_score: number;
+      sender_history_score: number;
+      value_at_risk: number;
+      required_halt?: boolean;
+      known_correct?: boolean | null;
+    }>;
+    thresholds: Array<{
+      label: string;
+      auto_threshold: number;
+      review_threshold: number;
+      halt_threshold: number;
+      value_at_risk_limit: number;
+    }>;
+  }) => request<{ formula_version: string; case_count: number; results: ConfidenceSimulationResult[] }>("/api/confidence/simulate", { method: "POST", body: JSON.stringify(payload) }),
+  listConfidenceAudits: () => request<{ items: ConfidenceAuditRecord[] }>("/api/confidence/audits"),
+  completeConfidenceAudit: (auditId: string, actualCorrect: boolean, outcomeSummary?: string) =>
+    request<{ audit: ConfidenceAuditRecord; thresholds: ConfidenceThresholdSetRecord[] }>(`/api/confidence/audits/${auditId}/outcome`, { method: "POST", body: JSON.stringify({ actual_correct: actualCorrect, outcome_summary: outcomeSummary }) }),
   getVendor: (vendorId: string) => request<VendorDetail>(`/api/vendors/${vendorId}`),
   createVendor: (legalName: string) =>
     request<Vendor>("/api/vendors", { method: "POST", body: JSON.stringify({ legal_name: legalName }) }),
@@ -364,6 +430,13 @@ export const api = {
   callMcpTool: (serverId: string, payload: { tool_name: string; arguments?: Record<string, unknown>; workflow_version_id?: string; value_at_risk?: number; approved?: boolean; approval_note?: string; idempotency_key?: string }) =>
     request<{ call: ConnectorCallRecord; idempotent: boolean; approved?: boolean; approval_required?: boolean }>(`/api/mcp/servers/${serverId}/tools/call`, { method: "POST", body: JSON.stringify(payload) }),
   listMcpCalls: () => request<{ items: ConnectorCallRecord[]; count: number }>("/api/mcp/calls"),
+  listChases: (vendorId: string) => request<{ items: ChaseRecord[]; count: number }>(`/api/vendors/${vendorId}/chases`),
+  createChase: (vendorId: string, payload: { requirement_id?: string | null; customer_sender_connector_id: string; expected_doc_type: string; max_attempts?: number; max_messages_per_week?: number; touch_schedule_days?: number[] }) =>
+    request<{ chase: ChaseRecord }>(`/api/vendors/${vendorId}/chases`, { method: "POST", body: JSON.stringify(payload) }),
+  sendChaseTouch: (chaseId: string, body: string, approved: boolean) =>
+    request<{ chase: ChaseRecord }>(`/api/chases/${chaseId}/touch`, { method: "POST", body: JSON.stringify({ body, approved }) }),
+  receiveChaseReply: (chaseId: string, body: string, attachmentDocumentId?: string | null) =>
+    request<{ chase: ChaseRecord }>(`/api/chases/${chaseId}/reply`, { method: "POST", body: JSON.stringify({ body, attachment_document_id: attachmentDocumentId || null }) }),
   updateReview: (reviewId: string, value: unknown, field: string, reasonCode: string, note?: string) =>
     request<VerificationResponse>(`/api/reviews/${reviewId}`, {
       method: "PATCH",

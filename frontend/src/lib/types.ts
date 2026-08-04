@@ -270,6 +270,170 @@ export interface CredentialAccessLogRecord {
   created_at: string;
 }
 
+export interface ComplianceDocumentTypeRecord {
+  key: string;
+  label: string;
+  family: string;
+  aliases: string[];
+}
+
+export interface ComplianceRuleRecord {
+  key: string;
+  doc_type: string;
+  field: string;
+  kind: string;
+  reason_code: string;
+  statement: string;
+  required: unknown;
+}
+
+export interface ReasonCodeRecord {
+  id?: string;
+  taxonomy_version?: string;
+  code: string;
+  label: string;
+  explanation: string;
+  active?: boolean;
+}
+
+export interface RequirementRecord {
+  id: string;
+  key: string;
+  doc_type: string;
+  rule: Record<string, unknown>;
+  severity: string;
+  reason_code: string;
+  human_statement: string;
+  active: boolean;
+}
+
+export interface RequirementSetRecord {
+  id: string;
+  name: string;
+  version: number;
+  status: string;
+  project_id?: string | null;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  created_at: string;
+  requirements: RequirementRecord[];
+}
+
+export interface ConfidenceThresholdSetRecord {
+  id: string;
+  workflow_id?: string | null;
+  workflow_version_id?: string | null;
+  scope_key: string;
+  version: number;
+  status: "draft" | "active" | "superseded" | "rolled_back" | string;
+  auto_threshold: number;
+  review_threshold: number;
+  halt_threshold: number;
+  value_at_risk_limit: number;
+  sample_rate: number;
+  cost_auto_usd: number;
+  cost_review_usd: number;
+  cost_halt_usd: number;
+  previous_threshold_set_id?: string | null;
+  created_at: string;
+  activated_at?: string | null;
+  superseded_at?: string | null;
+  rolled_back_at?: string | null;
+  rollback_reason?: string | null;
+}
+
+export interface ConfidenceAssessmentRecord {
+  id: string;
+  assessment_key: string;
+  workflow_id?: string | null;
+  workflow_version_id?: string | null;
+  threshold_set_id: string;
+  signals: {
+    extraction_consistency: number;
+    validation_severity: number;
+    matching_score: number;
+    novelty_score: number;
+    sender_history_score: number;
+    value_at_risk: number;
+    value_at_risk_score: number;
+    required_halt: boolean;
+  };
+  confidence: number;
+  route: "auto" | "review" | "halt" | string;
+  route_band: string;
+  evidence: Record<string, unknown>;
+  sampled_for_audit: boolean;
+  created_at: string;
+}
+
+export interface ConfidenceAuditRecord {
+  id: string;
+  assessment_id: string;
+  threshold_set_id: string;
+  sample_rate: number;
+  status: "pending" | "completed" | "alerted" | string;
+  actual_correct?: boolean | null;
+  false_auto: boolean;
+  alert_code?: string | null;
+  alert_message?: string | null;
+  rollback_threshold_set_id?: string | null;
+  audited_by?: string | null;
+  outcome_summary?: string | null;
+  created_at: string;
+  resolved_at?: string | null;
+}
+
+export interface ConfidenceSimulationResult {
+  label: string;
+  total: number;
+  auto_count: number;
+  review_count: number;
+  halt_count: number;
+  auto_rate: number;
+  review_rate: number;
+  halt_rate: number;
+  known_auto_count: number;
+  false_auto_count: number;
+  estimated_error: number | null;
+  estimated_cost_usd: number;
+  reconciles: boolean;
+}
+
+export interface ChaseEventRecord {
+  id: string;
+  event_type: string;
+  channel: string;
+  attempt: number;
+  body_sha256?: string | null;
+  summary: string;
+  attachment_document_id?: string | null;
+  payload: Record<string, unknown>;
+  occurred_at: string;
+}
+
+export interface ChaseRecord {
+  id: string;
+  vendor_id: string;
+  requirement_id?: string | null;
+  channel: string;
+  customer_sender_connector_id: string;
+  internal_owner_user_id: string;
+  expected_doc_type: string;
+  project_id?: string | null;
+  status: string;
+  attempts: number;
+  max_attempts: number;
+  max_messages_per_week: number;
+  touch_schedule_days: number[];
+  last_sent_at?: string | null;
+  next_action_at?: string | null;
+  escalated_at?: string | null;
+  success_document_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  events: ChaseEventRecord[];
+}
+
 export interface AuditEvent {
   id: string;
   event_type: string;

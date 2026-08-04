@@ -247,10 +247,17 @@ class Vendor(WorkspaceScopedMixin, Base):
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     legal_name: Mapped[str] = mapped_column(String(200), nullable=False)
+    dba_names_json: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    tax_id_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="active")
+    risk_tier: Mapped[str] = mapped_column(String(24), nullable=False, default="standard")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     documents: Mapped[list["ComplianceDocument"]] = relationship(back_populates="vendor")
     statuses: Mapped[list["ComplianceStatus"]] = relationship(back_populates="vendor")
+    entities: Mapped[list["VendorEntity"]] = relationship(back_populates="vendor", cascade="all, delete-orphan")
+    requirement_bindings: Mapped[list["VendorRequirement"]] = relationship(back_populates="vendor", cascade="all, delete-orphan")
+    chase_threads: Mapped[list["ChaseThread"]] = relationship(back_populates="vendor", cascade="all, delete-orphan")
 
 
 class ComplianceDocument(WorkspaceScopedMixin, Base):
@@ -263,6 +270,13 @@ class ComplianceDocument(WorkspaceScopedMixin, Base):
     media_type: Mapped[str] = mapped_column(String(120), nullable=False)
     content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     extracted_fields: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="received")
+    issued_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    issuer: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    sha256: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    superseded_by: Mapped[str | None] = mapped_column(ForeignKey("compliance_documents.id"), nullable=True, index=True)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     vendor: Mapped[Vendor] = relationship(back_populates="documents")
@@ -276,10 +290,13 @@ class ComplianceCheck(WorkspaceScopedMixin, Base):
     document_id: Mapped[str] = mapped_column(ForeignKey("compliance_documents.id"), nullable=False, index=True)
     run_id: Mapped[str] = mapped_column(String(36), nullable=False, index=True)
     requirement_key: Mapped[str] = mapped_column(String(80), nullable=False)
+    requirement_id: Mapped[str | None] = mapped_column(ForeignKey("compliance_requirements.id"), nullable=True, index=True)
     label: Mapped[str] = mapped_column(String(240), nullable=False)
     result: Mapped[str] = mapped_column(String(20), nullable=False)
     reason_code: Mapped[str] = mapped_column(String(80), nullable=False)
     message: Mapped[str] = mapped_column(Text, nullable=False)
+    explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
+    confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     observed_value: Mapped[Any] = mapped_column(JSON, nullable=True)
     required_value: Mapped[Any] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
@@ -457,12 +474,175 @@ class CredentialAccessLog(WorkspaceScopedMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
 
 
+class VendorEntity(WorkspaceScopedMixin, Base):
+    """A legal entity, DBA, subsidiary, or JV that can satisfy a named-insured rule."""
+
+    __tablename__ = "vendor_entities"
+    __table_args__ = (UniqueConstraint("workspace_id", "vendor_id", "name", name="uq_vendor_entities_workspace_vendor_name"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    vendor_id: Mapped[str] = mapped_column(ForeignKey("vendors.id"), nullable=False, index=True)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    entity_relationship: Mapped[str] = mapped_column("relationship", String(40), nullable=False, default="dba")
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    vendor: Mapped[Vendor] = relationship(back_populates="entities")
+
+
+class ComplianceRequirementSet(WorkspaceScopedMixin, Base):
+    """A customer-editable, versioned set of document requirements."""
+
+    __tablename__ = "compliance_requirement_sets"
+    __table_args__ = (UniqueConstraint("workspace_id", "name", "version", name="uq_requirement_sets_workspace_name_version"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    name: Mapped[str] = mapped_column(String(200), nullable=False)
+    version: Mapped[int] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft")
+    project_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    effective_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    requirements: Mapped[list["ComplianceRequirement"]] = relationship(back_populates="requirement_set", cascade="all, delete-orphan")
+    vendor_bindings: Mapped[list["VendorRequirement"]] = relationship(back_populates="requirement_set", cascade="all, delete-orphan")
+
+
+class ComplianceRequirement(WorkspaceScopedMixin, Base):
+    """One versioned, explainable rule in a requirement set."""
+
+    __tablename__ = "compliance_requirements"
+    __table_args__ = (UniqueConstraint("requirement_set_id", "key", name="uq_compliance_requirements_set_key"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    requirement_set_id: Mapped[str] = mapped_column(ForeignKey("compliance_requirement_sets.id"), nullable=False, index=True)
+    key: Mapped[str] = mapped_column(String(100), nullable=False)
+    doc_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    rule_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    severity: Mapped[str] = mapped_column(String(20), nullable=False, default="review")
+    reason_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    human_statement: Mapped[str] = mapped_column(Text, nullable=False)
+    effective_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    requirement_set: Mapped[ComplianceRequirementSet] = relationship(back_populates="requirements")
+
+
+class VendorRequirement(WorkspaceScopedMixin, Base):
+    """Optional vendor/project binding and deterministic rule overrides."""
+
+    __tablename__ = "vendor_requirements"
+    __table_args__ = (UniqueConstraint("workspace_id", "vendor_id", "requirement_set_id", "project_id", name="uq_vendor_requirements_scope"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    vendor_id: Mapped[str] = mapped_column(ForeignKey("vendors.id"), nullable=False, index=True)
+    requirement_set_id: Mapped[str] = mapped_column(ForeignKey("compliance_requirement_sets.id"), nullable=False, index=True)
+    project_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    overrides_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+    vendor: Mapped[Vendor] = relationship(back_populates="requirement_bindings")
+    requirement_set: Mapped[ComplianceRequirementSet] = relationship(back_populates="vendor_bindings")
+
+
+class CoverageLine(WorkspaceScopedMixin, Base):
+    """Normalized insurance or licence coverage line retained beside the source document."""
+
+    __tablename__ = "coverage_lines"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    compliance_document_id: Mapped[str] = mapped_column(ForeignKey("compliance_documents.id"), nullable=False, index=True)
+    line_type: Mapped[str] = mapped_column(String(60), nullable=False)
+    occurrence_limit: Mapped[int | None] = mapped_column(nullable=True)
+    aggregate_limit: Mapped[int | None] = mapped_column(nullable=True)
+    deductible: Mapped[int | None] = mapped_column(nullable=True)
+    carrier: Mapped[str | None] = mapped_column(String(240), nullable=True)
+    am_best_rating: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    admitted_state: Mapped[str | None] = mapped_column(String(20), nullable=True)
+    effective_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    endorsements_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class ReasonCodeTaxonomy(WorkspaceScopedMixin, Base):
+    """Versioned reason-code vocabulary used verbatim in review and exports."""
+
+    __tablename__ = "reason_code_taxonomy"
+    __table_args__ = (UniqueConstraint("workspace_id", "taxonomy_version", "code", name="uq_reason_code_taxonomy_workspace_version_code"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    taxonomy_version: Mapped[str] = mapped_column(String(40), nullable=False)
+    code: Mapped[str] = mapped_column(String(80), nullable=False)
+    label: Mapped[str] = mapped_column(String(200), nullable=False)
+    explanation: Mapped[str] = mapped_column(Text, nullable=False)
+    active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+
+
+class ChaseThread(WorkspaceScopedMixin, Base):
+    """A bounded, customer-owned document chase; it never decides vendor approval."""
+
+    __tablename__ = "chase_threads"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    vendor_id: Mapped[str] = mapped_column(ForeignKey("vendors.id"), nullable=False, index=True)
+    requirement_id: Mapped[str | None] = mapped_column(ForeignKey("compliance_requirements.id"), nullable=True, index=True)
+    channel: Mapped[str] = mapped_column(String(24), nullable=False, default="email")
+    customer_sender_connector_id: Mapped[str] = mapped_column(ForeignKey("connectors.id"), nullable=False, index=True)
+    internal_owner_user_id: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    expected_doc_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    project_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="open")
+    attempts: Mapped[int] = mapped_column(nullable=False, default=0)
+    max_attempts: Mapped[int] = mapped_column(nullable=False, default=4)
+    max_messages_per_week: Mapped[int] = mapped_column(nullable=False, default=3)
+    touch_schedule_json: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=lambda: [0, 3, 7, 14])
+    last_sent_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    next_action_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
+    escalated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    success_document_id: Mapped[str | None] = mapped_column(ForeignKey("compliance_documents.id"), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now, nullable=False)
+
+    vendor: Mapped[Vendor] = relationship(back_populates="chase_threads")
+    events: Mapped[list["ChaseEvent"]] = relationship(back_populates="thread", cascade="all, delete-orphan")
+
+
+class ChaseEvent(WorkspaceScopedMixin, Base):
+    """Append-only chase evidence with body hashes and attachment linkage."""
+
+    __tablename__ = "chase_events"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    chase_thread_id: Mapped[str] = mapped_column(ForeignKey("chase_threads.id"), nullable=False, index=True)
+    event_type: Mapped[str] = mapped_column(String(48), nullable=False)
+    channel: Mapped[str] = mapped_column(String(24), nullable=False)
+    attempt: Mapped[int] = mapped_column(nullable=False, default=0)
+    body_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    summary: Mapped[str] = mapped_column(Text, nullable=False)
+    attachment_document_id: Mapped[str | None] = mapped_column(ForeignKey("compliance_documents.id"), nullable=True, index=True)
+    payload_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    occurred_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+    thread: Mapped[ChaseThread] = relationship(back_populates="events")
+
+
 class ComplianceStatus(WorkspaceScopedMixin, Base):
     __tablename__ = "compliance_status"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     vendor_id: Mapped[str] = mapped_column(ForeignKey("vendors.id"), nullable=False, index=True)
     document_id: Mapped[str] = mapped_column(ForeignKey("compliance_documents.id"), nullable=False, index=True)
+    project_id: Mapped[str | None] = mapped_column(String(120), nullable=True, index=True)
     as_of: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
     status: Mapped[str] = mapped_column(String(30), nullable=False)
     failing_requirements: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
@@ -695,6 +875,90 @@ class WorkflowEvaluationResult(WorkspaceScopedMixin, Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
 
     workflow_version: Mapped[WorkflowVersion] = relationship(back_populates="evaluations")
+
+
+class ConfidenceThresholdSet(WorkspaceScopedMixin, Base):
+    """Versioned, customer-owned routing policy for one workflow scope."""
+
+    __tablename__ = "confidence_threshold_sets"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "scope_key", "version", name="uq_confidence_threshold_scope_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    workflow_id: Mapped[str | None] = mapped_column(ForeignKey("workflows.id"), nullable=True, index=True)
+    workflow_version_id: Mapped[str | None] = mapped_column(ForeignKey("workflow_versions.id"), nullable=True, index=True)
+    scope_key: Mapped[str] = mapped_column(String(180), nullable=False)
+    version: Mapped[int] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="draft", index=True)
+    auto_threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    review_threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    halt_threshold: Mapped[float] = mapped_column(Float, nullable=False)
+    value_at_risk_limit: Mapped[float] = mapped_column(Float, nullable=False)
+    sample_rate: Mapped[float] = mapped_column(Float, nullable=False, default=0.02)
+    cost_auto_usd: Mapped[float] = mapped_column(Float, nullable=False, default=0.05)
+    cost_review_usd: Mapped[float] = mapped_column(Float, nullable=False, default=4.0)
+    cost_halt_usd: Mapped[float] = mapped_column(Float, nullable=False, default=1.0)
+    previous_threshold_set_id: Mapped[str | None] = mapped_column(
+        ForeignKey("confidence_threshold_sets.id"), nullable=True, index=True
+    )
+    created_by: Mapped[str] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False)
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    superseded_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rolled_back_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    rollback_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+
+class ConfidenceAssessment(WorkspaceScopedMixin, Base):
+    """Append-only deterministic confidence decision; model self-confidence is never a signal."""
+
+    __tablename__ = "confidence_assessments"
+    __table_args__ = (
+        UniqueConstraint("workspace_id", "assessment_key", name="uq_confidence_assessments_workspace_key"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    assessment_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    workflow_id: Mapped[str | None] = mapped_column(ForeignKey("workflows.id"), nullable=True, index=True)
+    workflow_version_id: Mapped[str | None] = mapped_column(ForeignKey("workflow_versions.id"), nullable=True, index=True)
+    threshold_set_id: Mapped[str] = mapped_column(ForeignKey("confidence_threshold_sets.id"), nullable=False, index=True)
+    extraction_consistency: Mapped[float] = mapped_column(Float, nullable=False)
+    validation_severity: Mapped[float] = mapped_column(Float, nullable=False)
+    matching_score: Mapped[float] = mapped_column(Float, nullable=False)
+    novelty_score: Mapped[float] = mapped_column(Float, nullable=False)
+    sender_history_score: Mapped[float] = mapped_column(Float, nullable=False)
+    value_at_risk: Mapped[float] = mapped_column(Float, nullable=False)
+    value_at_risk_score: Mapped[float] = mapped_column(Float, nullable=False)
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    route: Mapped[str] = mapped_column(String(20), nullable=False, index=True)
+    route_band: Mapped[str] = mapped_column(String(32), nullable=False)
+    required_halt: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    signals_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    evidence_json: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+
+
+class ConfidenceAudit(WorkspaceScopedMixin, Base):
+    """Sampled high-confidence run review and any resulting safety rollback."""
+
+    __tablename__ = "confidence_audits"
+    __table_args__ = (UniqueConstraint("workspace_id", "assessment_id", name="uq_confidence_audits_assessment"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    assessment_id: Mapped[str] = mapped_column(ForeignKey("confidence_assessments.id"), nullable=False, index=True)
+    threshold_set_id: Mapped[str] = mapped_column(ForeignKey("confidence_threshold_sets.id"), nullable=False, index=True)
+    sample_rate: Mapped[float] = mapped_column(Float, nullable=False)
+    status: Mapped[str] = mapped_column(String(24), nullable=False, default="pending", index=True)
+    actual_correct: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    false_auto: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    alert_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    alert_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    rollback_threshold_set_id: Mapped[str | None] = mapped_column(ForeignKey("confidence_threshold_sets.id"), nullable=True)
+    audited_by: Mapped[str | None] = mapped_column(ForeignKey("users.id"), nullable=True, index=True)
+    outcome_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, nullable=False, index=True)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
 
 class Execution(WorkspaceScopedMixin, Base):

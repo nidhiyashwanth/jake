@@ -121,3 +121,19 @@ This is an append-only log of durable choices. The numbered research documents r
 - **Why:** The product needs real workspace, authorization, logging, redaction, approval, and failure behavior before customer provider credentials are available. The boundary must be testable without inventing external integrations or leaking secrets.
 - **Rejected alternative:** Store provider secrets in connector JSON, call arbitrary URLs from the verifier, treat MCP output as trusted control input, or build one bespoke integration per provider before the gateway contract exists.
 - **Remaining constraints:** Production-like environments must provide `VAULT_KEK_BASE64` from their secret manager; first-party adapters remain behind the same interface, and external egress requires an explicit deployment allow-list and provider configuration.
+
+## D-016 -- Make the compliance wedge a versioned policy and bounded chase boundary
+
+- **Date:** 2026-08-04
+- **Decision:** P-01 stores workspace-scoped requirement-set versions, deterministic rule JSON, human-readable explanations, reason-code taxonomy, vendor/project bindings, document supersession, and point-in-time verification evidence. Chase threads may request a specific document through a customer-owned email connector in a sandbox, but never negotiate coverage or state approval; sends require explicit approval, a weekly cap, escalation CC, attachment matching, and a `compliant_and_verified` success event.
+- **Why:** The wedge is a vendor compliance decision with proof, not a COI-only inbox. Policy must be editable and historical without embedding customer rules in code, while outreach must remain bounded and separate from the authorization decision.
+- **Rejected alternative:** Keep six COI checks hard-coded, treat all documents as interchangeable, close a chase when an attachment arrives, or let a model generate approval/coverage decisions.
+- **Remaining constraints:** OCR/image-only documents remain outside the local text-fixture gate; provider delivery remains behind the connector interface, and confidence/routing, evals, governance, and deployment packages must consume the immutable P-01 evidence rather than duplicate it.
+
+## D-017 -- Route from observable evidence and close the loop with sampled audits
+
+- **Date:** 2026-08-04
+- **Decision:** Q-01 computes confidence with a deterministic weighted formula over extraction consistency, validation quality, matching, novelty quality, sender history, and value-at-risk. Thresholds are immutable, workspace/workflow-version scoped, and versioned. High-confidence auto-runs are sampled at a configured rate with a hard two-percent floor; a false-auto audit opens an alert and rolls the active policy back to its recorded predecessor.
+- **Why:** Self-reported model confidence is not an accountable control signal. Operators need a visible auto/review/halt tradeoff, a simulator tied to known outcomes, and a measured false-auto loop before automatic processing can be trusted.
+- **Rejected alternative:** Let the model choose its confidence or route, use unversioned environment thresholds, or treat a sampled audit as an informal dashboard metric without a rollback path.
+- **Remaining constraints:** The simulator consumes historical/golden cases without copying their canonical evidence; threshold changes remain auditable; E-01 must add publish-blocking golden evaluation and drift alerts before confidence policies are used as a release gate.

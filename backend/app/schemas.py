@@ -5,7 +5,11 @@ from pydantic import BaseModel, ConfigDict, Field, SecretStr, field_validator, m
 
 
 class VendorCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     legal_name: str = Field(min_length=1, max_length=200)
+    dba_names: list[str] = Field(default_factory=list, max_length=20)
+    risk_tier: Literal["low", "standard", "high", "critical"] = "standard"
 
     @field_validator("legal_name")
     @classmethod
@@ -14,6 +18,16 @@ class VendorCreate(BaseModel):
         if not value:
             raise ValueError("legal_name cannot be blank")
         return value
+
+    @field_validator("dba_names")
+    @classmethod
+    def normalize_dba_names(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        for value in values:
+            item = " ".join(value.split())
+            if item and item.casefold() not in {existing.casefold() for existing in normalized}:
+                normalized.append(item)
+        return normalized
 
 
 class ReviewUpdate(BaseModel):
@@ -71,6 +85,59 @@ class WebhookVerifyRequest(BaseModel):
     body: str = Field(min_length=1, max_length=100_000)
     timestamp: int = Field(ge=0)
     signature: str = Field(min_length=1, max_length=200)
+
+
+class RequirementSetCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    version: int = Field(ge=1, le=1000)
+    status: Literal["draft", "active"] = "active"
+    project_id: str | None = Field(default=None, max_length=120)
+    custom_rules: list[dict[str, Any]] | None = Field(default=None, max_length=100)
+
+
+class VendorEntityCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(min_length=1, max_length=200)
+    relationship: Literal["dba", "subsidiary", "joint_venture", "legal_entity"] = "dba"
+
+
+class VendorRequirementBind(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    requirement_set_id: str = Field(min_length=1, max_length=36)
+    project_id: str | None = Field(default=None, max_length=120)
+    overrides: dict[str, Any] = Field(default_factory=dict)
+
+
+class ChaseCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    requirement_id: str | None = Field(default=None, max_length=36)
+    customer_sender_connector_id: str = Field(min_length=1, max_length=36)
+    internal_owner_user_id: str | None = Field(default=None, max_length=36)
+    expected_doc_type: str = Field(min_length=1, max_length=50)
+    project_id: str | None = Field(default=None, max_length=120)
+    channel: Literal["email"] = "email"
+    max_attempts: int = Field(default=4, ge=1, le=8)
+    max_messages_per_week: int = Field(default=3, ge=1, le=7)
+    touch_schedule_days: list[int] = Field(default_factory=lambda: [0, 3, 7, 14], min_length=1, max_length=8)
+
+
+class ChaseTouchRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    body: str = Field(min_length=1, max_length=4000)
+    approved: bool = False
+
+
+class ChaseReplyRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    body: str = Field(min_length=1, max_length=100_000)
+    attachment_document_id: str | None = Field(default=None, max_length=36)
 
 
 class CredentialCreate(BaseModel):
@@ -605,6 +672,118 @@ class WorkflowEvaluationRunRequest(BaseModel):
         if not value:
             raise ValueError("suite_key cannot be blank")
         return value
+
+
+class ConfidenceThresholdSetCreate(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    workflow_version_id: str | None = Field(default=None, max_length=36)
+    version: int | None = Field(default=None, ge=1)
+    status: Literal["draft", "active"] = "draft"
+    auto_threshold: float = Field(default=0.85, ge=0, le=1, allow_inf_nan=False)
+    review_threshold: float = Field(default=0.65, ge=0, le=1, allow_inf_nan=False)
+    halt_threshold: float = Field(default=0.45, ge=0, le=1, allow_inf_nan=False)
+    value_at_risk_limit: float = Field(default=10000, ge=0, allow_inf_nan=False)
+    sample_rate: float = Field(default=0.02, ge=0.02, le=1, allow_inf_nan=False)
+    cost_auto_usd: float = Field(default=0.05, ge=0, allow_inf_nan=False)
+    cost_review_usd: float = Field(default=4.0, ge=0, allow_inf_nan=False)
+    cost_halt_usd: float = Field(default=1.0, ge=0, allow_inf_nan=False)
+    reason: str | None = Field(default=None, max_length=1000)
+
+    @model_validator(mode="after")
+    def validate_order(self) -> "ConfidenceThresholdSetCreate":
+        if not self.halt_threshold <= self.review_threshold <= self.auto_threshold:
+            raise ValueError("halt_threshold must be <= review_threshold <= auto_threshold")
+        return self
+
+    @field_validator("reason")
+    @classmethod
+    def trim_threshold_reason(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = " ".join(value.split())
+        return value or None
+
+
+class ConfidenceSignals(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    extraction_consistency: float = Field(ge=0, le=1, allow_inf_nan=False)
+    validation_severity: float = Field(ge=0, le=1, allow_inf_nan=False)
+    matching_score: float = Field(ge=0, le=1, allow_inf_nan=False)
+    novelty_score: float = Field(ge=0, le=1, allow_inf_nan=False)
+    sender_history_score: float = Field(ge=0, le=1, allow_inf_nan=False)
+    value_at_risk: float = Field(ge=0, allow_inf_nan=False)
+    required_halt: bool = False
+    model_confidence: float | None = Field(default=None, ge=0, le=1, allow_inf_nan=False)
+    evidence: dict[str, Any] = Field(default_factory=dict)
+
+
+class ConfidenceAssessmentRequest(ConfidenceSignals):
+    assessment_key: str = Field(min_length=1, max_length=200)
+    workflow_version_id: str | None = Field(default=None, max_length=36)
+
+    @field_validator("assessment_key")
+    @classmethod
+    def trim_assessment_key(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("assessment_key cannot be blank")
+        return value
+
+
+class ConfidenceSimulationCase(ConfidenceSignals):
+    case_key: str = Field(min_length=1, max_length=200)
+    known_correct: bool | None = None
+
+    @field_validator("case_key")
+    @classmethod
+    def trim_case_key(cls, value: str) -> str:
+        value = " ".join(value.split())
+        if not value:
+            raise ValueError("case_key cannot be blank")
+        return value
+
+
+class ConfidenceSimulationThreshold(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    label: str = Field(min_length=1, max_length=120)
+    auto_threshold: float = Field(ge=0, le=1, allow_inf_nan=False)
+    review_threshold: float = Field(ge=0, le=1, allow_inf_nan=False)
+    halt_threshold: float = Field(ge=0, le=1, allow_inf_nan=False)
+    value_at_risk_limit: float = Field(ge=0, allow_inf_nan=False)
+    cost_auto_usd: float = Field(default=0.05, ge=0, allow_inf_nan=False)
+    cost_review_usd: float = Field(default=4.0, ge=0, allow_inf_nan=False)
+    cost_halt_usd: float = Field(default=1.0, ge=0, allow_inf_nan=False)
+
+    @model_validator(mode="after")
+    def validate_order(self) -> "ConfidenceSimulationThreshold":
+        if not self.halt_threshold <= self.review_threshold <= self.auto_threshold:
+            raise ValueError("halt_threshold must be <= review_threshold <= auto_threshold")
+        return self
+
+
+class ConfidenceSimulationRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    cases: list[ConfidenceSimulationCase] = Field(min_length=1, max_length=10000)
+    thresholds: list[ConfidenceSimulationThreshold] = Field(min_length=1, max_length=100)
+
+
+class ConfidenceAuditOutcomeRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    actual_correct: bool
+    outcome_summary: str | None = Field(default=None, max_length=1000)
+
+    @field_validator("outcome_summary")
+    @classmethod
+    def trim_outcome_summary(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = " ".join(value.split())
+        return value or None
 
 
 class PromptCreate(BaseModel):

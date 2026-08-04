@@ -8,6 +8,8 @@ import DiscoveryView from "@/components/DiscoveryView";
 import WorkflowStudio from "@/components/WorkflowStudio";
 import ExecutionRuntime from "@/components/ExecutionRuntime";
 import ConnectorsView from "@/components/ConnectorsView";
+import ComplianceView from "@/components/ComplianceView";
+import ConfidenceView from "@/components/ConfidenceView";
 import ReviewQueuePanel from "@/components/ReviewQueuePanel";
 import { AppSidebar, AuthorizationDenied, MemberDisabled, SURFACE_ITEMS, WorkspaceHeader } from "@/components/WorkspaceChrome";
 import type { SurfaceKey } from "@/components/WorkspaceChrome";
@@ -405,6 +407,14 @@ export default function HomePage() {
   ) : activeSurface === "connections" ? (
     <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>
       <ConnectorsView onAuthFailure={handleSessionExpired} session={session} workspace={activeWorkspace} />
+    </SurfaceFrame>
+  ) : activeSurface === "compliance" ? (
+    <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>
+      <ComplianceView onAuthFailure={handleSessionExpired} session={session} workspace={activeWorkspace} />
+    </SurfaceFrame>
+  ) : activeSurface === "confidence" ? (
+    <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>
+      <ConfidenceView onAuthFailure={handleSessionExpired} session={session} workspace={activeWorkspace} />
     </SurfaceFrame>
   ) : (
     <SurfaceFrame activeSurface={activeSurface} contextBusy={contextBusy} contextError={contextError} modeBusy={modeBusy} onModeChange={handleModeChange} onNavigate={handleNavigate} onSignOut={handleSignOut} onWorkspaceSelect={handleWorkspaceSelect} session={session} workspace={activeWorkspace}>

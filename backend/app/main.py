@@ -8,6 +8,8 @@ from app.api.review_routes import router as review_router
 from app.api.workflow_routes import router as workflow_router
 from app.api.runtime_routes import router as runtime_router
 from app.api.connector_routes import router as connector_router
+from app.api.compliance_routes import router as compliance_router
+from app.api.confidence_routes import router as confidence_router
 from app.config import get_settings
 from app.errors import DomainError, domain_error_handler
 
@@ -41,3 +43,5 @@ app.include_router(review_router)
 app.include_router(workflow_router)
 app.include_router(runtime_router)
 app.include_router(connector_router)
+app.include_router(compliance_router)
+app.include_router(confidence_router)

@@ -30,9 +30,21 @@ Run the passing C-01 connector/MCP/vault gate with real Compose/PostgreSQL and b
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-connectors.ps1
 ```
 
+Run the passing P-01 compliance rules and chase gate with real Compose/PostgreSQL evidence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-compliance.ps1
+```
+
+Run the passing Q-01 confidence, threshold, simulator, and sampled-audit gate with real Compose/PostgreSQL evidence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-confidence.ps1
+```
+
 The complete product backlog, reusable workstream prompt, dependencies, and package gates live in [task.md](task.md). F01 is the foundation checkpoint; it is not the whole product.
 
-The current WIP package is `P-01` rules, requirements, document taxonomy, and chase. WIP remains one package at a time.
+The current WIP package is `E-01` golden sets, evaluation gates, and drift. Q-01 confidence routing, thresholds, simulator, and sampled audit is a passing checkpoint. WIP remains one package at a time.
 
 The harness state lives in [PROGRESS.md](PROGRESS.md), durable reasoning lives in [DECISIONS.md](DECISIONS.md), and executable scope lives in [feature-list.json](feature-list.json).
 

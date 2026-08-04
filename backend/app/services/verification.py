@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from datetime import date
 from typing import Any
 from uuid import uuid4
@@ -8,22 +7,12 @@ from sqlalchemy.orm import Session
 
 from app.config import get_settings
 from app.errors import DomainError
-from app.models import AuditEvent, ComplianceCheck, ComplianceDocument, ComplianceStatus, ReviewTask, Vendor, new_id, utc_now
+from app.models import AuditEvent, ComplianceCheck, ComplianceDocument, ComplianceStatus, ReviewTask, Vendor, VendorEntity, new_id, utc_now
 from app.services.audit import append_audit_log
+from app.services.compliance import applicable_requirements
+from app.services.compliance_rules import RuleResult, evaluate_requirement
 from app.services.documents import as_date
 from app.services.review_desk import append_review_event, prepare_review_task
-
-
-@dataclass(frozen=True)
-class RuleResult:
-    key: str
-    label: str
-    field: str
-    result: str
-    reason_code: str
-    message: str
-    observed_value: Any
-    required_value: Any
 
 
 def _same_name(left: Any, right: Any) -> bool:
@@ -118,6 +107,9 @@ def check_payload(check: ComplianceCheck) -> dict[str, Any]:
         "result": check.result,
         "reason_code": check.reason_code,
         "message": check.message,
+        "explanation": check.explanation or check.message,
+        "confidence": check.confidence,
+        "requirement_id": check.requirement_id,
         "observed_value": check.observed_value,
         "required_value": check.required_value,
         "created_at": check.created_at.isoformat(),
@@ -129,6 +121,7 @@ def status_payload(status: ComplianceStatus) -> dict[str, Any]:
         "id": status.id,
         "vendor_id": status.vendor_id,
         "document_id": status.document_id,
+        "project_id": status.project_id,
         "as_of": status.as_of.isoformat(),
         "status": status.status,
         "failing_requirements": status.failing_requirements,
@@ -146,7 +139,38 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
     actor_id = getattr(request_context, "user_id", None)
     run_id = str(uuid4())
     now = utc_now()
-    results = evaluate_rules(vendor, document.extracted_fields)
+    project_id = document.extracted_fields.get("project_id") if isinstance(document.extracted_fields, dict) else None
+    requirement_set, requirements, overrides = applicable_requirements(
+        db,
+        vendor=vendor,
+        doc_type=document.doc_type,
+        project_id=project_id if isinstance(project_id, str) else None,
+    )
+    if requirements:
+        entity_names = db.scalars(
+            select(VendorEntity.name).where(
+                VendorEntity.workspace_id == workspace_id,
+                VendorEntity.vendor_id == vendor.id,
+                VendorEntity.active.is_(True),
+            )
+        ).all()
+        results = [
+            evaluate_requirement(
+                requirement,
+                vendor=vendor,
+                document=document,
+                fields=document.extracted_fields,
+                entity_names=entity_names,
+                overrides=overrides,
+            )
+            for requirement in requirements
+        ]
+    else:
+        # F01 workspaces without an explicitly published P-01 requirement set
+        # retain the original six-rule contract. The expanded engine is opt-in
+        # through a versioned set and never silently changes old evidence.
+        requirement_set = None
+        results = evaluate_rules(vendor, document.extracted_fields)
 
     old_open_tasks = db.scalars(
         select(ReviewTask).where(
@@ -170,10 +194,13 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
             document_id=document.id,
             run_id=run_id,
             requirement_key=result.key,
+            requirement_id=result.requirement_id,
             label=result.label,
             result=result.result,
             reason_code=result.reason_code,
             message=result.message,
+            explanation=result.explanation or result.message,
+            confidence=result.confidence,
             observed_value=result.observed_value,
             required_value=result.required_value,
         )
@@ -223,6 +250,11 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
     evidence = {
         "document_filename": document.filename,
         "normalized_fields": document.extracted_fields,
+        "requirement_set": {
+            "id": requirement_set.id,
+            "name": requirement_set.name,
+            "version": requirement_set.version,
+        } if requirement_set else None,
         "checks": [check_payload(check) for check in checks],
         "review_task_ids": [review.id for review in reviews],
     }
@@ -230,6 +262,7 @@ def run_verification(db: Session, vendor: Vendor, document: ComplianceDocument, 
         workspace_id=workspace_id,
         vendor_id=vendor.id,
         document_id=document.id,
+        project_id=project_id if isinstance(project_id, str) else None,
         as_of=now,
         status=status,
         failing_requirements=failing,

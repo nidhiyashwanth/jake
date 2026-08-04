@@ -1,0 +1,20 @@
+Document Type: COI
+Named Insured: Acme Mechanical LLC
+Certificate Holder: Northwind Construction LLC
+GL Occurrence Limit: $2,000,000
+GL Aggregate Limit: $4,000,000
+Per Project Aggregate: Yes
+Auto CSL Limit: $1,000,000
+Hired and Non-Owned Auto: Yes
+Umbrella Limit: $5,000,000
+Umbrella Underlying Aligned: Yes
+Workers Comp Present: Yes
+Policy Effective: 2026-01-01
+Policy Expiry: 2099-12-31
+Contract Start: 2026-02-01
+Contract End: 2026-12-31
+AM Best Rating: A-
+Carrier Admitted: Yes
+Cancellation Notice Days: 30
+Scan Quality: Good
+Manual Alteration: No

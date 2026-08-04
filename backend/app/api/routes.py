@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import hashlib
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, File, Form, Request, UploadFile
@@ -49,7 +50,8 @@ from app.schemas import (
 )
 from app.services.audit import append_audit_log, append_data_access_log
 from app.services.authorization import authorize, normalize_role, require_workspace
-from app.services.documents import coerce_correction, extract_document_fields
+from app.services.compliance_catalog import DOCUMENT_TYPE_BY_ALIAS, normalize_document_type
+from app.services.documents import as_date, coerce_correction, extract_document_fields
 from app.services.discovery import (
     baseline_payload,
     calculate_score,
@@ -90,6 +92,9 @@ def _vendor_payload(vendor: Vendor, status: ComplianceStatus | None = None) -> d
     return {
         "id": vendor.id,
         "legal_name": vendor.legal_name,
+        "dba_names": vendor.dba_names_json,
+        "status": vendor.status,
+        "risk_tier": vendor.risk_tier,
         "created_at": vendor.created_at.isoformat(),
         "latest_status": status_payload(status) if status else None,
     }
@@ -103,6 +108,12 @@ def _document_payload(document: ComplianceDocument) -> dict[str, Any]:
         "filename": document.filename,
         "media_type": document.media_type,
         "extracted_fields": document.extracted_fields,
+        "status": document.status,
+        "issued_at": document.issued_at.isoformat() if document.issued_at else None,
+        "expires_at": document.expires_at.isoformat() if document.expires_at else None,
+        "issuer": document.issuer,
+        "sha256": document.sha256,
+        "superseded_by": document.superseded_by,
         "created_at": document.created_at.isoformat(),
     }
 
@@ -940,7 +951,12 @@ def score_discovery_baseline_plural(
 def create_vendor(payload: VendorCreate, db: ScopedDb) -> dict[str, Any]:
     context = current_context(db)
     authorize(db, context, "vendor.create", target_type="vendor", target_id=payload.legal_name)
-    vendor = Vendor(workspace_id=context.workspace_id, legal_name=payload.legal_name)
+    vendor = Vendor(
+        workspace_id=context.workspace_id,
+        legal_name=payload.legal_name,
+        dba_names_json=payload.dba_names,
+        risk_tier=payload.risk_tier,
+    )
     db.add(vendor)
     try:
         db.flush()
@@ -1042,8 +1058,9 @@ async def upload_document(
     context = current_context(db)
     authorize(db, context, "document.upload", target_type="vendor", target_id=vendor_id)
     vendor = get_vendor_or_404(db, vendor_id)
-    if doc_type.upper() != "COI":
-        raise DomainError("DOCUMENT_TYPE_UNSUPPORTED", "The MVP upload path accepts doc_type=COI", 422)
+    normalized_doc_type = normalize_document_type(doc_type)
+    if normalized_doc_type not in set(DOCUMENT_TYPE_BY_ALIAS.values()):
+        raise DomainError("DOCUMENT_TYPE_UNSUPPORTED", f"The v1 document taxonomy does not include {doc_type}", 422)
     content = await file.read()
     from app.config import get_settings
 
@@ -1051,18 +1068,56 @@ async def upload_document(
         raise DomainError("DOCUMENT_TOO_LARGE", "The uploaded document exceeds the 10 MB MVP limit", 413)
     filename = file.filename or "uploaded-coi.txt"
     media_type = file.content_type or "application/octet-stream"
-    fields = extract_document_fields(content, filename, media_type)
+    fields = extract_document_fields(content, filename, media_type, normalized_doc_type)
+    now = datetime.now(timezone.utc)
+    expiry_value = next(
+        (fields.get(key) for key in ("policy_expiry", "license_expiry", "business_license_expiry", "osha_expiry") if fields.get(key)),
+        None,
+    )
+    expiry_date = as_date(expiry_value)
+    issued_value = fields.get("policy_effective") or fields.get("issued_at")
+    issued_date = as_date(issued_value)
     document = ComplianceDocument(
         workspace_id=context.workspace_id,
         vendor_id=vendor.id,
-        doc_type="COI",
+        doc_type=normalized_doc_type,
         filename=filename,
         media_type=media_type,
         content=content,
         extracted_fields=fields,
+        status="received",
+        issued_at=datetime.combine(issued_date, datetime.min.time(), tzinfo=timezone.utc) if issued_date else None,
+        expires_at=datetime.combine(expiry_date, datetime.min.time(), tzinfo=timezone.utc) if expiry_date else None,
+        issuer=fields.get("carrier") if isinstance(fields.get("carrier"), str) else None,
+        sha256=hashlib.sha256(content).hexdigest(),
     )
     db.add(document)
     db.flush()
+    previous_documents = db.scalars(
+        select(ComplianceDocument).where(
+            ComplianceDocument.workspace_id == context.workspace_id,
+            ComplianceDocument.vendor_id == vendor.id,
+            ComplianceDocument.doc_type == normalized_doc_type,
+            ComplianceDocument.id != document.id,
+            ComplianceDocument.superseded_by.is_(None),
+        )
+    ).all()
+    for previous in previous_documents:
+        previous.status = "superseded"
+        previous.superseded_by = document.id
+        previous.superseded_at = now
+        db.add(
+            AuditEvent(
+                workspace_id=context.workspace_id,
+                vendor_id=vendor.id,
+                event_type="document_superseded",
+                actor_type="operator",
+                entity_type="compliance_document",
+                entity_id=previous.id,
+                payload={"superseded_by": document.id, "doc_type": normalized_doc_type},
+                occurred_at=now,
+            )
+        )
     db.add(
         AuditEvent(
             workspace_id=context.workspace_id,
@@ -1071,7 +1126,7 @@ async def upload_document(
             actor_type="operator",
             entity_type="compliance_document",
             entity_id=document.id,
-            payload={"filename": filename, "doc_type": "COI", "extracted_fields": fields},
+            payload={"filename": filename, "doc_type": normalized_doc_type, "extracted_fields": fields},
         )
     )
     append_audit_log(
@@ -1081,7 +1136,7 @@ async def upload_document(
         target_id=document.id,
         workspace_id=context.workspace_id,
         actor_id=context.user_id,
-        after={"filename": filename, "doc_type": "COI", "fields": fields},
+        after={"filename": filename, "doc_type": normalized_doc_type, "fields": fields},
     )
     db.commit()
     db.refresh(document)

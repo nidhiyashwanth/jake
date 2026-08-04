@@ -65,9 +65,9 @@ The documented non-product items remain deliberately deferred unless the owner c
 | R-01 | Durable runtime, workers, outbox, model boundary | W-01 | passing | 2026-08-04: static contract, PostgreSQL integration test, real Compose/PostgreSQL HTTP E2E, and authenticated browser smoke passed |
 | V-01 | Full review desk, queue, provenance, corrections | R-01 | passing | 2026-08-04: static contract, real Compose/PostgreSQL HTTP E2E, populated browser keyboard flow, provenance highlight, queue/SLA, assignment/escalation, guarded bulk cap, reason-coded correction, event history, and workspace isolation passed |
 | C-01 | MCP gateway, connectors, vault, notifications | R-01 | passing | 2026-08-04: static contract, real Compose/PostgreSQL HTTP/sandbox E2E, ciphertext-only vault and rotation, redacted MCP call logs, allow-list/workflow scope, approval/egress/RPA guards, auditor access, browser Connections UI, and workspace isolation passed |
-| P-01 | Rules, requirements, document taxonomy, chase agent | V-01 | active | wedge golden set and safe chase E2E |
-| Q-01 | Confidence, routing, thresholds, sampled audit | P-01 | not_started | threshold simulator and false-auto gate |
-| E-01 | Golden sets, evals, regression gate, drift | P-01 | not_started | publish-blocking eval and drift alert suite |
+| P-01 | Rules, requirements, document taxonomy, chase agent | V-01 | passing | 2026-08-04: static catalog/golden suite, real Compose/PostgreSQL rule verification, document fixtures, supersession, chase guardrails, attachment matching, escalation CC, and compliant-and-verified success passed |
+| Q-01 | Confidence, routing, thresholds, sampled audit | P-01 | passing | 2026-08-04: static calibration tests, real Compose/PostgreSQL threshold versioning and audit log, six-signal route E2E, model-confidence rejection, simulator reconciliation, 100% sampled false-auto rollback, and frontend production build passed |
+| E-01 | Golden sets, evals, regression gate, drift | Q-01 | active | publish-blocking eval and drift alert suite |
 | I-01 | Execution inspector, replay, Langfuse/OTel signals | R-01 | not_started | run drill-down and side-effect-free replay E2E |
 | L-01 | Value ledger, costs, dashboard, exports | D-01,R-01 | not_started | baseline-linked reconciliation and CSV/PDF export checks |
 | G-01 | Governance, PII, retention, incidents, audit pack | T-01,R-01 | not_started | access-log, retention, audit-pack, security tests |
@@ -150,20 +150,20 @@ The documented non-product items remain deliberately deferred unless the owner c
 
 ### P-01 - Compliance rules, requirements, taxonomy, and chase
 
-- [ ] Expand the domain to vendor entities, DBA names, requirement sets, effective versions, vendor/project overrides, coverage lines, and supersession.
-- [ ] Support the v1 document set: ACORD 25, ACORD 855/additional-insured, W-9, state contractor licence, business licence, workers-comp exemption, OSHA 10/30, MSA, and lien waivers.
-- [ ] Seed the documented rule library, including limits, aggregate/per-project, auto, umbrella, workers comp, endorsements, waiver, primary/non-contributory, dates, carrier rating/admission, cancellation, expiry, duplicate/superseded, and scan quality.
-- [ ] Seed and version the reason-code taxonomy; every rule has a human-readable explanation used verbatim in review and exports.
-- [ ] Implement chase threads with customer-owned sending identity, multi-touch schedule, attachment matching, escalation, CC guardrail, weekly cap, and compliant-and-verified success event.
-- **Verification:** at least 100-case wedge golden set, 35-rule deterministic suite, document-type fixtures, chase sandbox E2E, unsafe-negotiation and approval-boundary tests.
+- [x] Expand the domain to vendor entities, DBA names, requirement sets, effective versions, vendor/project overrides, coverage lines, and supersession.
+- [x] Support the v1 document set: ACORD 25, ACORD 855/additional-insured, W-9, state contractor licence, business licence, workers-comp exemption, OSHA 10/30, MSA, and lien waivers.
+- [x] Seed the documented rule library, including limits, aggregate/per-project, auto, umbrella, workers comp, endorsements, waiver, primary/non-contributory, dates, carrier rating/admission, cancellation, expiry, duplicate/superseded, and scan quality.
+- [x] Seed and version the reason-code taxonomy; every rule has a human-readable explanation used verbatim in review and exports.
+- [x] Implement chase threads with customer-owned sending identity, multi-touch schedule, attachment matching, escalation, CC guardrail, weekly cap, and compliant-and-verified success event.
+- **Verification:** `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-compliance.ps1` passed on 2026-08-04: static contract, 100-case/35-rule deterministic suite, 12 document-type fixtures, real Compose/PostgreSQL versioned requirement-set verification, vendor/project binding, COI/ACORD 855/W-9 evidence, supersession, customer-owned sender sandbox, unsafe-negotiation and explicit-approval boundaries, attachment matching, escalation CC, and compliant-and-verified success event; backend pytest 15 passed/9 skipped; frontend six contract tests and production build passed.
 
 ### Q-01 - Confidence, routing, thresholds, and sampled audit
 
-- [ ] Compute confidence from extraction consistency, validation severity, matching, novelty, sender history, and value-at-risk; never trust self-reported model confidence.
-- [ ] Implement per-workspace/per-workflow versioned thresholds for auto, review, halt, and value-at-risk limits.
-- [ ] Implement simulator over historical/golden data showing auto rate, estimated error, review rate, and cost at each threshold.
-- [ ] Implement sampled audit of at least 2% of high-confidence auto-runs, with false-auto alerts and threshold rollback.
-- **Verification:** calibration/property tests, simulator reconciliation, threshold-change audit, sampled-audit routing, false-auto block E2E.
+- [x] Compute confidence from extraction consistency, validation severity, matching, novelty, sender history, and value-at-risk; never trust self-reported model confidence.
+- [x] Implement per-workspace/per-workflow versioned thresholds for auto, review, halt, and value-at-risk limits.
+- [x] Implement simulator over historical/golden data showing auto rate, estimated error, review rate, and cost at each threshold.
+- [x] Implement sampled audit of at least 2% of high-confidence auto-runs, with false-auto alerts and threshold rollback.
+- **Verification:** `powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-confidence.ps1` passed on 2026-08-04: static six-signal calibration/property tests, real Compose/PostgreSQL workflow-scoped threshold v1/v2 audit, model-confidence rejection, auto/review/halt routing, simulator reconciliation, deterministic 100% sampled audit, false-auto alert, rollback to prior threshold that blocked the former auto route, audit-log evidence, and frontend six contract tests/production build passed.
 
 ### E-01 - Golden sets, evaluation gates, and drift
 

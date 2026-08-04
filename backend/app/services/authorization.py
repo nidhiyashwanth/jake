@@ -11,6 +11,11 @@ ROLE_ALIASES = {"reviewer": "operator"}
 VALID_ROLES = CANONICAL_ROLES | ROLE_ALIASES.keys()
 
 GENERAL_READ_ACTIONS = frozenset({"workspace.read", "vendor.read", "review.read"})
+COMPLIANCE_READ_ACTIONS = frozenset({"compliance.read", "requirement.read", "chase.read"})
+COMPLIANCE_BUILD_ACTIONS = frozenset({"compliance.manage", "requirement.manage", "vendor.entity.manage"})
+CHASE_WRITE_ACTIONS = frozenset({"chase.manage", "chase.send"})
+CONFIDENCE_READ_ACTIONS = frozenset({"confidence.read", "confidence.audit.read"})
+CONFIDENCE_WRITE_ACTIONS = frozenset({"confidence.manage", "confidence.assess", "confidence.audit"})
 REVIEW_READ_ACTIONS = frozenset({"review.queue.read"})
 REVIEW_WRITE_ACTIONS = frozenset({"review.assign", "review.escalate", "review.bulk"})
 CONNECTOR_READ_ACTIONS = frozenset({"connector.read", "mcp.read", "credential.access.read"})
@@ -66,6 +71,11 @@ MEMBERSHIP_ACTIONS = frozenset({"member.read", "member.invite", "member.role_cha
 ROLE_ACTIONS: dict[str, frozenset[str]] = {
     "owner": (
         GENERAL_READ_ACTIONS
+        | COMPLIANCE_READ_ACTIONS
+        | COMPLIANCE_BUILD_ACTIONS
+        | CHASE_WRITE_ACTIONS
+        | CONFIDENCE_READ_ACTIONS
+        | CONFIDENCE_WRITE_ACTIONS
         | DISCOVERY_READ_ACTIONS
         | DISCOVERY_BUILD_ACTIONS
         | WORKFLOW_READ_ACTIONS
@@ -84,6 +94,11 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
     ),
     "admin": (
         GENERAL_READ_ACTIONS
+        | COMPLIANCE_READ_ACTIONS
+        | COMPLIANCE_BUILD_ACTIONS
+        | CHASE_WRITE_ACTIONS
+        | CONFIDENCE_READ_ACTIONS
+        | CONFIDENCE_WRITE_ACTIONS
         | DISCOVERY_READ_ACTIONS
         | DISCOVERY_BUILD_ACTIONS
         | WORKFLOW_READ_ACTIONS
@@ -102,6 +117,10 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
     ),
     "builder": (
         GENERAL_READ_ACTIONS
+        | COMPLIANCE_READ_ACTIONS
+        | COMPLIANCE_BUILD_ACTIONS
+        | CONFIDENCE_READ_ACTIONS
+        | CONFIDENCE_WRITE_ACTIONS
         | DISCOVERY_READ_ACTIONS
         | DISCOVERY_BUILD_ACTIONS
         | WORKFLOW_READ_ACTIONS
@@ -113,9 +132,10 @@ ROLE_ACTIONS: dict[str, frozenset[str]] = {
         | {"connector.read", "mcp.read"}
         | {"vendor.create", "document.upload", "document.verify"}
     ),
-    "operator": GENERAL_READ_ACTIONS | REVIEW_READ_ACTIONS | REVIEW_WRITE_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {"execution.run", "execution.retry", "execution.replay", "vendor.create", "document.upload", "document.verify", "review.update", "connector.read", "mcp.read", "connector.test", "mcp.call"},
-    "viewer": GENERAL_READ_ACTIONS | REVIEW_READ_ACTIONS | DISCOVERY_READ_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {"connector.read", "mcp.read"},
-    "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"}) | REVIEW_READ_ACTIONS | {"connector.read", "mcp.read", "credential.access.read"}
+    "operator": GENERAL_READ_ACTIONS | COMPLIANCE_READ_ACTIONS | CHASE_WRITE_ACTIONS | CONFIDENCE_READ_ACTIONS | {"confidence.assess", "confidence.audit"} | REVIEW_READ_ACTIONS | REVIEW_WRITE_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {"execution.run", "execution.retry", "execution.replay", "vendor.create", "document.upload", "document.verify", "review.update", "connector.read", "mcp.read", "connector.test", "mcp.call"},
+    "viewer": GENERAL_READ_ACTIONS | COMPLIANCE_READ_ACTIONS | CONFIDENCE_READ_ACTIONS | REVIEW_READ_ACTIONS | DISCOVERY_READ_ACTIONS | WORKFLOW_READ_ACTIONS | RUNTIME_READ_ACTIONS | {"connector.read", "mcp.read"},
+    "auditor": frozenset({"workspace.read", "vendor.read", "audit.read", "member.read"}) | COMPLIANCE_READ_ACTIONS | REVIEW_READ_ACTIONS | {"connector.read", "mcp.read", "credential.access.read"}
+    | CONFIDENCE_READ_ACTIONS
     | DISCOVERY_READ_ACTIONS
     | WORKFLOW_READ_ACTIONS
     | RUNTIME_READ_ACTIONS,

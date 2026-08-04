@@ -90,21 +90,21 @@
       "id": "P-01",
       "behavior": "The compliance workflow supports the v1 document set, requirement sets, expanded policy rules, exception taxonomy, supersession, and safe chase threads.",
       "verification": "Wedge golden set, 35-rule suite, document fixtures, and chase-agent sandbox E2E suite",
-      "state": "active",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-compliance.ps1 passed static, 100-case/35-rule deterministic suite, 12 document-type fixtures, real Compose/PostgreSQL versioned requirement-set verification, vendor/project binding, COI/ACORD 855/W-9 evidence, supersession, customer-owned sender sandbox, unsafe-negotiation and explicit-approval boundaries, attachment matching, escalation CC, and compliant-and-verified success event; backend pytest 15 passed/9 skipped; frontend six contract tests and production build passed."
     },
     {
       "id": "Q-01",
       "behavior": "A workflow owner can configure versioned confidence routing and simulate the auto/review/halt tradeoff with sampled-audit protection.",
       "verification": "Confidence calibration, threshold simulator, sampled audit, and false-auto E2E suite",
-      "state": "not_started",
-      "evidence": ""
+      "state": "passing",
+      "evidence": "2026-08-04: scripts/verify-confidence.ps1 passed static six-signal calibration/property tests, real Compose/PostgreSQL workflow-scoped threshold v1/v2 audit, model-confidence rejection, auto/review/halt routing, simulator reconciliation, deterministic 100% sampled audit, false-auto alert, rollback to prior threshold that blocked the former auto route, audit-log evidence, and frontend six contract tests/production build."
     },
     {
       "id": "E-01",
       "behavior": "A workflow version is publishable only when golden-set metrics and injection canaries pass, with drift monitoring after release.",
       "verification": "Golden-set eval, regression-block, canary, and drift-alert integration suite",
-      "state": "not_started",
+      "state": "active",
       "evidence": ""
     },
     {
