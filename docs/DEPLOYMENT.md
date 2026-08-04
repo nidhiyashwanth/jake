@@ -23,6 +23,9 @@ secrets.
 1. Build the backend, runtime-worker, and frontend images from the exact Git SHA.
 2. Run the static gates, migration policy check, image SBOM/CVE report, and the
    staging synthetic/connector smoke before promotion.
+   CI blocks fixable HIGH/CRITICAL image findings. Findings without an upstream
+   fix are retained in the Trivy SARIF artifact and reviewed during release;
+   base images and dependency locks are refreshed on every release candidate.
 3. Apply Alembic migrations forward-only. Migrations touching execution or ledger
    state use expand/contract sequencing; production never runs `downgrade`.
 4. Promote the same image digests to production and record the release SHA and
