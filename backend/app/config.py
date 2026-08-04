@@ -9,6 +9,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 SUPPORTED_ENVIRONMENTS = {"development", "dev", "test", "staging", "production"}
 
 
+def normalize_database_url(value: str) -> str:
+    if value.lower().startswith("postgresql://"):
+        return "postgresql+psycopg://" + value[len("postgresql://") :]
+    return value
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=(".env", "../.env"), extra="ignore")
 
@@ -44,7 +50,7 @@ class Settings(BaseSettings):
         normalized = value.lower()
         if "sqlite" in normalized or not normalized.startswith("postgresql"):
             raise ValueError("DATABASE_URL must use PostgreSQL; SQLite is not supported")
-        return value
+        return normalize_database_url(value)
 
     @model_validator(mode="after")
     def validate_auth_boundary(self) -> "Settings":

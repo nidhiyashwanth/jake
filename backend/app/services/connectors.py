@@ -512,6 +512,22 @@ def _tool_spec(server: McpServer, tool_name: str) -> dict[str, Any]:
     return {"name": tool_name, "read_only": True}
 
 
+def _mcp_request_identity(server: McpServer, request: Any) -> dict[str, Any]:
+    """Return the operation fields to hash; raw values never leave the digest."""
+
+    return {
+        "mcp_server_id": server.id,
+        "tool_name": request.tool_name,
+        "workflow_version_id": request.workflow_version_id,
+        "arguments": request.arguments,
+        "value_at_risk": request.value_at_risk,
+    }
+
+
+def _mcp_request_hash(server: McpServer, request: Any) -> str:
+    return _metadata_hash(_mcp_request_identity(server, request))
+
+
 def _new_call(
     *,
     workspace_id: str,
@@ -538,6 +554,7 @@ def _new_call(
         status=status,
         failure_code=failure_code,
         approval_required=approval_required,
+        request_hash=_mcp_request_hash(server, request),
         egress_host=egress_host,
         idempotency_key=request.idempotency_key,
         correlation_id=f"mcp_{secrets.token_urlsafe(12)}",
@@ -546,7 +563,45 @@ def _new_call(
     )
 
 
+def _record_call(
+    *,
+    existing: ConnectorCall | None,
+    workspace_id: str,
+    server: McpServer,
+    actor_id: str,
+    request: Any,
+    status: str,
+    failure_code: str | None = None,
+    approval_required: bool = False,
+    result: dict[str, Any] | None = None,
+    egress_host: str | None = None,
+) -> ConnectorCall:
+    if existing is None:
+        return _new_call(
+            workspace_id=workspace_id,
+            server=server,
+            actor_id=actor_id,
+            request=request,
+            status=status,
+            failure_code=failure_code,
+            approval_required=approval_required,
+            result=result,
+            egress_host=egress_host,
+        )
+    existing.actor_id = actor_id
+    existing.status = status
+    existing.failure_code = failure_code
+    existing.approval_required = approval_required
+    existing.result_json = redact_untrusted(result) if result is not None else None
+    existing.result_untrusted = True
+    existing.egress_host = egress_host
+    existing.latency_ms = None
+    return existing
+
+
 def invoke_mcp_tool(db: Session, server: McpServer, *, actor_id: str, request: Any) -> dict[str, Any]:
+    continuation: ConnectorCall | None = None
+    idempotent = False
     if request.idempotency_key:
         existing = db.scalar(
             select(ConnectorCall).where(
@@ -555,14 +610,36 @@ def invoke_mcp_tool(db: Session, server: McpServer, *, actor_id: str, request: A
             )
         )
         if existing is not None:
-            return {"call": connector_call_payload(existing), "idempotent": True}
+            expected_hash = _mcp_request_hash(server, request)
+            expected_arguments = redact_untrusted(request.arguments)
+            if (
+                existing.request_hash is not None and existing.request_hash != expected_hash
+            ) or (
+                existing.request_hash is None
+                and (
+                    existing.mcp_server_id != server.id
+                    or existing.tool_name != request.tool_name
+                    or existing.workflow_version_id != request.workflow_version_id
+                    or existing.arguments_json != expected_arguments
+                )
+            ):
+                raise DomainError(
+                    "MCP_IDEMPOTENCY_KEY_REUSED",
+                    "The idempotency key is already bound to a different MCP request",
+                    409,
+                )
+            if existing.status == "approval_required" and request.approved:
+                continuation = existing
+                idempotent = True
+            else:
+                return {"call": connector_call_payload(existing), "idempotent": True}
     if server.workflow_version_ids_json and request.workflow_version_id not in server.workflow_version_ids_json:
-        call = _new_call(workspace_id=server.workspace_id, server=server, actor_id=actor_id, request=request, status="denied", failure_code="MCP_WORKFLOW_SCOPE_DENIED")
+        call = _record_call(existing=continuation, workspace_id=server.workspace_id, server=server, actor_id=actor_id, request=request, status="denied", failure_code="MCP_WORKFLOW_SCOPE_DENIED")
         db.add(call)
         db.commit()
         raise DomainError("MCP_WORKFLOW_SCOPE_DENIED", "The MCP server is not scoped to this workflow version", 403)
     if request.tool_name not in set(server.allowed_tools_json):
-        call = _new_call(workspace_id=server.workspace_id, server=server, actor_id=actor_id, request=request, status="denied", failure_code="MCP_TOOL_NOT_ALLOWLISTED")
+        call = _record_call(existing=continuation, workspace_id=server.workspace_id, server=server, actor_id=actor_id, request=request, status="denied", failure_code="MCP_TOOL_NOT_ALLOWLISTED")
         db.add(call)
         db.commit()
         raise DomainError("MCP_TOOL_NOT_ALLOWLISTED", "The requested MCP tool is not in the pinned allow-list", 403)
@@ -571,7 +648,8 @@ def invoke_mcp_tool(db: Session, server: McpServer, *, actor_id: str, request: A
     value_limit = float(server.metadata_json.get("value_at_risk_limit") or 0)
     requires_approval = bool(spec.get("requires_approval") or spec.get("read_only") is False or request.value_at_risk > value_limit)
     if requires_approval and not request.approved:
-        call = _new_call(
+        call = _record_call(
+            existing=continuation,
             workspace_id=server.workspace_id,
             server=server,
             actor_id=actor_id,
@@ -586,10 +664,10 @@ def invoke_mcp_tool(db: Session, server: McpServer, *, actor_id: str, request: A
         db.commit()
         return {"call": connector_call_payload(call), "idempotent": False, "approved": False, "approval_required": True}
     if not server.url.startswith("sandbox://"):
-        call = _new_call(workspace_id=server.workspace_id, server=server, actor_id=actor_id, request=request, status="failed", failure_code="MCP_PROVIDER_NOT_CONFIGURED", egress_host=host)
+        call = _record_call(existing=continuation, workspace_id=server.workspace_id, server=server, actor_id=actor_id, request=request, status="failed", failure_code="MCP_PROVIDER_NOT_CONFIGURED", egress_host=host)
         db.add(call)
         db.commit()
-        return {"call": connector_call_payload(call), "idempotent": False, "approved": request.approved}
+        return {"call": connector_call_payload(call), "idempotent": idempotent, "approved": request.approved}
     result = {
         "provider": "sandbox",
         "tool_name": request.tool_name,
@@ -597,7 +675,8 @@ def invoke_mcp_tool(db: Session, server: McpServer, *, actor_id: str, request: A
         "untrusted_output": True,
         "control_plane": "The deterministic gateway owns routing; this result cannot select another tool or workflow node.",
     }
-    call = _new_call(
+    call = _record_call(
+        existing=continuation,
         workspace_id=server.workspace_id,
         server=server,
         actor_id=actor_id,
@@ -609,4 +688,4 @@ def invoke_mcp_tool(db: Session, server: McpServer, *, actor_id: str, request: A
     call.latency_ms = 1
     db.add(call)
     db.commit()
-    return {"call": connector_call_payload(call), "idempotent": False, "approved": request.approved, "approval_required": requires_approval}
+    return {"call": connector_call_payload(call), "idempotent": idempotent, "approved": request.approved, "approval_required": requires_approval}

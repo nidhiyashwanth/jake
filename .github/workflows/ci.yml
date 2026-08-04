@@ -58,7 +58,7 @@ jobs:
 
       - name: Install locked frontend dependencies
         working-directory: frontend
-        run: npm ci
+        run: npm ci --ignore-scripts
 
       - name: Run frontend typecheck, tests, and production build
         working-directory: frontend
@@ -136,8 +136,10 @@ jobs:
           AUTH_PROVIDER=development
           ALLOW_DEVELOPMENT_IDENTITY=true
           SESSION_TTL_MINUTES=480
-          POSTGRES_USER=ci_user
+          POSTGRES_USER=ci_owner
           POSTGRES_PASSWORD=$env:CI_DATABASE_PASSWORD
+          POSTGRES_APP_USER=ci_app_user
+          POSTGRES_APP_PASSWORD=${env:CI_DATABASE_PASSWORD}-app
           POSTGRES_DB=ci_db
           POSTGRES_PORT=15432
           POSTGRES_VOLUME_NAME=ai-ops-platform-ci-data
@@ -148,6 +150,7 @@ jobs:
           MINIMUM_GL_OCCURRENCE_LIMIT=2000000
           RULES_VERSION=rules.v1
           MAX_UPLOAD_BYTES=10485760
+          DATABASE_ADMIN_URL=postgresql+psycopg://ci_owner:${env:CI_DATABASE_PASSWORD}@localhost:15432/ci_db
           VAULT_KEK_BASE64=
           VAULT_KEY_VERSION=ci-kms-v1
           CONNECTOR_EGRESS_ALLOWLIST=localhost,sandbox.local,mcp.local,rest.local
@@ -179,7 +182,7 @@ jobs:
         shell: bash
         run: |
           docker compose --project-name "$CI_PROJECT" --env-file "../$CI_ENV_FILE" --file ../docker-compose.yml exec -T backend alembic current
-          DATABASE_URL="postgresql+psycopg://ci_user:${CI_DATABASE_PASSWORD}@localhost:15432/ci_db" python -m pytest -m integration -q
+          DATABASE_ADMIN_URL="postgresql+psycopg://ci_owner:${CI_DATABASE_PASSWORD}@localhost:15432/ci_db" DATABASE_URL="postgresql+psycopg://ci_app_user:${CI_DATABASE_PASSWORD}-app@localhost:15432/ci_db" python -m pytest -m integration -q
 
       - name: Run staging-sandbox and recovery evidence
         shell: pwsh

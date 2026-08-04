@@ -99,6 +99,7 @@ def create_requirement_set(
             select(ComplianceRequirementSet).where(
                 ComplianceRequirementSet.workspace_id == workspace_id,
                 ComplianceRequirementSet.name == name,
+                ComplianceRequirementSet.project_id == project_id,
                 ComplianceRequirementSet.status == "active",
             )
         ).all()

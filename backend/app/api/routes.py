@@ -51,7 +51,7 @@ from app.schemas import (
 from app.services.audit import append_audit_log, append_data_access_log
 from app.services.authorization import authorize, normalize_role, require_workspace
 from app.services.compliance_catalog import DOCUMENT_TYPE_BY_ALIAS, normalize_document_type
-from app.services.documents import as_date, coerce_correction, extract_document_fields
+from app.services.documents import coerce_correction, derived_document_metadata, extract_document_fields
 from app.services.discovery import (
     baseline_payload,
     calculate_score,
@@ -1056,6 +1056,7 @@ async def upload_document(
     db: ScopedDb,
     file: Annotated[UploadFile, File(...)],
     doc_type: Annotated[str, Form()] = "COI",
+    project_id: Annotated[str | None, Form()] = None,
 ) -> dict[str, Any]:
     context = current_context(db)
     authorize(db, context, "document.upload", target_type="vendor", target_id=vendor_id)
@@ -1063,22 +1064,20 @@ async def upload_document(
     normalized_doc_type = normalize_document_type(doc_type)
     if normalized_doc_type not in set(DOCUMENT_TYPE_BY_ALIAS.values()):
         raise DomainError("DOCUMENT_TYPE_UNSUPPORTED", f"The v1 document taxonomy does not include {doc_type}", 422)
-    content = await file.read()
-    from app.config import get_settings
-
-    if len(content) > get_settings().max_upload_bytes:
+    settings = get_settings()
+    content = await file.read(settings.max_upload_bytes + 1)
+    if len(content) > settings.max_upload_bytes:
         raise DomainError("DOCUMENT_TOO_LARGE", "The uploaded document exceeds the 10 MB MVP limit", 413)
+    normalized_project_id = project_id.strip() if project_id and project_id.strip() else None
+    if normalized_project_id and len(normalized_project_id) > 120:
+        raise DomainError("DOCUMENT_PROJECT_INVALID", "project_id must be at most 120 characters", 422)
     filename = file.filename or "uploaded-coi.txt"
     media_type = file.content_type or "application/octet-stream"
     fields = extract_document_fields(content, filename, media_type, normalized_doc_type)
+    if normalized_project_id:
+        fields["project_id"] = normalized_project_id
     now = datetime.now(timezone.utc)
-    expiry_value = next(
-        (fields.get(key) for key in ("policy_expiry", "license_expiry", "business_license_expiry", "osha_expiry") if fields.get(key)),
-        None,
-    )
-    expiry_date = as_date(expiry_value)
-    issued_value = fields.get("policy_effective") or fields.get("issued_at")
-    issued_date = as_date(issued_value)
+    issued_date, expiry_date, issuer = derived_document_metadata(fields)
     document = ComplianceDocument(
         workspace_id=context.workspace_id,
         vendor_id=vendor.id,
@@ -1090,7 +1089,7 @@ async def upload_document(
         status="received",
         issued_at=datetime.combine(issued_date, datetime.min.time(), tzinfo=timezone.utc) if issued_date else None,
         expires_at=datetime.combine(expiry_date, datetime.min.time(), tzinfo=timezone.utc) if expiry_date else None,
-        issuer=fields.get("carrier") if isinstance(fields.get("carrier"), str) else None,
+        issuer=issuer,
         sha256=hashlib.sha256(content).hexdigest(),
     )
     db.add(document)
@@ -1258,6 +1257,10 @@ def update_review(review_id: str, payload: ReviewUpdate, db: ScopedDb) -> dict[s
     before_value = fields.get(review.correction_field)
     fields[review.correction_field] = corrected
     document.extracted_fields = fields
+    issued_date, expiry_date, issuer = derived_document_metadata(fields)
+    document.issued_at = datetime.combine(issued_date, datetime.min.time(), tzinfo=timezone.utc) if issued_date else None
+    document.expires_at = datetime.combine(expiry_date, datetime.min.time(), tzinfo=timezone.utc) if expiry_date else None
+    document.issuer = issuer
     review.status = "resolved"
     review.resolved_at = datetime.now(timezone.utc)
     review.correction_reason_code = payload.reason_code

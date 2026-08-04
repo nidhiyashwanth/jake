@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, JSON, LargeBinary, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, JSON, LargeBinary, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 
@@ -476,6 +476,7 @@ class ConnectorCall(WorkspaceScopedMixin, Base):
     status: Mapped[str] = mapped_column(String(32), nullable=False)
     failure_code: Mapped[str | None] = mapped_column(String(80), nullable=True)
     approval_required: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    request_hash: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     egress_host: Mapped[str | None] = mapped_column(String(255), nullable=True)
     idempotency_key: Mapped[str | None] = mapped_column(String(240), nullable=True)
     correlation_id: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -560,7 +561,25 @@ class VendorRequirement(WorkspaceScopedMixin, Base):
     """Optional vendor/project binding and deterministic rule overrides."""
 
     __tablename__ = "vendor_requirements"
-    __table_args__ = (UniqueConstraint("workspace_id", "vendor_id", "requirement_set_id", "project_id", name="uq_vendor_requirements_scope"),)
+    __table_args__ = (
+        Index(
+            "uq_vendor_requirements_global_scope",
+            "workspace_id",
+            "vendor_id",
+            "requirement_set_id",
+            unique=True,
+            postgresql_where=text("project_id IS NULL"),
+        ),
+        Index(
+            "uq_vendor_requirements_project_scope",
+            "workspace_id",
+            "vendor_id",
+            "requirement_set_id",
+            "project_id",
+            unique=True,
+            postgresql_where=text("project_id IS NOT NULL"),
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
     vendor_id: Mapped[str] = mapped_column(ForeignKey("vendors.id"), nullable=False, index=True)

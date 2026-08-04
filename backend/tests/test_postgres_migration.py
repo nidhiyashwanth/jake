@@ -42,10 +42,11 @@ def test_alembic_creates_required_postgres_schema() -> None:
     backend_root = Path(__file__).resolve().parents[1]
     config = Config(str(backend_root / "alembic.ini"))
     config.set_main_option("script_location", str(backend_root / "migrations"))
-    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+    migration_url = os.environ.get("DATABASE_ADMIN_URL", database_url)
+    config.set_main_option("sqlalchemy.url", migration_url.replace("%", "%%"))
     command.upgrade(config, "head")
 
-    engine = create_engine(database_url, pool_pre_ping=True)
+    engine = create_engine(os.environ.get("DATABASE_ADMIN_URL", database_url), pool_pre_ping=True)
     try:
         with engine.connect() as connection:
             assert REQUIRED_TABLES <= set(inspect(connection).get_table_names())

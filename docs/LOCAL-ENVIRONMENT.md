@@ -11,6 +11,12 @@
 - Python 3.12 for FastAPI tooling.
 - Node/npm for the Next.js review desk.
 
+Copy `.env.example` to the ignored repository-root `.env` and set both the
+owner credentials (`POSTGRES_USER`/`POSTGRES_PASSWORD`) and the separate
+application credentials (`POSTGRES_APP_USER`/`POSTGRES_APP_PASSWORD`). Compose
+uses the owner only for role preparation and migrations; the API and worker
+connect through the non-superuser application role.
+
 Docker and WSL are infrastructure prerequisites, not optional substitutes. Do not replace PostgreSQL with SQLite to avoid setup work.
 
 ## Storage policy
@@ -39,5 +45,9 @@ docker compose version
 docker compose --env-file .env --file docker-compose.yml config --quiet
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/check-docker-storage.ps1 -MaxGb 32
 ```
+
+For direct integration runs, set `DATABASE_URL` to the application-role URL
+and `DATABASE_ADMIN_URL` to the owner URL so test setup and cleanup retain the
+least-privilege application boundary.
 
 Then the application health check and the F01 verifier must pass. If WSL reports a pending restart, restart Windows before launching Docker Desktop. If host port 5432 is occupied by a native PostgreSQL service, set `$env:POSTGRES_PORT = "15432"` for a host-side test run; the application services still use the Compose network internally.

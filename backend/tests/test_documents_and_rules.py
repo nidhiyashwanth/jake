@@ -5,7 +5,7 @@ import pytest
 from app.config import Settings
 from app.errors import DomainError
 from app.models import Vendor
-from app.services.documents import coerce_correction, normalize_fields
+from app.services.documents import coerce_correction, derived_document_metadata, normalize_fields
 from app.services.verification import evaluate_rules
 
 
@@ -51,6 +51,22 @@ def test_correction_values_are_normalized_and_reject_unknown_fields() -> None:
         coerce_correction("untrusted_field", "value")
 
 
+def test_denormalized_document_metadata_uses_corrected_extracted_fields() -> None:
+    issued_at, expires_at, issuer = derived_document_metadata(
+        {"policy_effective": "2026-01-15", "policy_expiry": "2027-01-15", "carrier": "Acme Mutual"}
+    )
+
+    assert issued_at == date(2026, 1, 15)
+    assert expires_at == date(2027, 1, 15)
+    assert issuer == "Acme Mutual"
+
+
 def test_sqlite_is_explicitly_rejected() -> None:
     with pytest.raises(ValueError, match="PostgreSQL"):
         Settings(database_url="sqlite:///not-allowed.db")
+
+
+def test_bare_postgres_urls_select_the_installed_psycopg_driver() -> None:
+    settings = Settings(database_url="postgresql://user:pass@db.example.invalid/app")
+
+    assert settings.database_url == "postgresql+psycopg://user:pass@db.example.invalid/app"

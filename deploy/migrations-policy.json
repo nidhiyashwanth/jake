@@ -1,7 +1,7 @@
 {
   "policy_version": "migrations.v1",
   "mode": "forward_only",
-  "expected_head": "0017_governance",
+  "expected_head": "0019_mcp_request_hash",
   "expand_contract_required_for": [
     "executions",
     "execution_steps",

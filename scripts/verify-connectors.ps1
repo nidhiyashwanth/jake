@@ -62,6 +62,7 @@ function Invoke-JsonBoundary {
             $content = $reader.ReadToEnd()
             $reader.Dispose()
         } catch { $content = $null }
+        if ([string]::IsNullOrWhiteSpace($content) -and $null -ne $_.ErrorDetails) { $content = $_.ErrorDetails.Message }
     }
     $json = $null
     if (-not [string]::IsNullOrWhiteSpace($content)) { try { $json = $content | ConvertFrom-Json } catch { throw "C-01 API returned a non-JSON response at $Uri" } }
@@ -190,17 +191,21 @@ function Invoke-C01HttpE2E {
     Assert-Status $call @(200) "MCP allow-listed call"
     Assert-Condition ([string]$call.Json.call.status -eq "success" -and [bool]$call.Json.call.result_untrusted) "MCP success did not retain the untrusted-output boundary"
     Assert-Condition (-not (($call.Json | ConvertTo-Json -Depth 50 -Compress).Contains($secret))) "MCP call response contained the synthetic secret"
-    $repeat = Invoke-JsonBoundary -Method POST -Uri "$apiBase/api/mcp/servers/$serverId/tools/call" -Headers $headers -Body @{ tool_name = "sandbox_search"; arguments = @{ query = "C01" }; workflow_version_id = "c01-workflow-$suffix"; value_at_risk = 0; approved = $false; idempotency_key = $idempotency }
+    $repeat = Invoke-JsonBoundary -Method POST -Uri "$apiBase/api/mcp/servers/$serverId/tools/call" -Headers $headers -Body @{ tool_name = "sandbox_search"; arguments = @{ query = "C01"; authorization = $secret }; workflow_version_id = "c01-workflow-$suffix"; value_at_risk = 0; approved = $false; idempotency_key = $idempotency }
     Assert-Status $repeat @(200) "MCP idempotent repeat"
     Assert-Condition ([bool]$repeat.Json.idempotent -and [string]$repeat.Json.call.id -eq [string]$call.Json.call.id) "MCP idempotency key produced a duplicate call"
+    $reused = Invoke-JsonBoundary -Method POST -Uri "$apiBase/api/mcp/servers/$serverId/tools/call" -Headers $headers -Body @{ tool_name = "sandbox_search"; arguments = @{ query = "different" }; workflow_version_id = "c01-workflow-$suffix"; value_at_risk = 0; approved = $false; idempotency_key = $idempotency }
+    Assert-Status $reused @(409) "MCP idempotency-key request mismatch"
+    Assert-Condition ([string]$reused.Json.error.code -eq "MCP_IDEMPOTENCY_KEY_REUSED") "MCP idempotency-key mismatch returned code '$($reused.Json.error.code)'"
     $deniedTool = Invoke-JsonBoundary -Method POST -Uri "$apiBase/api/mcp/servers/$serverId/tools/call" -Headers $headers -Body @{ tool_name = "not_allow_listed"; arguments = @{}; workflow_version_id = "c01-workflow-$suffix"; idempotency_key = "c01-denied-$suffix" }
     Assert-Status $deniedTool @(403) "MCP tool allow-list denial"
-    $approval = Invoke-JsonBoundary -Method POST -Uri "$apiBase/api/mcp/servers/$serverId/tools/call" -Headers $headers -Body @{ tool_name = "sandbox_write"; arguments = @{ target = "sandbox" }; workflow_version_id = "c01-workflow-$suffix"; value_at_risk = 500; approved = $false; idempotency_key = "c01-approval-$suffix" }
+    $approvalKey = "c01-approval-$suffix"
+    $approval = Invoke-JsonBoundary -Method POST -Uri "$apiBase/api/mcp/servers/$serverId/tools/call" -Headers $headers -Body @{ tool_name = "sandbox_write"; arguments = @{ target = "sandbox" }; workflow_version_id = "c01-workflow-$suffix"; value_at_risk = 500; approved = $false; idempotency_key = $approvalKey }
     Assert-Status $approval @(200) "MCP approval gate"
     Assert-Condition ([bool]$approval.Json.approval_required -and [string]$approval.Json.call.status -eq "approval_required") "MCP value-at-risk approval gate did not halt the write"
-    $approved = Invoke-JsonBoundary -Method POST -Uri "$apiBase/api/mcp/servers/$serverId/tools/call" -Headers $headers -Body @{ tool_name = "sandbox_write"; arguments = @{ target = "sandbox" }; workflow_version_id = "c01-workflow-$suffix"; value_at_risk = 500; approved = $true; approval_note = "C01 verifier approval"; idempotency_key = "c01-approved-$suffix" }
+    $approved = Invoke-JsonBoundary -Method POST -Uri "$apiBase/api/mcp/servers/$serverId/tools/call" -Headers $headers -Body @{ tool_name = "sandbox_write"; arguments = @{ target = "sandbox" }; workflow_version_id = "c01-workflow-$suffix"; value_at_risk = 500; approved = $true; approval_note = "C01 verifier approval"; idempotency_key = $approvalKey }
     Assert-Status $approved @(200) "approved MCP write"
-    Assert-Condition ([string]$approved.Json.call.status -eq "success") "approved MCP write did not execute in the sandbox"
+    Assert-Condition ([string]$approved.Json.call.status -eq "success" -and [bool]$approved.Json.idempotent -and [string]$approved.Json.call.id -eq [string]$approval.Json.call.id) "approved MCP write did not safely continue the pending idempotent call"
     $scopeDenied = Invoke-JsonBoundary -Method POST -Uri "$apiBase/api/mcp/servers/$serverId/tools/call" -Headers $headers -Body @{ tool_name = "sandbox_search"; arguments = @{}; workflow_version_id = "other-workflow-$suffix"; idempotency_key = "c01-scope-$suffix" }
     Assert-Status $scopeDenied @(403) "MCP workflow-version scope denial"
     $calls = Invoke-JsonBoundary -Method GET -Uri "$apiBase/api/mcp/calls" -Headers $headers

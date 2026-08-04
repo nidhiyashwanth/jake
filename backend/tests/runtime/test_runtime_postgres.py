@@ -27,7 +27,8 @@ def _migrate(database_url: str) -> None:
     backend_root = Path(__file__).resolve().parents[2]
     config = Config(str(backend_root / "alembic.ini"))
     config.set_main_option("script_location", str(backend_root / "migrations"))
-    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+    migration_url = os.environ.get("DATABASE_ADMIN_URL", database_url)
+    config.set_main_option("sqlalchemy.url", migration_url.replace("%", "%%"))
     command.upgrade(config, "head")
 
 
@@ -161,7 +162,7 @@ def test_runtime_is_graph_ordered_idempotent_and_replay_safe() -> None:
             return execution_id, login.json()["workspace"]["id"], version["id"]
 
     execution_id, workspace_id, version_id = asyncio.run(exercise())
-    engine = create_engine(database_url, pool_pre_ping=True)
+    engine = create_engine(os.environ.get("DATABASE_ADMIN_URL", database_url), pool_pre_ping=True)
     try:
         with engine.connect() as connection:
             assert connection.execute(

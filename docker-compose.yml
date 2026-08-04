@@ -19,6 +19,32 @@ services:
     labels:
       com.ai-ops.storage-policy: "32GB maximum host budget"
 
+  db-prepare:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?Set POSTGRES_USER in .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}
+      POSTGRES_DB: ${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      POSTGRES_APP_USER: ${POSTGRES_APP_USER:?Set POSTGRES_APP_USER in .env}
+      POSTGRES_APP_PASSWORD: ${POSTGRES_APP_PASSWORD:?Set POSTGRES_APP_PASSWORD in .env}
+    volumes:
+      - ./deploy/postgres/prepare-app-role.sh:/usr/local/bin/prepare-app-role.sh:ro
+    entrypoint: ["/bin/sh", "/usr/local/bin/prepare-app-role.sh"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?Set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB in .env}
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      db-prepare:
+        condition: service_completed_successfully
+
   backend:
     build:
       context: ./backend
@@ -29,7 +55,7 @@ services:
       AUTH_PROVIDER: ${AUTH_PROVIDER:?Set AUTH_PROVIDER in .env}
       ALLOW_DEVELOPMENT_IDENTITY: ${ALLOW_DEVELOPMENT_IDENTITY:?Set ALLOW_DEVELOPMENT_IDENTITY in .env}
       SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:?Set SESSION_TTL_MINUTES in .env}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?Set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_APP_USER:?Set POSTGRES_APP_USER in .env}:${POSTGRES_APP_PASSWORD:?Set POSTGRES_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB in .env}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS in .env}
       REQUIRED_CERTIFICATE_HOLDER: ${REQUIRED_CERTIFICATE_HOLDER:?Set REQUIRED_CERTIFICATE_HOLDER in .env}
       MINIMUM_GL_OCCURRENCE_LIMIT: ${MINIMUM_GL_OCCURRENCE_LIMIT:?Set MINIMUM_GL_OCCURRENCE_LIMIT in .env}
@@ -47,9 +73,10 @@ services:
       VALUE_INFRA_COST_PER_RUN_USD: ${VALUE_INFRA_COST_PER_RUN_USD:-0}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
+    command: ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
     depends_on:
-      postgres:
-        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health', timeout=2)"]
       interval: 3s
@@ -66,7 +93,7 @@ services:
       AUTH_PROVIDER: ${AUTH_PROVIDER:?Set AUTH_PROVIDER in .env}
       ALLOW_DEVELOPMENT_IDENTITY: ${ALLOW_DEVELOPMENT_IDENTITY:?Set ALLOW_DEVELOPMENT_IDENTITY in .env}
       SESSION_TTL_MINUTES: ${SESSION_TTL_MINUTES:?Set SESSION_TTL_MINUTES in .env}
-      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:?Set POSTGRES_USER in .env}:${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB in .env}
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_APP_USER:?Set POSTGRES_APP_USER in .env}:${POSTGRES_APP_PASSWORD:?Set POSTGRES_APP_PASSWORD in .env}@postgres:5432/${POSTGRES_DB:?Set POSTGRES_DB in .env}
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:?Set ALLOWED_ORIGINS in .env}
       REQUIRED_CERTIFICATE_HOLDER: ${REQUIRED_CERTIFICATE_HOLDER:?Set REQUIRED_CERTIFICATE_HOLDER in .env}
       MINIMUM_GL_OCCURRENCE_LIMIT: ${MINIMUM_GL_OCCURRENCE_LIMIT:?Set MINIMUM_GL_OCCURRENCE_LIMIT in .env}

@@ -126,6 +126,11 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
 .panel-note, .tiny-label { color: var(--muted); font-size: 10px; margin-top: 3px; }
 .tiny-label { letter-spacing: 0.06em; text-transform: uppercase; }
 .upload-bar { align-items: stretch; display: flex; gap: 10px; }
+.upload-project-field { display: grid; gap: 5px; min-width: 150px; }
+.upload-project-field > span { color: var(--muted); font-size: 9px; font-weight: 800; letter-spacing: .07em; text-transform: uppercase; }
+.upload-project-field input { background: #fff; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); font: inherit; font-size: 12px; min-height: 35px; outline: none; padding: 8px 9px; }
+.upload-project-field input:focus { border-color: var(--coral); box-shadow: 0 0 0 3px rgba(231,124,98,0.12); }
+.upload-project-field input:disabled { cursor: not-allowed; opacity: 0.58; }
 .file-picker { align-items: center; border: 1px dashed #b7c8b8; border-radius: 9px; color: var(--ink); cursor: pointer; display: flex; flex: 1; gap: 12px; min-height: 62px; padding: 11px 14px; transition: 160ms ease; }
 .file-picker:hover, .file-picker--selected { background: #f2f8df; border-color: var(--lime-deep); }
 .file-picker input { display: none; }
@@ -253,6 +258,7 @@ button:disabled { cursor: not-allowed; opacity: 0.55; }
   .vendor-heading { align-items: flex-start; flex-direction: column; gap: 17px; }
   .upload-bar { align-items: stretch; flex-direction: column; }
   .file-picker { min-height: 72px; }
+  .upload-project-field { width: 100%; }
   .upload-bar .button { min-height: 42px; }
   .panel { padding: 17px; }
   .panel-heading { gap: 12px; }

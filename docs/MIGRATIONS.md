@@ -2,7 +2,7 @@
 
 - **Source:** Alembic files under `backend/migrations/versions/` and the
   deployment contract in `docs/DEPLOYMENT.md`.
-- **Applicability:** every schema change after `0017_governance`.
+- **Applicability:** every schema change after `0019_mcp_request_hash`.
 - **Expiry:** update when the database engine or migration runner changes.
 
 The production migration mode is forward-only. There must be one linear Alembic

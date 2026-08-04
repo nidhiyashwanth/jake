@@ -438,10 +438,11 @@ export const api = {
   getVendor: (vendorId: string) => request<VendorDetail>(`/api/vendors/${vendorId}`),
   createVendor: (legalName: string) =>
     request<Vendor>("/api/vendors", { method: "POST", body: JSON.stringify({ legal_name: legalName }) }),
-  uploadDocument: (vendorId: string, file: File) => {
+  uploadDocument: (vendorId: string, file: File, projectId?: string) => {
     const formData = new FormData();
     formData.append("file", file);
     formData.append("doc_type", "COI");
+    if (projectId?.trim()) formData.append("project_id", projectId.trim());
     return request<import("./types").ComplianceDocument>(`/api/vendors/${vendorId}/documents`, {
       method: "POST",
       body: formData,

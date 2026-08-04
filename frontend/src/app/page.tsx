@@ -459,6 +459,7 @@ function ReviewDesk({ session, workspace, activeSurface, contextError, contextBu
   const [savingReviewId, setSavingReviewId] = useState<string | null>(null);
   const [newVendorName, setNewVendorName] = useState("");
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [uploadProjectId, setUploadProjectId] = useState("");
   const [reviewValues, setReviewValues] = useState<Record<string, string>>({});
   const [reviewReasonCodes, setReviewReasonCodes] = useState<Record<string, string>>({});
   const [reviewNotes, setReviewNotes] = useState<Record<string, string>>({});
@@ -638,8 +639,9 @@ function ReviewDesk({ session, workspace, activeSurface, contextError, contextBu
     setUploading(true);
     setError(null);
     try {
-      await api.uploadDocument(selectedVendorId, selectedFile);
+      await api.uploadDocument(selectedVendorId, selectedFile, uploadProjectId);
       setSelectedFile(null);
+      setUploadProjectId("");
       if (fileInputRef.current) fileInputRef.current.value = "";
       await refreshAll(selectedVendorId);
       setNotice("COI uploaded. The extracted fields are ready for verification.");
@@ -837,6 +839,10 @@ function ReviewDesk({ session, workspace, activeSurface, contextError, contextBu
                   <span className="upload-glyph" aria-hidden="true">↑</span>
                   <span><strong>{selectedFile ? selectedFile.name : "Choose a COI"}</strong><small>{selectedFile ? `${Math.ceil(selectedFile.size / 1024)} KB ready to send` : "Drop a file or browse from this device"}</small></span>
                   <input accept=".pdf,.txt,application/pdf,text/plain" disabled={!canOperate} id="coi-file" onChange={handleFileChange} ref={fileInputRef} type="file" />
+                </label>
+                <label className="upload-project-field" htmlFor="coi-project-id">
+                  <span>Project ID (optional)</span>
+                  <input disabled={!canOperate} id="coi-project-id" maxLength={120} onChange={(event) => setUploadProjectId(event.target.value)} placeholder="P-42" value={uploadProjectId} />
                 </label>
                 <button className="button button--primary" disabled={!selectedFile || uploading} type="submit">{uploading ? "Reading…" : "Upload COI"}<span aria-hidden="true">↗</span></button>
               </form>

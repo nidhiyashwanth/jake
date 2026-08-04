@@ -28,7 +28,8 @@ def _migrate(database_url: str) -> None:
     backend_root = Path(__file__).resolve().parents[1]
     config = Config(str(backend_root / "alembic.ini"))
     config.set_main_option("script_location", str(backend_root / "migrations"))
-    config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
+    migration_url = os.environ.get("DATABASE_ADMIN_URL", database_url)
+    config.set_main_option("sqlalchemy.url", migration_url.replace("%", "%%"))
     command.upgrade(config, "head")
 
 
@@ -55,7 +56,8 @@ def _make_non_superuser_engine(database_url: str):
 
     role = f"t01_rls_{secrets.token_hex(8)}"
     password = secrets.token_hex(24)
-    admin_engine = create_engine(database_url, pool_pre_ping=True)
+    admin_database_url = os.environ.get("DATABASE_ADMIN_URL", database_url)
+    admin_engine = create_engine(admin_database_url, pool_pre_ping=True)
     with admin_engine.begin() as connection:
         connection.exec_driver_sql(
             f'CREATE ROLE "{role}" LOGIN NOSUPERUSER NOBYPASSRLS PASSWORD \'{password}\''
@@ -68,7 +70,7 @@ def _make_non_superuser_engine(database_url: str):
 
     def cleanup() -> None:
         rls_engine.dispose()
-        cleanup_engine = create_engine(database_url, pool_pre_ping=True)
+        cleanup_engine = create_engine(admin_database_url, pool_pre_ping=True)
         with cleanup_engine.begin() as connection:
             connection.exec_driver_sql(f'DROP OWNED BY "{role}"')
             connection.exec_driver_sql(f'DROP ROLE IF EXISTS "{role}"')

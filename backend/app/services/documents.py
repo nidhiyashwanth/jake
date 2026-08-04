@@ -263,3 +263,15 @@ def as_date(value: Any) -> date | None:
         return date.fromisoformat(value)
     except ValueError:
         return None
+
+
+def derived_document_metadata(fields: dict[str, Any]) -> tuple[date | None, date | None, str | None]:
+    """Derive the denormalized document dates and issuer from extracted fields."""
+
+    expiry_value = next(
+        (fields.get(key) for key in ("policy_expiry", "license_expiry", "business_license_expiry", "osha_expiry") if fields.get(key)),
+        None,
+    )
+    issued_value = fields.get("policy_effective") or fields.get("issued_at")
+    issuer = fields.get("carrier") if isinstance(fields.get("carrier"), str) else None
+    return as_date(issued_value), as_date(expiry_value), issuer
