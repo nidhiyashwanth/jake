@@ -236,7 +236,7 @@ jobs:
 
       - name: Upload SBOM, audit, and recovery evidence
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ai-ops-ci-evidence-${{ github.sha }}
           path: |
