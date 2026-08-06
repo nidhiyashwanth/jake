@@ -1,0 +1,27 @@
+{
+  "contract_version": "x01.operations.v1",
+  "required_paths": [
+    ".github/workflows/ci.yml",
+    ".github/dependabot.yml",
+    "deploy/env/staging.env.example",
+    "deploy/env/production.env.example",
+    "deploy/docker-compose.staging.yml",
+    "deploy/migrations-policy.json",
+    "render.yaml",
+    "docs/DEPLOYMENT.md",
+    "docs/MIGRATIONS.md",
+    "scripts/verify-migrations.ps1",
+    "scripts/backup-postgres.ps1",
+    "scripts/restore-postgres.ps1",
+    "scripts/generate-sbom.ps1"
+  ],
+  "required_markers": {
+    "ci": ["npm ci", "pytest", "alembic", "pip-audit", "npm --prefix frontend audit", "golden"],
+    "deployment": ["autoDeploy: false", "runtime: docker", "sync: false", "AUTH_PROVIDER"],
+    "recovery": ["PITR", "versioned object storage", "restore drill", "RPO", "RTO"],
+    "images": ["requirements.lock", "USER", "npm ci", ".env"]
+  },
+  "browser": {
+    "heading": "Start with one vendor"
+  }
+}

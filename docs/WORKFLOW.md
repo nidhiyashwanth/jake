@@ -7,13 +7,13 @@
 ## Clock in
 
 1. Read `AGENTS.md`, `PROGRESS.md`, and `DECISIONS.md`.
-2. Inspect the current feature list and confirm that no more than one item is `active`.
+2. Inspect `feature-list.json` and `task.md`; confirm that the same single package is `active` in both.
 3. Run the relevant verification gate before changing files.
 4. Select the single next action from `PROGRESS.md`; park adjacent ideas.
 
 ## Scope control
 
-WIP is 1. A feature moves from `not_started` to `active`, then remains active until its exact verification command passes. Only then may the next item start. Research, refactoring, cleanup, and product implementation are separate work items; do not bundle them because they are nearby.
+WIP is 1. A package moves from `not_started` to `active`, then remains active until its exact verification command passes. Only then may the next package start. Research, refactoring, cleanup, and product implementation are separate work items; do not bundle them because they are nearby. The detailed package board is `task.md`; `feature-list.json` is the executable WIP gate.
 
 ## Decisions and state
 
@@ -30,7 +30,7 @@ The first clean harness baseline is published as one atomic checkpoint after ver
 ## Clock out
 
 1. Finish the active unit or record a concrete blocker.
-2. Run the relevant static/runtime/E2E gate, or the current harness gate while no runtime exists.
+2. Run the relevant static/runtime/E2E gate. For harness-only changes, run the harness gate; for product changes, run all three layers defined in `docs/VERIFICATION.md`.
 3. Update `PROGRESS.md`, feature evidence, and new decisions.
 4. Remove temporary files and leave one executable next action.
 5. Confirm the working tree is clean once Git is initialized.

@@ -1,0 +1,25 @@
+{
+  "contract_version": "l01.value.v1",
+  "purpose": "Immutable value events, reconciliation, baseline provenance, CFO drill-down, and audit-pack exports.",
+  "required_routes": [
+    "/api/value/rollup",
+    "/api/value/events",
+    "/api/value/events/{event_id}",
+    "/api/value/drilldown",
+    "/api/value/exports/value.csv",
+    "/api/value/exports/value.pdf"
+  ],
+  "event_kinds": ["unit_processed", "touch_avoided", "time_saved", "error_prevented", "cycle_time_reduced", "human_touch_cost", "model_cost", "infra_cost", "rework"],
+  "invariants": [
+    "value events are workspace-scoped and protected by PostgreSQL RLS",
+    "value events are append-only at the database trigger boundary",
+    "event keys are workspace-scoped and idempotent",
+    "every event carries a method, confidence, and formula version",
+    "signed baseline and immutable workflow hashes are retained on execution events",
+    "auto plus reviewed plus halted equals ingested with no orphan source records",
+    "dashboard totals and drill-down rows are calculated from the same event rows",
+    "CSV and PDF exports carry reconciliation and provenance evidence",
+    "safe replay does not create value events or side effects"
+  ],
+  "forbidden_verifier_operations": ["psql", "sqlite", "docker exec", "Invoke-SqlCmd", "database client", "secret output"]
+}

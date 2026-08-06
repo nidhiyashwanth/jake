@@ -4,13 +4,81 @@ Research completed 2026-08-03. Source: full teardown of deployly.ai (all 6 publi
 
 ## Current operating phase
 
-This workspace has a **passing harness baseline; product implementation has not started**. The research set is complete, the vendor/subcontractor compliance-document wedge and full-time/raise operating mode are selected, and product code remains gated behind a written build plan. Read [AGENTS.md](AGENTS.md) before changing anything.
+This workspace has a **passing F01 foundation, passing W-01 workflow-definition slice, passing R-01 durable runtime, passing E-01 evaluation/release evidence, passing I-01 execution inspection/observability, passing L-01 value realization ledger, passing G-01 governance/privacy controls, passing X-01 deployment/recovery controls, passing LAUNCH-01 release acceptance, and a complete documented product package**. Customer-specific production values and real customer acceptance remain deployment-owner inputs. The research set is complete, the vendor/subcontractor compliance-document wedge and full-time/raise operating mode are selected, and the application is decomposed in [task.md](task.md). Read [AGENTS.md](AGENTS.md) before changing anything.
 
 Run the current harness check with:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-harness.ps1
 ```
+
+Run the real local MVP path with Docker Desktop and PostgreSQL 16:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-mvp.ps1
+```
+
+Run the durable runtime gate with real Compose/PostgreSQL and browser evidence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-runtime.ps1
+```
+
+Run the passing C-01 connector/MCP/vault gate with real Compose/PostgreSQL and browser evidence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-connectors.ps1
+```
+
+Run the passing P-01 compliance rules and chase gate with real Compose/PostgreSQL evidence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-compliance.ps1
+```
+
+Run the passing Q-01 confidence, threshold, simulator, and sampled-audit gate with real Compose/PostgreSQL evidence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-confidence.ps1
+```
+
+Run the passing E-01 golden-set, publish-block, and drift gate with real Compose/PostgreSQL evidence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-evaluations.ps1
+```
+
+Run the passing I-01 execution inspector, redaction, trace, replay, and degraded-mode gate with real Compose/PostgreSQL and browser evidence:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-inspector.ps1
+```
+
+Run the passing L-01 value realization ledger, reconciliation, drill-down, and export gate:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-value-ledger.ps1
+```
+
+Run the passing G-01 governance, PII, retention, incident, audit-pack, and security gate:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-governance.ps1
+```
+
+Run the passing LAUNCH-01 release-candidate acceptance and role-tour gate:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File scripts/verify-launch.ps1
+```
+
+The canonical governance contract is [docs/GOVERNANCE.md](docs/GOVERNANCE.md).
+
+The complete product backlog, reusable workstream prompt, dependencies, and package gates live in [task.md](task.md). F01 is the foundation checkpoint; it is not the whole product.
+
+All required product packages currently pass. Any new product change must be
+introduced as one scoped WIP item in [task.md](task.md); customer-specific
+secret-manager values and named acceptance owners are intentionally outside Git.
 
 The harness state lives in [PROGRESS.md](PROGRESS.md), durable reasoning lives in [DECISIONS.md](DECISIONS.md), and executable scope lives in [feature-list.json](feature-list.json).
 

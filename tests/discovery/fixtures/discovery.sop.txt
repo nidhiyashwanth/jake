@@ -1,0 +1,10 @@
+STANDARD OPERATING PROCEDURE: SUBCONTRACTOR CERTIFICATE RENEWAL INTAKE
+
+When a certificate arrives in the shared compliance inbox, the coordinator
+downloads the PDF, matches the named insured to the vendor record, checks the
+certificate holder and coverage limits, and records the expiry date. If the
+additional-insured endorsement is missing, the coordinator creates an
+exception for the project owner. If the scan is unreadable or two policies are
+attached, the coordinator asks the broker a question before a sponsor decides
+whether the work may continue. The completed verification and the exception
+decision are stored with the vendor record.

@@ -1,0 +1,71 @@
+{
+  "schema_version": "launch.acceptance.v1",
+  "fixture_class": "synthetic-release-candidate",
+  "baseline": {
+    "signed": true,
+    "version": 1,
+    "signature_reference": "synthetic:sponsor-signature:v1",
+    "referenced_by_value_events": true
+  },
+  "shadow_mode": {
+    "completed": true,
+    "observed_business_days": 5,
+    "representative_document_types": 10,
+    "weekly_demos": 2,
+    "worker_failure_injected": true,
+    "worker_recovered_without_duplicate_side_effect": true
+  },
+  "golden_set": {
+    "cases": 100,
+    "exceptions": 20,
+    "injection_canaries": 3,
+    "evaluation_gate_blocks_failed_candidate": true
+  },
+  "oversight": {
+    "auto_processed_cases": 100,
+    "sampled_audit_cases": 4,
+    "minimum_sample_rate": 0.02,
+    "measured_error_sample_size": 100,
+    "measured_errors": 1,
+    "target_auto_error_rate": 0.02,
+    "false_auto_rollback_rehearsed": true
+  },
+  "acceptance_window": {
+    "business_days": 10,
+    "total_cases": 120,
+    "auto_processed": 100,
+    "reviewed": 18,
+    "halted": 2,
+    "target_straight_through_rate": 0.8,
+    "target_auto_error_rate": 0.02,
+    "open_p1_defects": 0,
+    "operators_required": 3,
+    "operators_trained": 3,
+    "operators_independent": 3
+  },
+  "ledger": {
+    "ingested": 120,
+    "auto": 100,
+    "reviewed": 18,
+    "halted": 2,
+    "orphan_events": 0
+  },
+  "audit_pack": {
+    "generated": true,
+    "redacted": true,
+    "access_logged": true
+  },
+  "handover": {
+    "runbook_tested_by_non_builder": true,
+    "roles_toured": ["owner", "builder", "operator", "auditor"],
+    "customer_workflow_owner_recorded": true
+  },
+  "release": {
+    "known_limitations_documented": true,
+    "export_instructions_documented": true,
+    "deletion_instructions_documented": true,
+    "support_routes_documented": true,
+    "rollback_plan_documented": true,
+    "image_digests_recorded": true
+  }
+}

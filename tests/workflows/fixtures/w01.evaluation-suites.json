@@ -1,0 +1,21 @@
+{
+  "contract": "server_owned_synthetic_suites",
+  "suites": [
+    {
+      "key": "w01.synthetic.regression",
+      "expected_result": "failed",
+      "purpose": "A deterministic failing result must expose failure reasons and keep publish blocked."
+    },
+    {
+      "key": "w01.synthetic.baseline",
+      "expected_result": "passed",
+      "purpose": "A deterministic passing result for the exact version hash unlocks publish."
+    }
+  ],
+  "client_result_fields_forbidden": [
+    "passed",
+    "failure_reasons",
+    "metrics",
+    "version_hash"
+  ]
+}

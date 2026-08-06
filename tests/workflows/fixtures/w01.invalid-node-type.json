@@ -1,0 +1,10 @@
+{
+  "case": "unknown_node_type",
+  "base_fixture": "w01.valid-workflow.json",
+  "mutation": {
+    "kind": "replace_node_type",
+    "node_key": "rule.required",
+    "value": "route"
+  },
+  "expected_error_code_contains": "validation"
+}

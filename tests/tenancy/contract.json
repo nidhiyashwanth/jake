@@ -1,0 +1,168 @@
+{
+  "contract_version": "t01.http.v1",
+  "purpose": "Black-box tenancy, authentication, authorization, active-context, and audit contract for the AI Operations Deployment Platform.",
+  "canonical_roles": [
+    "owner",
+    "admin",
+    "builder",
+    "operator",
+    "viewer",
+    "auditor"
+  ],
+  "tenant_count": 2,
+  "workspaces_per_tenant": 2,
+  "denial_status_codes": [
+    401,
+    403,
+    404
+  ],
+  "audit_delete_status_codes": [
+    401,
+    403,
+    404,
+    405
+  ],
+  "routes": {
+    "dev_login": {
+      "method": "POST",
+      "path": "/api/auth/dev-login"
+    },
+    "session": {
+      "method": "GET",
+      "path": "/api/auth/session"
+    },
+    "me": {
+      "method": "GET",
+      "path": "/api/auth/me"
+    },
+    "session_revoke": {
+      "method": "POST",
+      "path": "/api/auth/logout"
+    },
+    "workspace_list": {
+      "method": "GET",
+      "path": "/api/workspaces"
+    },
+    "workspace_activate": {
+      "method": "POST",
+      "path": "/api/workspaces/{workspace_id}/activate"
+    },
+    "workspace_mode": {
+      "method": "PATCH",
+      "path": "/api/workspaces/{workspace_id}/mode"
+    },
+    "membership_create": {
+      "method": "POST",
+      "path": "/api/workspaces/{workspace_id}/members"
+    },
+    "membership_disable": {
+      "method": "PATCH",
+      "path": "/api/workspaces/{workspace_id}/members/{user_id}"
+    },
+    "context_set": {
+      "method": "POST",
+      "path": "/api/auth/context"
+    },
+    "audit_list": {
+      "method": "GET",
+      "path": "/api/audit"
+    },
+    "audit_delete_probe": {
+      "method": "DELETE",
+      "path": "/api/audit/events/{event_id}"
+    },
+    "vendors": {
+      "method": "GET",
+      "path": "/api/vendors"
+    },
+    "vendor_create": {
+      "method": "POST",
+      "path": "/api/vendors"
+    },
+    "vendor_detail": {
+      "method": "GET",
+      "path": "/api/vendors/{vendor_id}"
+    },
+    "documents_upload": {
+      "method": "POST",
+      "path": "/api/vendors/{vendor_id}/documents"
+    },
+    "document_verify": {
+      "method": "POST",
+      "path": "/api/documents/{document_id}/verify"
+    },
+    "reviews": {
+      "method": "GET",
+      "path": "/api/reviews"
+    },
+    "review_update": {
+      "method": "PATCH",
+      "path": "/api/reviews/{review_id}"
+    },
+    "vendor_status": {
+      "method": "GET",
+      "path": "/api/vendors/{vendor_id}/status"
+    },
+    "vendor_ledger": {
+      "method": "GET",
+      "path": "/api/vendors/{vendor_id}/ledger"
+    }
+  },
+  "capability_matrix": {
+    "organization_and_workspace_manage": [
+      "owner",
+      "admin"
+    ],
+    "membership_manage": [
+      "owner",
+      "admin"
+    ],
+    "vendor_read": [
+      "owner",
+      "admin",
+      "builder",
+      "operator",
+      "viewer",
+      "auditor"
+    ],
+    "vendor_write": [
+      "owner",
+      "admin",
+      "builder",
+      "operator"
+    ],
+    "review_write": [
+      "owner",
+      "admin",
+      "operator"
+    ],
+    "audit_read": [
+      "owner",
+      "admin",
+      "auditor"
+    ]
+  },
+  "required_audit_events": [
+    "auth.dev_login",
+    "auth.context_changed",
+    "authorization.denied",
+    "vendor.created",
+    "document.uploaded",
+    "verification.completed",
+    "membership.invited",
+    "membership.updated",
+    "auth.membership_rejected",
+    "auth.logout"
+  ],
+  "assumptions": [
+    "The development-only auth boundary accepts email, display name, organization name, and workspace name. The first login creates the organization/workspace and owner membership; later logins require an explicit membership.",
+    "The owner/admin membership endpoint accepts an existing user email, name, and role, and returns a membership id and user id.",
+    "Two workspaces are created through two owner development logins with the same organization name and distinct workspace names; no test-only database seed endpoint is used.",
+    "The active workspace is selected through POST /api/auth/context and is applied to subsequent bearer-authenticated requests; the verifier does not use a database shortcut or a test-only seed endpoint.",
+    "The session endpoint returns the active user's active workspace memberships; workspace activation and mode changes are performed through the documented workspace routes.",
+    "F01 vendor/document/review/status/ledger routes remain available behind the same bearer session and active workspace context.",
+    "The canonical role set is owner, admin, builder, operator, viewer, auditor. A reviewer name is not substituted for builder or auditor; a documented reviewer alias may be added by the implementation and must be mapped explicitly before it is tested.",
+    "Denied reads may return 401, 403, or 404 to avoid cross-scope existence leaks; denied writes may return 401 or 403.",
+    "Governance audit events are returned by GET /api/audit as items with stable ids and action fields. The separate F01 ledger remains the source for document_uploaded, verification_completed, and review_correction_applied evidence. There is no successful audit-event delete operation."
+  ]
+}

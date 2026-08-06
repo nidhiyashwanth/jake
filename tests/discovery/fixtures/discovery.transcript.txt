@@ -1,0 +1,10 @@
+INTERVIEW TRANSCRIPT: COMPLIANCE COORDINATOR
+
+The trigger is usually an email from a subcontractor or broker. I open the
+attachment, compare the legal name and holder against our spreadsheet, check
+the general liability limit and expiration, then route anything unusual to the
+project manager. The odd cases are a DBA name, a missing waiver, an expired
+policy on arrival, a duplicate certificate, and a scan where the endorsement
+cannot be read. I write questions for the sponsor when the evidence is not
+enough and keep the old certificate because an auditor may ask what we knew on
+a particular day.

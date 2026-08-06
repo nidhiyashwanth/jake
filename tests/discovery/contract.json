@@ -1,0 +1,167 @@
+{
+  "contract_version": "d01.http.v1",
+  "purpose": "Black-box discovery, human-draft, signed-baseline, opportunity-scoring, workspace-isolation, RBAC, and audit contract for D-01.",
+  "canonical_roles": [
+    "owner",
+    "admin",
+    "builder",
+    "operator",
+    "viewer",
+    "auditor"
+  ],
+  "workspace_count": 2,
+  "denial_status_codes": [
+    401,
+    403,
+    404
+  ],
+  "invalid_intake_status_codes": [
+    400,
+    422
+  ],
+  "immutable_probe_status_codes": [
+    405,
+    409,
+    422
+  ],
+  "routes": {
+    "health": {
+      "method": "GET",
+      "path": "/api/health"
+    },
+    "dev_login": {
+      "method": "POST",
+      "path": "/api/auth/dev-login"
+    },
+    "context_set": {
+      "method": "POST",
+      "path": "/api/auth/context"
+    },
+    "membership_create": {
+      "method": "POST",
+      "path": "/api/workspaces/{workspace_id}/members"
+    },
+    "audit_list": {
+      "method": "GET",
+      "path": "/api/audit?limit=500"
+    },
+    "audit_delete_probe": {
+      "method": "DELETE",
+      "path": "/api/audit/events/{event_id}"
+    },
+    "discovery_create": {
+      "method": "POST",
+      "path": "/api/discoveries"
+    },
+    "discovery_list": {
+      "method": "GET",
+      "path": "/api/discoveries"
+    },
+    "discovery_detail": {
+      "method": "GET",
+      "path": "/api/discoveries/{discovery_id}"
+    },
+    "discovery_ingest": {
+      "method": "POST",
+      "path": "/api/discoveries/{discovery_id}/ingestions"
+    },
+    "discovery_draft_patch": {
+      "method": "PATCH",
+      "path": "/api/discoveries/{discovery_id}/draft"
+    },
+    "discovery_question_answer": {
+      "method": "POST",
+      "path": "/api/discoveries/{discovery_id}/questions/{question_id}/answer"
+    },
+    "discovery_exception_create": {
+      "method": "POST",
+      "path": "/api/discoveries/{discovery_id}/exceptions"
+    },
+    "baseline_create": {
+      "method": "POST",
+      "path": "/api/discoveries/{discovery_id}/baselines"
+    },
+    "baseline_detail": {
+      "method": "GET",
+      "path": "/api/baselines/{baseline_id}"
+    },
+    "baseline_sign": {
+      "method": "POST",
+      "path": "/api/baselines/{baseline_id}/sign"
+    },
+    "baseline_mutation_probe": {
+      "method": "PATCH",
+      "path": "/api/baselines/{baseline_id}"
+    },
+    "baseline_export": {
+      "method": "GET",
+      "path": "/api/baselines/{baseline_id}/export"
+    },
+    "score_compute": {
+      "method": "POST",
+      "path": "/api/baselines/{baseline_id}/scores"
+    },
+    "score_detail": {
+      "method": "GET",
+      "path": "/api/opportunity-scores/{score_id}"
+    }
+  },
+  "required_intake_fields": [
+    "trigger",
+    "inputs",
+    "steps",
+    "decisions",
+    "exceptions",
+    "approvals",
+    "outputs",
+    "failure_modes"
+  ],
+  "required_baseline_metrics": [
+    "volume_per_month",
+    "minutes_p50",
+    "minutes_p90",
+    "fully_loaded_cost_per_hour",
+    "error_rate_pct",
+    "cost_per_error",
+    "rework_rate_pct",
+    "cycle_time_hours",
+    "headcount_touching",
+    "peak_backlog",
+    "chase_volume_per_month",
+    "lapse_incidents_per_year",
+    "audit_prep_hours_per_month"
+  ],
+  "required_audit_actions": [
+    "discovery.created",
+    "discovery.ingested",
+    "discovery.draft_updated",
+    "discovery.question_answered",
+    "discovery.exception_created",
+    "baseline.created",
+    "baseline.signed",
+    "baseline.superseded",
+    "opportunity_score.computed",
+    "authorization.denied"
+  ],
+  "formula": {
+    "version": "opportunity.v1",
+    "rates_are_decimal_fractions": true,
+    "current_annual_cost": "volume_per_month * 12 * minutes_p50 / 60 * fully_loaded_cost_per_hour + volume_per_month * 12 * error_rate_pct * cost_per_error",
+    "review_cost_annual": "volume_per_month * 12 * review_rate * review_minutes / 60 * fully_loaded_cost_per_hour",
+    "projected_savings": "current_annual_cost * automatable_pct - model_cost_annual - infra_cost_annual - review_cost_annual",
+    "priority_score": "projected_savings * confidence / (effort_weeks * risk_multiplier)"
+  },
+  "assumptions": [
+    "D-01 routes use the authenticated bearer/workspace context established by T-01; the verifier never writes workspace_id directly or seeds database rows.",
+    "The first owner login creates workspace A, a second owner login with the same organization and a distinct workspace name creates workspace B, and both owners receive independent bearer sessions.",
+    "D-01 discovery responses expose a stable id, an explicit draft status, and the structured intake fields. Invalid structured intake returns a stable error envelope with code and message.",
+    "SOP and transcript ingestion accepts multipart file plus source_type=sop or source_type=transcript and returns a draft graph, exception list, baseline questions, human_review_required=true, and publish_allowed=false.",
+    "Draft edits, question answers, and exception records are authenticated human actions and are retained in the discovery detail and audit stream.",
+    "A baseline is created as draft, receives version 1, and becomes immutable only after an authenticated sign request containing the sponsor name and email. Signing returns signer, timestamp, canonical SHA-256 hash, version, and supersession fields.",
+    "Creating and signing a second baseline with supersedes_baseline_id=<version 1> produces version 2, preserves version 1's signed hash/signature, and records the supersession relationship.",
+    "The score endpoint accepts the formula inputs in this contract and returns formula_version, all visible score inputs, input provenance, current_annual_cost, projected_savings, and priority_score. Repeated equal requests are numerically identical apart from ids/timestamps.",
+    "Owner/admin/builder may mutate discovery and baseline drafts; viewer may read but is denied valid mutation attempts. Audit-read is available to owner/admin/auditor, and denied operations create authorization.denied evidence.",
+    "Audit records have stable unique ids, are append-only, and cannot be deleted successfully. The verifier accepts 401/403/404/405 for the deletion probe and confirms earlier ids remain present.",
+    "The verifier uses only HTTP, Docker Compose lifecycle commands, and tracked synthetic fixtures. It does not call a database client, use an embedded database, use mocks, or print response bodies, tokens, or local environment values."
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "contract_version": "r01.runtime.v1",
+  "purpose": "Black-box durable execution, worker recovery, outbox, idempotency, replay, and human-wait contract.",
+  "required_routes": [
+    "/api/runtime/executions",
+    "/api/runtime/executions/{execution_id}",
+    "/api/runtime/executions/{execution_id}/advance",
+    "/api/runtime/executions/{execution_id}/retry",
+    "/api/runtime/executions/{execution_id}/resume",
+    "/api/runtime/executions/{execution_id}/replay",
+    "/api/runtime/workers/recover",
+    "/api/runtime/outbox/dispatch"
+  ],
+  "execution_states": ["queued", "running", "waiting_human", "completed", "failed", "dead_letter", "halted", "replayed"],
+  "step_states": ["pending", "claimed", "running", "waiting_human", "completed", "failed", "dead_letter", "skipped"],
+  "invariants": [
+    "execution stores the exact immutable published workflow version hash",
+    "workspace scope is present on every runtime row and enforced through PostgreSQL RLS",
+    "the same workspace idempotency key returns the same execution without duplicate steps",
+    "worker claims use FOR UPDATE SKIP LOCKED and stale claims are recoverable",
+    "external writes have durable workspace-scoped idempotency receipts",
+    "outbox events are transactionally recorded and dedupe-keyed",
+    "human wait and resume are explicit state transitions",
+    "replay is dry-run, tools are stubbed, and external write receipts do not increase",
+    "correlation, model, prompt, token, latency, cost, retry, and audit evidence is inspectable"
+  ],
+  "forbidden_verifier_operations": ["psql", "sqlite", "docker exec", "Invoke-SqlCmd", "database client", "secret output"]
+}

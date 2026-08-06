@@ -1,0 +1,1120 @@
+export type ComplianceStatus = "compliant" | "needs_review";
+export type CheckResult = "pass" | "fail" | "uncertain";
+
+export type UserRole = "owner" | "admin" | "builder" | "operator" | "viewer" | "auditor";
+export type MembershipStatus = "active" | "disabled" | "invited";
+export type WorkspaceMode = "delivery" | "handoff";
+export type AuthMode = "provider" | "development";
+
+export interface UserIdentity {
+  id: string;
+  email: string;
+  display_name: string;
+  initials: string;
+  status: MembershipStatus;
+}
+
+export interface Organization {
+  id: string;
+  name: string;
+  kind?: "internal" | "customer" | "partner" | string;
+}
+
+export interface WorkspaceContext {
+  id: string;
+  name: string;
+  slug?: string;
+  environment: "production" | "staging" | "sandbox" | "development" | string;
+  organization: Organization;
+  role: UserRole;
+  membership_status: MembershipStatus;
+  mode: WorkspaceMode;
+}
+
+export interface SessionContext {
+  user: UserIdentity;
+  organization: Organization;
+  workspaces: WorkspaceContext[];
+  active_workspace_id: string;
+  auth_mode: AuthMode;
+  expires_at?: string | null;
+}
+
+export interface WorkspaceListResponse {
+  items: WorkspaceContext[];
+}
+
+export interface WorkspaceActivationResponse {
+  workspace?: WorkspaceContext;
+  active_workspace_id?: string;
+}
+
+export interface SessionProblem {
+  code: "SESSION_EXPIRED" | "MEMBER_DISABLED" | "ACCESS_DENIED" | "AUTH_UNAVAILABLE";
+  message: string;
+}
+
+export interface StatusSnapshot {
+  id: string;
+  vendor_id: string;
+  document_id: string;
+  as_of: string;
+  status: ComplianceStatus;
+  failing_requirements: string[];
+  computed_by_version: string;
+  evidence: StatusEvidence;
+}
+
+export interface Check {
+  id: string;
+  requirement_key: string;
+  label: string;
+  result: CheckResult;
+  reason_code: string;
+  message: string;
+  observed_value: unknown;
+  required_value: unknown;
+  created_at: string;
+}
+
+export interface StatusEvidence {
+  document_filename?: string;
+  normalized_fields?: ExtractedFields;
+  checks?: Check[];
+  review_task_ids?: string[];
+}
+
+export interface ExtractedFields {
+  named_insured: string | null;
+  certificate_holder: string | null;
+  gl_occurrence_limit: number | null;
+  policy_expiry: string | null;
+  additional_insured: boolean | null;
+  waiver_of_subrogation: boolean | null;
+  [key: string]: unknown;
+}
+
+export interface ComplianceDocument {
+  id: string;
+  vendor_id: string;
+  doc_type: string;
+  filename: string;
+  media_type: string;
+  extracted_fields: ExtractedFields;
+  created_at: string;
+}
+
+export interface Vendor {
+  id: string;
+  legal_name: string;
+  created_at: string;
+  latest_status: StatusSnapshot | null;
+}
+
+export interface VendorDetail extends Vendor {
+  documents: ComplianceDocument[];
+  recent_events: AuditEvent[];
+}
+
+export interface ReviewTask {
+  id: string;
+  vendor_id: string;
+  vendor_legal_name?: string;
+  document_id: string;
+  check_id: string;
+  requirement_key: string;
+  correction_field: string;
+  reason_code: string;
+  status: "open" | "resolved" | "superseded";
+  priority_score?: number;
+  priority_band?: "urgent" | "high" | "normal" | string;
+  priority_factors?: Record<string, unknown>;
+  assigned_to_user_id?: string | null;
+  assigned_to_name?: string | null;
+  assigned_at?: string | null;
+  sla_minutes?: number;
+  due_at?: string | null;
+  sla_state?: "overdue" | "within_sla" | string;
+  escalation_level?: number;
+  escalated_at?: string | null;
+  escalation_reason?: string | null;
+  correction_reason_code?: string | null;
+  correction_note?: string | null;
+  before_value?: unknown;
+  after_value?: unknown;
+  provenance?: ReviewProvenance;
+  document_filename?: string | null;
+  last_touched_at?: string | null;
+  updated_at?: string;
+  created_at: string;
+  resolved_at: string | null;
+}
+
+export interface ReviewProvenance {
+  document_id: string;
+  filename: string;
+  page: number;
+  line?: number;
+  char_start?: number;
+  char_end?: number;
+  bbox?: { x: number; y: number; width: number; height: number } | null;
+  matched_text?: string;
+  excerpt?: string;
+  locator_kind: string;
+  source_quality: string;
+}
+
+export interface ReviewTaskEvent {
+  id: string;
+  event_type: string;
+  from_status?: string | null;
+  to_status?: string | null;
+  actor_id?: string | null;
+  payload: Record<string, unknown>;
+  occurred_at: string;
+}
+
+export interface ReviewDetail extends ReviewTask {
+  events: ReviewTaskEvent[];
+}
+
+export interface ReviewQueueResponse {
+  items: ReviewTask[];
+  count: number;
+  limit: number;
+  priority_formula: string;
+  bulk_cap: number;
+}
+
+export type ConnectorKind = "email" | "object_storage" | "notify" | "rest" | "webhook" | "sftp" | "database" | "csv_excel" | "rpa";
+
+export interface ConnectorRecord {
+  id: string;
+  name: string;
+  kind: ConnectorKind;
+  status: string;
+  config: Record<string, unknown>;
+  egress_hosts: string[];
+  credential_count: number;
+  failure_code?: string | null;
+  failure_message?: string | null;
+  last_checked_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CredentialRecord {
+  id: string;
+  connector_id: string;
+  label: string;
+  secret_type: string;
+  ciphertext_present: boolean;
+  plaintext_exposed: boolean;
+  dek_id: string;
+  key_version: string;
+  expires_at?: string | null;
+  rotated_at: string;
+  active: boolean;
+  created_at: string;
+}
+
+export interface ConnectorTestResponse {
+  healthy: boolean;
+  connector: ConnectorRecord;
+  result?: Record<string, unknown>;
+  failure?: { code: string; message: string };
+}
+
+export interface McpServerRecord {
+  id: string;
+  name: string;
+  url: string;
+  auth_mode: string;
+  server_version: string;
+  metadata_hash: string;
+  allowed_tools: string[];
+  workflow_version_ids: string[];
+  egress_hosts: string[];
+  status: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ConnectorCallRecord {
+  id: string;
+  connector_id?: string | null;
+  mcp_server_id?: string | null;
+  workflow_version_id?: string | null;
+  call_type: string;
+  tool_name: string;
+  arguments: Record<string, unknown>;
+  result?: Record<string, unknown> | null;
+  result_untrusted: boolean;
+  status: string;
+  failure_code?: string | null;
+  approval_required: boolean;
+  egress_host?: string | null;
+  idempotency_key?: string | null;
+  correlation_id: string;
+  latency_ms?: number | null;
+  created_at: string;
+}
+
+export interface CredentialAccessLogRecord {
+  id: string;
+  credential_id: string;
+  actor_id?: string | null;
+  action: string;
+  purpose: string;
+  outcome: string;
+  created_at: string;
+}
+
+export interface ComplianceDocumentTypeRecord {
+  key: string;
+  label: string;
+  family: string;
+  aliases: string[];
+}
+
+export interface ComplianceRuleRecord {
+  key: string;
+  doc_type: string;
+  field: string;
+  kind: string;
+  reason_code: string;
+  statement: string;
+  required: unknown;
+}
+
+export interface ReasonCodeRecord {
+  id?: string;
+  taxonomy_version?: string;
+  code: string;
+  label: string;
+  explanation: string;
+  active?: boolean;
+}
+
+export interface RequirementRecord {
+  id: string;
+  key: string;
+  doc_type: string;
+  rule: Record<string, unknown>;
+  severity: string;
+  reason_code: string;
+  human_statement: string;
+  active: boolean;
+}
+
+export interface RequirementSetRecord {
+  id: string;
+  name: string;
+  version: number;
+  status: string;
+  project_id?: string | null;
+  effective_from?: string | null;
+  effective_to?: string | null;
+  created_at: string;
+  requirements: RequirementRecord[];
+}
+
+export interface ConfidenceThresholdSetRecord {
+  id: string;
+  workflow_id?: string | null;
+  workflow_version_id?: string | null;
+  scope_key: string;
+  version: number;
+  status: "draft" | "active" | "superseded" | "rolled_back" | string;
+  auto_threshold: number;
+  review_threshold: number;
+  halt_threshold: number;
+  value_at_risk_limit: number;
+  sample_rate: number;
+  cost_auto_usd: number;
+  cost_review_usd: number;
+  cost_halt_usd: number;
+  previous_threshold_set_id?: string | null;
+  created_at: string;
+  activated_at?: string | null;
+  superseded_at?: string | null;
+  rolled_back_at?: string | null;
+  rollback_reason?: string | null;
+}
+
+export interface ConfidenceAssessmentRecord {
+  id: string;
+  assessment_key: string;
+  workflow_id?: string | null;
+  workflow_version_id?: string | null;
+  threshold_set_id: string;
+  signals: {
+    extraction_consistency: number;
+    validation_severity: number;
+    matching_score: number;
+    novelty_score: number;
+    sender_history_score: number;
+    value_at_risk: number;
+    value_at_risk_score: number;
+    required_halt: boolean;
+  };
+  confidence: number;
+  route: "auto" | "review" | "halt" | string;
+  route_band: string;
+  evidence: Record<string, unknown>;
+  sampled_for_audit: boolean;
+  created_at: string;
+}
+
+export interface ConfidenceAuditRecord {
+  id: string;
+  assessment_id: string;
+  threshold_set_id: string;
+  sample_rate: number;
+  status: "pending" | "completed" | "alerted" | string;
+  actual_correct?: boolean | null;
+  false_auto: boolean;
+  alert_code?: string | null;
+  alert_message?: string | null;
+  rollback_threshold_set_id?: string | null;
+  audited_by?: string | null;
+  outcome_summary?: string | null;
+  created_at: string;
+  resolved_at?: string | null;
+}
+
+export interface ConfidenceSimulationResult {
+  label: string;
+  total: number;
+  auto_count: number;
+  review_count: number;
+  halt_count: number;
+  auto_rate: number;
+  review_rate: number;
+  halt_rate: number;
+  known_auto_count: number;
+  false_auto_count: number;
+  estimated_error: number | null;
+  estimated_cost_usd: number;
+  reconciles: boolean;
+}
+
+export interface ChaseEventRecord {
+  id: string;
+  event_type: string;
+  channel: string;
+  attempt: number;
+  body_sha256?: string | null;
+  summary: string;
+  attachment_document_id?: string | null;
+  payload: Record<string, unknown>;
+  occurred_at: string;
+}
+
+export interface ChaseRecord {
+  id: string;
+  vendor_id: string;
+  requirement_id?: string | null;
+  channel: string;
+  customer_sender_connector_id: string;
+  internal_owner_user_id: string;
+  expected_doc_type: string;
+  project_id?: string | null;
+  status: string;
+  attempts: number;
+  max_attempts: number;
+  max_messages_per_week: number;
+  touch_schedule_days: number[];
+  last_sent_at?: string | null;
+  next_action_at?: string | null;
+  escalated_at?: string | null;
+  success_document_id?: string | null;
+  created_at: string;
+  updated_at: string;
+  events: ChaseEventRecord[];
+}
+
+export interface AuditEvent {
+  id: string;
+  event_type: string;
+  actor_type: string;
+  entity_type: string;
+  entity_id: string;
+  payload: Record<string, unknown>;
+  occurred_at: string;
+}
+
+export interface StatusResponse {
+  current: StatusSnapshot;
+  history: StatusSnapshot[];
+}
+
+export interface VerificationResponse {
+  run_id: string;
+  status: StatusSnapshot;
+  checks: Check[];
+  review_tasks: ReviewTask[];
+}
+
+export interface ApiErrorBody {
+  error?: {
+    code?: string;
+    message?: string;
+  };
+}
+
+export type DiscoverySourceType = "sop" | "transcript" | "screen_recording";
+
+export interface DiscoveryStep {
+  id?: string;
+  title: string;
+  description: string;
+  system: string;
+  minutes_p50: number | null;
+  minutes_p90: number | null;
+  is_decision: boolean;
+}
+
+export interface DiscoveryMetrics {
+  volume_per_month: number | null;
+  minutes_p50: number | null;
+  minutes_p90: number | null;
+  fully_loaded_cost_per_hour: number | null;
+  error_rate_pct: number | null;
+  cost_per_error: number | null;
+  rework_rate_pct: number | null;
+  cycle_time_hours: number | null;
+  headcount_touching: number | null;
+  peak_backlog: number | null;
+  chase_volume_per_month: number | null;
+  lapse_incidents_per_month: number | null;
+  audit_prep_hours_per_month: number | null;
+}
+
+export interface DiscoveryDraft {
+  source_type?: DiscoverySourceType;
+  source_name?: string | null;
+  generated_at?: string | null;
+  steps: DiscoveryStep[];
+  exceptions: string[];
+  baseline_questions: string[];
+}
+
+export interface SignedBaseline {
+  id: string;
+  process_id: string;
+  version: number;
+  status: "draft" | "signed" | "superseded";
+  signed_by?: {
+    id?: string;
+    name?: string;
+    email?: string;
+  } | null;
+  signed_at?: string | null;
+  frozen_at?: string | null;
+  hash?: string | null;
+  supersedes_baseline_id?: string | null;
+  superseded_by_baseline_id?: string | null;
+  metrics: DiscoveryMetrics;
+}
+
+export interface OpportunityScore {
+  id?: string;
+  baseline_id?: string | null;
+  current_annual_cost: number;
+  automatable_pct: number;
+  projected_savings: number;
+  confidence: number;
+  effort_weeks: number;
+  risk_multiplier: number;
+  priority_score: number;
+  model_cost: number;
+  infra_cost: number;
+  review_rate_pct: number;
+  review_minutes: number;
+  inputs: Record<string, number | string | null>;
+  formula_version: string;
+  computed_at?: string | null;
+  provenance?: string | null;
+}
+
+export interface DiscoveryRecord {
+  process_id: string;
+  workspace_id: string;
+  name: string;
+  department?: string | null;
+  owner_user_id?: string | null;
+  system_of_record?: string | null;
+  trigger: string;
+  inputs: string;
+  decisions: string;
+  exceptions: string;
+  approvals: string;
+  outputs: string;
+  failure_modes: string;
+  steps: DiscoveryStep[];
+  metrics: DiscoveryMetrics;
+  draft?: DiscoveryDraft | null;
+  baselines: SignedBaseline[];
+  current_baseline?: SignedBaseline | null;
+  score?: OpportunityScore | null;
+  updated_at?: string | null;
+}
+
+export interface DiscoveryResponse {
+  items?: DiscoveryRecord[];
+  item?: DiscoveryRecord;
+  process?: DiscoveryRecord;
+  record?: DiscoveryRecord;
+  baseline?: SignedBaseline;
+  score?: OpportunityScore;
+}
+
+export interface DiscoveryDraftResponse {
+  process_id?: string | null;
+  draft: DiscoveryDraft;
+}
+
+export const WORKFLOW_NODE_TYPES = [
+  "trigger",
+  "fetch",
+  "parse",
+  "classify",
+  "extract",
+  "rule",
+  "score",
+  "llm",
+  "tool",
+  "approve",
+  "notify",
+  "halt",
+] as const;
+
+export type WorkflowNodeType = (typeof WORKFLOW_NODE_TYPES)[number];
+export type WorkflowStatus = "draft" | "published" | "archived" | string;
+export type WorkflowVersionStatus = "draft" | "published" | "superseded" | "archived" | string;
+export type EvaluationGateStatus = "not_run" | "pending" | "passed" | "failed" | string;
+
+export interface WorkflowThreshold {
+  key: string;
+  value: number | null;
+  label?: string;
+  unit?: string;
+}
+
+export interface WorkflowPromptReference {
+  key: string;
+  version: number | null;
+}
+
+export interface WorkflowModelConfigReference {
+  key: string;
+  provider: string;
+  version: number | null;
+}
+
+export interface WorkflowNode {
+  id: string;
+  node_key: string;
+  type: WorkflowNodeType;
+  label: string;
+  config: Record<string, unknown>;
+}
+
+export interface WorkflowEdge {
+  id: string;
+  from_node: string;
+  to_node: string;
+  condition: string | null;
+}
+
+export interface WorkflowSpec {
+  schema_version: string;
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+  thresholds: WorkflowThreshold[];
+  prompts: WorkflowPromptReference[];
+  model_configs: WorkflowModelConfigReference[];
+}
+
+export interface WorkflowValidationIssue {
+  code: string;
+  path: string;
+  message: string;
+  severity: "error" | "warning";
+  node_key?: string | null;
+}
+
+export interface EvaluationGate {
+  status: EvaluationGateStatus;
+  run_id?: string | null;
+  evaluated_at?: string | null;
+  failure_reasons: string[];
+  metric_deltas?: Record<string, number | string | null>;
+}
+
+export interface GoldenCaseRecord {
+  id: string;
+  case_key: string;
+  source_type: "corrected" | "manual" | "canary" | "synthetic" | string;
+  rights_status: "contractual_rights" | "manual_review" | "synthetic" | string;
+  rights_basis: string;
+  sender: string;
+  document_type: string;
+  input: Record<string, unknown>;
+  expected: Record<string, unknown>;
+  prediction: Record<string, unknown>;
+  canary: boolean;
+  created_at: string;
+}
+
+export interface GoldenSetRecord {
+  id: string;
+  workflow_id: string;
+  workflow_version_id: string;
+  name: string;
+  version: number;
+  status: "draft" | "active" | string;
+  source_policy: Record<string, unknown>;
+  gate: Record<string, number>;
+  canonical_hash: string;
+  case_count: number;
+  created_by: string;
+  created_at: string;
+  cases?: GoldenCaseRecord[];
+}
+
+export interface EvaluationRecord {
+  id: string;
+  workflow_version_id: string;
+  definition_hash: string;
+  passed: boolean;
+  metrics: Record<string, unknown>;
+  failure_reasons: string[];
+  evaluator: string;
+  evaluation_type: string;
+  golden_set_id?: string | null;
+  baseline_evaluation_id?: string | null;
+  metric_deltas: Record<string, number | string | null>;
+  failing_cases: string[];
+  created_by?: string | null;
+  evaluated_at: string;
+}
+
+export interface GoldenEvaluationResponse {
+  evaluation: EvaluationRecord;
+  passed: boolean;
+  failure_reasons: string[];
+  failing_cases: string[];
+  evaluation_gate: EvaluationGate;
+}
+
+export interface DriftSnapshotRecord {
+  id: string;
+  workflow_version_id: string;
+  window_key: string;
+  status: "ok" | "alert" | string;
+  baseline_correction_rate: number;
+  max_delta: number;
+  metrics: Record<string, { sample_count: number; correction_count: number; correction_rate: number; delta: number }>;
+  alerts: Array<{ group: string; sample_count: number; correction_rate: number; delta: number; reason: string }>;
+  created_by: string;
+  created_at: string;
+}
+
+export interface WorkflowSummary {
+  id: string;
+  workspace_id: string;
+  process_id?: string | null;
+  key?: string | null;
+  name: string;
+  description?: string | null;
+  status: WorkflowStatus;
+  updated_at?: string | null;
+  current_version_id?: string | null;
+  current_version?: number | null;
+  latest_hash?: string | null;
+}
+
+export interface WorkflowVersion {
+  id: string;
+  workflow_id: string;
+  version: number;
+  status: WorkflowVersionStatus;
+  spec: WorkflowSpec;
+  immutable_hash: string | null;
+  created_at?: string | null;
+  published_at?: string | null;
+  published_by?: string | null;
+  eval_run_id?: string | null;
+  eval_gate: EvaluationGate;
+  validation_errors: WorkflowValidationIssue[];
+}
+
+export interface WorkflowDetail {
+  workflow: WorkflowSummary;
+  versions: WorkflowVersion[];
+  draft_version?: WorkflowVersion | null;
+}
+
+export interface WorkflowListResponse {
+  items: WorkflowSummary[];
+}
+
+export interface WorkflowResponse {
+  item?: WorkflowDetail;
+  workflow?: WorkflowDetail;
+}
+
+export interface WorkflowVersionResponse {
+  item?: WorkflowVersion;
+  version?: WorkflowVersion;
+}
+
+export interface WorkflowValidationResponse {
+  version?: WorkflowVersion;
+  validation_errors?: WorkflowValidationIssue[];
+  errors?: WorkflowValidationIssue[];
+}
+
+export interface WorkflowPublishResponse {
+  version?: WorkflowVersion;
+  published?: boolean;
+  evaluation_gate?: EvaluationGate;
+  eval_gate?: EvaluationGate;
+  failure_reasons?: string[];
+}
+
+export type ExecutionStatus = "queued" | "running" | "waiting_human" | "completed" | "failed" | "dead_letter" | "halted" | "replayed" | string;
+export type ExecutionStepStatus = "pending" | "claimed" | "running" | "waiting_human" | "completed" | "failed" | "dead_letter" | "skipped" | string;
+
+export interface RuntimeExecutionStep {
+  id: string;
+  node_key: string;
+  node_type: string;
+  sequence: number;
+  status: ExecutionStepStatus;
+  attempt: number;
+  input?: Record<string, unknown> | null;
+  output?: Record<string, unknown> | null;
+  error?: Record<string, unknown> | null;
+  provider?: string | null;
+  model_ref?: string | null;
+  prompt_ref?: string | null;
+  prompt_version?: number | null;
+  input_tokens: number;
+  output_tokens: number;
+  cost_usd: number;
+  latency_ms?: number | null;
+  idempotency_key?: string | null;
+  correlation_id: string;
+  wait_reason?: string | null;
+  compensation?: Record<string, unknown> | null;
+  trace_id?: string;
+  span_id?: string;
+  citations?: unknown[];
+  tool_call?: Record<string, unknown> | null;
+  claimed_by?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+}
+
+export interface RuntimeOutboxEvent {
+  id: string;
+  event_type: string;
+  dedupe_key: string;
+  status: string;
+  attempts: number;
+  correlation_id: string;
+  created_at: string;
+  delivered_at?: string | null;
+}
+
+export interface RuntimeExecutionEvent {
+  id: string;
+  type: string;
+  step_id?: string | null;
+  correlation_id: string;
+  payload: Record<string, unknown>;
+  occurred_at: string;
+}
+
+export interface RuntimeExecution {
+  id: string;
+  workspace_id: string;
+  workflow_id: string;
+  workflow_version_id: string;
+  workflow_version_hash: string;
+  idempotency_key: string;
+  correlation_id: string;
+  status: ExecutionStatus;
+  input: Record<string, unknown>;
+  output?: Record<string, unknown> | null;
+  error?: Record<string, unknown> | null;
+  retry_count: number;
+  max_retries: number;
+  dry_run: boolean;
+  replay_of_id?: string | null;
+  created_by: string;
+  queued_at?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  next_attempt_at?: string | null;
+  steps: RuntimeExecutionStep[];
+  outbox: RuntimeOutboxEvent[];
+  external_write_count: number;
+  events: RuntimeExecutionEvent[];
+  trace?: {
+    trace_id: string;
+    span_id: string;
+    correlation_id: string;
+    observability?: Record<string, unknown>;
+  };
+  redaction?: {
+    applied: boolean;
+    policy_version: string;
+  };
+}
+
+export interface RuntimeObservability {
+  status: string;
+  trace: { provider: string; configured: boolean };
+  langfuse: { configured: boolean; host_configured: boolean };
+  error_reporting: { provider: string; configured: boolean };
+  redaction: { status: string; policy_version: string; pii_and_secret_fields_hidden: boolean };
+  runtime_worker?: {
+    status: string;
+    worker_id?: string | null;
+    last_seen_at?: string | null;
+    processed_count: number;
+    last_error?: string | null;
+  };
+  queue?: { queued_or_running: number; failed_or_dead_letter: number };
+  degraded_signals: string[];
+}
+
+export interface RuntimeExecutionResponse {
+  execution: RuntimeExecution;
+  created?: boolean;
+  idempotent?: boolean;
+  side_effects?: boolean;
+  replay_of_id?: string;
+  replay_workflow_version_id?: string;
+  advanced_steps?: string[];
+  retried_step_id?: string;
+  resumed_step_id?: string;
+}
+
+export interface RuntimeExecutionListResponse {
+  items: Array<{
+    id: string;
+    workflow_id: string;
+    workflow_version_id: string;
+    workflow_version_hash: string;
+    status: ExecutionStatus;
+    correlation_id: string;
+    idempotency_key: string;
+    dry_run: boolean;
+    created_at: string;
+    completed_at?: string | null;
+  }>;
+}
+
+export type ValueEventKind = "unit_processed" | "touch_avoided" | "time_saved" | "error_prevented" | "cycle_time_reduced" | "human_touch_cost" | "model_cost" | "infra_cost" | "rework" | string;
+
+export interface ValueEventRecord {
+  id: string;
+  event_key: string;
+  workspace_id: string;
+  execution_id?: string | null;
+  workflow_version_id?: string | null;
+  workflow_version_hash?: string | null;
+  baseline_id?: string | null;
+  baseline_hash?: string | null;
+  review_task_id?: string | null;
+  source_artifact_type: string;
+  source_artifact_id: string;
+  audit_event_id?: string | null;
+  kind: ValueEventKind;
+  quantity: number;
+  unit: string;
+  dollar_value: number;
+  method: string;
+  confidence: string;
+  formula_version: string;
+  metadata: Record<string, unknown>;
+  computed_at: string;
+  created_at: string;
+  links: Record<string, string>;
+}
+
+export interface ValueRollup {
+  formula_version: string;
+  period: { start?: string | null; end?: string | null };
+  baseline: { id?: string | null; hash?: string | null; metrics: Record<string, number> };
+  volume: {
+    ingested: number;
+    auto: number;
+    reviewed: number;
+    halted: number;
+    straight_through_rate_pct: number;
+    review_rate_pct: number;
+    measured_error_rate_pct?: number | null;
+  };
+  reconciliation: { ingested: number; auto: number; reviewed: number; halted: number; delta: number; reconciles: boolean; orphan_events: number };
+  value: {
+    hours_saved: number;
+    gross_benefits_usd: number;
+    costs_usd: number;
+    net_dollars_usd: number;
+    cost_per_completed_unit_usd?: number | null;
+    implementation_cost_usd: number;
+    roi_pct?: number | null;
+    payback_days?: number | null;
+    payback_date?: string | null;
+  };
+  cycle_time: { average_measured_hours?: number | null; baseline_hours?: number | null; reduction_hours: number };
+  adoption: Array<{ actor_id: string; department: string; units: number }>;
+  event_count: number;
+  drilldown: Record<string, string>;
+}
+
+export interface GovernanceSummary {
+  policy_version: string;
+  artifact_count: number;
+  pii_detected_count: number;
+  source_deleted_count: number;
+  active_legal_hold_count: number;
+  active_retention_policy_count: number;
+  open_incident_count: number;
+  model_count: number;
+  audit_log_count: number;
+  data_access_log_count: number;
+  credential_access_log_count: number;
+  last_retention_run: RetentionRunRecord | null;
+  controls: Record<string, boolean>;
+}
+
+export interface GovernanceArtifactRecord {
+  id: string;
+  artifact_type: string;
+  artifact_id: string;
+  storage_ref?: string | null;
+  sha256?: string | null;
+  mime_type?: string | null;
+  pii_status: string;
+  pii_flags: string[];
+  classification: string;
+  retention_until?: string | null;
+  source_deleted_at?: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RetentionPolicyRecord {
+  id: string;
+  artifact_type: string;
+  retention_days: number;
+  action: string;
+  version: number;
+  active: boolean;
+  created_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface RetentionRunRecord {
+  id: string;
+  as_of: string;
+  dry_run: boolean;
+  scanned_count: number;
+  eligible_count: number;
+  held_count: number;
+  deleted_count: number;
+  report: Record<string, unknown>;
+  actor_id: string;
+  created_at: string;
+}
+
+export interface LegalHoldRecord {
+  id: string;
+  artifact_type: string;
+  artifact_id: string;
+  reason: string;
+  status: string;
+  placed_by: string;
+  placed_at: string;
+  released_by?: string | null;
+  released_at?: string | null;
+}
+
+export interface GovernanceIncidentRecord {
+  id: string;
+  workflow_id?: string | null;
+  execution_id?: string | null;
+  severity: string;
+  status: string;
+  summary: string;
+  root_cause?: string | null;
+  customer_notification_status: string;
+  detected_at: string;
+  resolved_at?: string | null;
+  postmortem_link?: string | null;
+  timeline: Array<Record<string, unknown>>;
+  created_by: string;
+  updated_by: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ModelChangeRecord {
+  id: string;
+  model_config_id: string;
+  key: string;
+  version: number;
+  provider: string;
+  model_id: string;
+  prompt_key?: string | null;
+  prompt_version?: number | null;
+  change_type: string;
+  change_summary?: string | null;
+  training_policy: string;
+  opt_in_reference?: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface GovernanceModelRecord {
+  id: string;
+  key: string;
+  version: number;
+  provider: string;
+  model_id: string;
+  params: Record<string, unknown>;
+  training_policy: string;
+  opt_in_reference?: string | null;
+  created_by: string;
+  created_at: string;
+}
+
+export interface AuditPackRecord {
+  id: string;
+  schema_version: string;
+  redaction_policy_version: string;
+  sha256: string;
+  generated_by: string;
+  generated_at: string;
+  payload?: Record<string, unknown>;
+}
+
+export interface ValueEventsResponse {
+  items: ValueEventRecord[];
+  count: number;
+  limit: number;
+}
+
+export interface ValueDrilldownResponse {
+  metric: string;
+  items: ValueEventRecord[];
+  count: number;
+}

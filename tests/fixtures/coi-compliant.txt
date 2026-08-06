@@ -1,0 +1,7 @@
+Certificate of Insurance - MVP fixture
+Named Insured: Acme Mechanical LLC
+Certificate Holder: Northwind Construction LLC
+GL Occurrence Limit: $2,000,000
+Policy Expiry: 2099-12-31
+Additional Insured: Yes
+Waiver of Subrogation: Yes
